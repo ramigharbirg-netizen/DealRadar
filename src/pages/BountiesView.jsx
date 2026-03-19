@@ -29,7 +29,7 @@ export const BountiesView = () => {
 
   useEffect(() => {
     loadBounties();
-  }, [location, radius, category]);
+  }, [location, radius, category, loadBounties]);
 
   useEffect(() => {
     if (user && activeTab === 'my-bounties') {

@@ -21,7 +21,7 @@ export const FeedView = () => {
 
   useEffect(() => {
     loadOpportunities();
-  }, [location, radius, category, sortBy]);
+  }, [location, radius, category, sortBy, loadOpportunities]);
 
   const loadOpportunities = async () => {
     setLoading(true);

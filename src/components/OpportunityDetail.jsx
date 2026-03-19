@@ -66,7 +66,7 @@ export const OpportunityDetail = ({ opportunity, open, onClose }) => {
       loadComments();
       checkFavorite();
     }
-  }, [opportunity?.id, open]);
+  }, [opportunity?.id, open, loadComments, checkFavorite]);
 
   const loadComments = async () => {
     try {

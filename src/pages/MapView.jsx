@@ -157,11 +157,13 @@ export const MapView = () => {
 
   useEffect(() => {
     seedAndLoad();
+    // eslint-disable-next-line
   }, []);
 
   useEffect(() => {
     loadOpportunities();
     loadBounties();
+    // eslint-disable-next-line
   }, [location, radius, category, sortBy]);
 
   const seedAndLoad = async () => {
