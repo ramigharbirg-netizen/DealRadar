@@ -62,12 +62,6 @@ export const OpportunityDetail = ({ opportunity, open, onClose }) => {
     : null;
 
   useEffect(() => {
-    if (opportunity?.id && open) {
-      loadComments();
-      checkFavorite();
-    }
-  }, [opportunity?.id, open, loadComments, checkFavorite]);
-
   const loadComments = async () => {
     try {
       const res = await commentsAPI.get(opportunity.id);
@@ -86,6 +80,12 @@ export const OpportunityDetail = ({ opportunity, open, onClose }) => {
       console.error('Error checking favorite:', err);
     }
   };
+
+  if (opportunity?.id && open) {
+    loadComments();
+    checkFavorite();
+  }
+}, [opportunity?.id, open, user]);
 
   const handleTrust = async (action) => {
     if (!user) {
