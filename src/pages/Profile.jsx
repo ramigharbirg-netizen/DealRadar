@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   User, LogOut, MapPin, Plus, ChevronRight, Award, Calendar,
@@ -64,14 +64,18 @@ export const Profile = () => {
   const [notificationCategories, setNotificationCategories] = useState([]);
   const [notificationRadius, setNotificationRadius] = useState(20);
 
-  useEffect(() => {
-    if (user) {
-      loadUserData();
-      loadLeaderboard();
-    } else {
-      setLoading(false);
-    }
-  }, [user]);
+  const loadProfileDataMemo = useCallback(() => {
+  if (user) {
+    loadUserData();
+    loadLeaderboard();
+  } else {
+    setLoading(false);
+  }
+}, [user, loadUserData, loadLeaderboard]);
+
+useEffect(() => {
+  loadProfileDataMemo();
+}, [loadProfileDataMemo]);
 
   const loadUserData = async () => {
     try {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Target, MapPin, Euro, Clock, Users, Navigation, 
   ChevronLeft, Share2, Send, CheckCircle, XCircle, User
@@ -57,14 +57,18 @@ export const BountyDetail = ({ bounty, open, onClose }) => {
   const category = categoryConfig[bounty?.category] || categoryConfig.user_reported;
   const isCreator = user && bounty?.creator_id === user.id;
 
-  useEffect(() => {
-    if (bounty?.id && open && user) {
-      loadMyOpportunities();
-      if (isCreator) {
-        loadSubmissions();
-      }
+  const loadBountyData = useCallback(() => {
+  if (bounty?.id && open && user) {
+    loadMyOpportunities();
+    if (isCreator) {
+      loadSubmissions();
     }
-  }, [bounty?.id, open, user, isCreator]);
+  }
+}, [bounty?.id, open, user, isCreator, loadMyOpportunities, loadSubmissions, isCreator]);
+
+useEffect(() => {
+  loadBountyData();
+}, [loadBountyData]);
 
   const loadMyOpportunities = async () => {
     try {

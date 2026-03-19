@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Target, Plus, RefreshCw, Search } from 'lucide-react';
 import { Button } from '../components/ui/button';
@@ -27,17 +27,21 @@ export const BountiesView = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('explore');
 
-  useEffect(() => {
-    loadBounties();
-  }, [location, radius, category, loadBounties]);
+ const loadBountiesMemo = useCallback(() => {
+  loadBounties();
+}, [loadBounties, location, radius, category]);
 
-  useEffect(() => {
-    if (user && activeTab === 'my-bounties') {
-      loadMyBounties();
-    } else if (user && activeTab === 'my-submissions') {
-      loadMySubmissions();
-    }
-  }, [user, activeTab]);
+const loadUserDataMemo = useCallback(() => {
+  if (user && activeTab === 'my-bounties') {
+    loadMyBounties();
+  } else if (user && activeTab === 'my-submissions') {
+    loadMySubmissions();
+  }
+}, [user, activeTab, loadMyBounties, loadMySubmissions]);
+
+useEffect(() => {
+  loadUserDataMemo();
+}, [loadUserDataMemo]);
 
   const loadBounties = async () => {
     setLoading(true);

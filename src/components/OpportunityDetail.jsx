@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   MapPin, Phone, Mail, ExternalLink, TrendingUp, Clock, 
   CheckCircle, AlertTriangle, Heart, MessageCircle, Send,

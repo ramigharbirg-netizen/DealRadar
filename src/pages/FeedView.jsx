@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Clock, TrendingUp, RefreshCw, Sparkles } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
@@ -19,9 +19,13 @@ export const FeedView = () => {
   const [category, setCategory] = useState('all');
   const [sortBy, setSortBy] = useState('newest');
 
-  useEffect(() => {
-    loadOpportunities();
-  }, [location, radius, category, sortBy, loadOpportunities]);
+  const loadOpportunitiesMemo = useCallback(() => {
+  loadOpportunities();
+}, [loadOpportunities, location, radius, category, sortBy]);
+
+useEffect(() => {
+  loadOpportunitiesMemo();
+}, [loadOpportunitiesMemo]);
 
   const loadOpportunities = async () => {
     setLoading(true);
