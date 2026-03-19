@@ -64,7 +64,7 @@ export const BountyDetail = ({ bounty, open, onClose }) => {
       loadSubmissions();
     }
   }
-}, [bounty?.id, open, user, isCreator, loadMyOpportunities, loadSubmissions, isCreator]);
+}, [bounty?.id, open, user, isCreator, loadMyOpportunities, loadSubmissions]);
 
 useEffect(() => {
   loadBountyData();
