@@ -71,11 +71,11 @@ export const SubmitOpportunity = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!user) {
-      toast.error('Please login to submit opportunities');
-      navigate('/login');
-      return;
-    }
+    const demoUser = {
+  id: null,
+  name: 'Manual User',
+  email: 'manual@dealradar.app',
+};
 
     if (!formData.title || !formData.description || !formData.category) {
       toast.error('Please fill in all required fields');
@@ -114,8 +114,8 @@ export const SubmitOpportunity = () => {
         is_high_value: isHighValue,
         confirmations: 0,
         reports: 0,
-        user_name: user?.name || user?.email || 'Anonymous',
-        user_id: user?.id || null,
+        user_name: (user?.name || user?.email || demoUser.name),
+user_id: user?.id || demoUser.id,
       };
 
       const { error } = await supabase
@@ -156,29 +156,7 @@ export const SubmitOpportunity = () => {
     }
   };
 
-  if (!user) {
-    return (
-      <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6">
-        <div className="text-center max-w-sm">
-          <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Plus className="w-8 h-8 text-primary" />
-          </div>
-          <h2 className="text-xl font-bold text-gray-900 mb-2">Login Required</h2>
-          <p className="text-gray-500 mb-6">
-            You need to be logged in to submit opportunities
-          </p>
-          <Button
-            onClick={() => navigate('/login')}
-            className="w-full bg-primary rounded-xl h-12"
-            data-testid="login-redirect-btn"
-          >
-            Login to Continue
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
+  
   return (
     <div className="min-h-screen bg-background pb-20" data-testid="submit-opportunity-page">
       <div className="sticky top-0 z-20 bg-white border-b border-gray-100">
