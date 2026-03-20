@@ -74,8 +74,13 @@ export const Profile = () => {
 }, [user]);
 
 useEffect(() => {
-  loadProfileDataMemo();
-}, [loadProfileDataMemo]);
+  if (user) {
+    loadUserData();
+    loadLeaderboard();
+  } else {
+    setLoading(false);
+  }
+}, [user]);
 
   const loadUserData = async () => {
     try {
