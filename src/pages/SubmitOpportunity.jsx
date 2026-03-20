@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  Camera, MapPin, DollarSign, Phone, Mail, Link, 
+import {
+  Camera, MapPin, DollarSign, Phone, Mail, Link,
   X, Plus, Loader2, ArrowLeft, Check
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
@@ -11,7 +11,7 @@ import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { useAuth } from '../contexts/AuthContext';
 import { useLocation } from '../contexts/LocationContext';
-import { opportunitiesAPI } from '../lib/api';
+import { supabase } from '../lib/supabase';
 import { toast } from 'sonner';
 
 const categories = [
@@ -19,9 +19,8 @@ const categories = [
   { id: 'product_stock', name: 'Product Stock' },
   { id: 'equipment', name: 'Equipment & Machinery' },
   { id: 'business_sale', name: 'Business for Sale' },
-  { id: 'real_estate', name: 'Real Estate Deal' },
   { id: 'auctions', name: 'Auctions & Bankruptcies' },
-  { id: 'misc', name: 'Miscellaneous' },
+  { id: 'user_reported', name: 'User Reported' },
 ];
 
 export const SubmitOpportunity = () => {
@@ -34,8 +33,8 @@ export const SubmitOpportunity = () => {
     title: '',
     description: '',
     category: '',
-    latitude: location.lat,
-    longitude: location.lng,
+    latitude: location?.lat || 0,
+    longitude: location?.lng || 0,
     address: '',
     estimated_price: '',
     estimated_resale_value: '',
@@ -43,34 +42,35 @@ export const SubmitOpportunity = () => {
     contact_email: '',
     contact_link: '',
   });
+
   const [images, setImages] = useState([]);
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState(1);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleImageUpload = (e) => {
-    const files = Array.from(e.target.files);
-    
-    files.forEach(file => {
+    const files = Array.from(e.target.files || []);
+
+    files.forEach((file) => {
       const reader = new FileReader();
-      reader.onload = (e) => {
-        setImages(prev => [...prev, e.target.result]);
+      reader.onload = (event) => {
+        setImages((prev) => [...prev, event.target.result]);
       };
       reader.readAsDataURL(file);
     });
   };
 
   const removeImage = (index) => {
-    setImages(prev => prev.filter((_, i) => i !== index));
+    setImages((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (!user) {
       toast.error('Please login to submit opportunities');
       navigate('/login');
@@ -83,19 +83,54 @@ export const SubmitOpportunity = () => {
     }
 
     setLoading(true);
+
     try {
-      const data = {
-        ...formData,
-        estimated_price: formData.estimated_price ? Number(formData.estimated_price) : null,
-        estimated_resale_value: formData.estimated_resale_value ? Number(formData.estimated_resale_value) : null,
-        images,
+      const estimatedPrice = formData.estimated_price
+        ? Number(formData.estimated_price)
+        : null;
+
+      const estimatedResaleValue = formData.estimated_resale_value
+        ? Number(formData.estimated_resale_value)
+        : null;
+
+      const isHighValue =
+        estimatedPrice !== null &&
+        estimatedResaleValue !== null &&
+        estimatedResaleValue - estimatedPrice >= 10000;
+
+      const payload = {
+        title: formData.title,
+        description: formData.description,
+        category: formData.category,
+        latitude: formData.latitude ? Number(formData.latitude) : null,
+        longitude: formData.longitude ? Number(formData.longitude) : null,
+        address: formData.address || null,
+        estimated_price: estimatedPrice,
+        estimated_resale_value: estimatedResaleValue,
+        contact_phone: formData.contact_phone || null,
+        contact_email: formData.contact_email || null,
+        contact_link: formData.contact_link || null,
+        images: images.length > 0 ? images : [],
+        is_high_value: isHighValue,
+        confirmations: 0,
+        reports: 0,
+        user_name: user?.name || user?.email || 'Anonymous',
+        user_id: user?.id || null,
       };
-      
-      await opportunitiesAPI.create(data);
+
+      const { error } = await supabase
+        .from('opportunities')
+        .insert([payload]);
+
+      if (error) {
+        throw error;
+      }
+
       toast.success('Opportunity submitted successfully!');
-      navigate('/');
+      navigate('/feed');
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'Failed to submit opportunity');
+      console.error('Submit opportunity error:', err);
+      toast.error(err.message || 'Failed to submit opportunity');
     } finally {
       setLoading(false);
     }
@@ -105,15 +140,19 @@ export const SubmitOpportunity = () => {
     if ('geolocation' in navigator) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
-          setFormData(prev => ({
+          setFormData((prev) => ({
             ...prev,
             latitude: position.coords.latitude,
             longitude: position.coords.longitude,
           }));
           toast.success('Location updated');
         },
-        () => toast.error('Could not get your location')
+        () => {
+          toast.error('Could not get your location');
+        }
       );
+    } else {
+      toast.error('Geolocation not supported');
     }
   };
 
@@ -128,8 +167,8 @@ export const SubmitOpportunity = () => {
           <p className="text-gray-500 mb-6">
             You need to be logged in to submit opportunities
           </p>
-          <Button 
-            onClick={() => navigate('/login')} 
+          <Button
+            onClick={() => navigate('/login')}
             className="w-full bg-primary rounded-xl h-12"
             data-testid="login-redirect-btn"
           >
@@ -142,7 +181,6 @@ export const SubmitOpportunity = () => {
 
   return (
     <div className="min-h-screen bg-background pb-20" data-testid="submit-opportunity-page">
-      {/* Header */}
       <div className="sticky top-0 z-20 bg-white border-b border-gray-100">
         <div className="flex items-center justify-between px-4 py-4">
           <div className="flex items-center gap-3">
@@ -161,20 +199,18 @@ export const SubmitOpportunity = () => {
             Step {step}/2
           </div>
         </div>
-        
-        {/* Progress */}
+
         <div className="h-1 bg-gray-100">
-          <div 
+          <div
             className="h-full bg-primary transition-all duration-300"
             style={{ width: `${step * 50}%` }}
-          ></div>
+          />
         </div>
       </div>
 
       <form onSubmit={handleSubmit} className="p-4 space-y-6">
         {step === 1 && (
           <>
-            {/* Images */}
             <div>
               <Label className="mb-2 block">Photos</Label>
               <div className="flex gap-3 overflow-x-auto pb-2">
@@ -194,6 +230,7 @@ export const SubmitOpportunity = () => {
                     </button>
                   </div>
                 ))}
+
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
@@ -203,6 +240,7 @@ export const SubmitOpportunity = () => {
                   <Camera className="w-6 h-6 mb-1" />
                   <span className="text-xs">Add Photo</span>
                 </button>
+
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -214,7 +252,6 @@ export const SubmitOpportunity = () => {
               </div>
             </div>
 
-            {/* Title */}
             <div>
               <Label htmlFor="title">Title *</Label>
               <Input
@@ -229,7 +266,6 @@ export const SubmitOpportunity = () => {
               />
             </div>
 
-            {/* Description */}
             <div>
               <Label htmlFor="description">Description *</Label>
               <Textarea
@@ -244,12 +280,13 @@ export const SubmitOpportunity = () => {
               />
             </div>
 
-            {/* Category */}
             <div>
               <Label>Category *</Label>
               <Select
                 value={formData.category}
-                onValueChange={(value) => setFormData(prev => ({ ...prev, category: value }))}
+                onValueChange={(value) =>
+                  setFormData((prev) => ({ ...prev, category: value }))
+                }
               >
                 <SelectTrigger className="mt-1.5 h-12 rounded-xl" data-testid="category-select">
                   <SelectValue placeholder="Select category" />
@@ -278,7 +315,6 @@ export const SubmitOpportunity = () => {
 
         {step === 2 && (
           <>
-            {/* Location */}
             <div>
               <Label>Location</Label>
               <div className="mt-1.5 space-y-2">
@@ -303,7 +339,6 @@ export const SubmitOpportunity = () => {
               </div>
             </div>
 
-            {/* Pricing */}
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="estimated_price">
@@ -339,7 +374,6 @@ export const SubmitOpportunity = () => {
               </div>
             </div>
 
-            {/* Contact Info */}
             <div className="space-y-4">
               <Label>Contact Information</Label>
               <div className="relative">
