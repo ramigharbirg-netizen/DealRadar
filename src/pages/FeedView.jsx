@@ -3,7 +3,7 @@ import { Clock, TrendingUp, RefreshCw, Sparkles } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { useLocation } from '../contexts/LocationContext';
-import { opportunitiesAPI } from '../lib/api';
+import { supabase } from '../lib/supabase';
 import { OpportunityCard } from '../components/OpportunityCard';
 import { OpportunityDetail } from '../components/OpportunityDetail';
 import { CategoryFilter } from '../components/CategoryFilter';
@@ -24,23 +24,40 @@ export const FeedView = () => {
 }, [location, radius, category, sortBy]);
 
   const loadOpportunities = async () => {
-    setLoading(true);
-    try {
-      const params = {
-        lat: location.lat,
-        lon: location.lng,
-        radius,
-        category: category !== 'all' ? category : undefined,
-        sort: sortBy,
-      };
-      const res = await opportunitiesAPI.getAll(params);
-      setOpportunities(res.data);
-    } catch (err) {
-      toast.error('Failed to load opportunities');
-    } finally {
-      setLoading(false);
+  setLoading(true);
+
+  try {
+    let query = supabase
+      .from('opportunities')
+      .select('*');
+
+    if (category !== 'all') {
+      query = query.eq('category', category);
     }
-  };
+
+    if (sortBy === 'newest') {
+      query = query.order('created_at', { ascending: false });
+    } else if (sortBy === 'profit') {
+      query = query.order('estimated_resale_value', { ascending: false });
+    } else {
+      query = query.order('created_at', { ascending: false });
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      throw error;
+    }
+
+    setOpportunities(data || []);
+  } catch (err) {
+    console.error('Supabase load opportunities error:', err);
+    toast.error('Failed to load opportunities');
+    setOpportunities([]);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handleRefresh = async () => {
     setRefreshing(true);
