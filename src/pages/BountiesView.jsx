@@ -27,21 +27,19 @@ export const BountiesView = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('explore');
 
- const loadBountiesMemo = useCallback(() => {
+useEffect(() => {
   loadBounties();
-}, [loadBounties, location, radius, category]);
-
-const loadUserDataMemo = useCallback(() => {
-  if (user && activeTab === 'my-bounties') {
-    loadMyBounties();
-  } else if (user && activeTab === 'my-submissions') {
-    loadMySubmissions();
-  }
-}, [user, activeTab, loadMyBounties, loadMySubmissions]);
+}, [location, radius, category]);
 
 useEffect(() => {
-  loadUserDataMemo();
-}, [loadUserDataMemo]);
+  if (user && activeTab === 'my-bounties') {
+    loadMyBounties();
+  }
+
+  if (user && activeTab === 'my-submissions') {
+    loadMySubmissions();
+  }
+}, [user, activeTab]);
 
   const loadBounties = async () => {
     setLoading(true);

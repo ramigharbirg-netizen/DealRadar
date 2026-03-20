@@ -64,14 +64,14 @@ export const Profile = () => {
   const [notificationCategories, setNotificationCategories] = useState([]);
   const [notificationRadius, setNotificationRadius] = useState(20);
 
-  const loadProfileDataMemo = useCallback(() => {
+  useEffect(() => {
   if (user) {
     loadUserData();
     loadLeaderboard();
   } else {
     setLoading(false);
   }
-}, [user, loadUserData, loadLeaderboard]);
+}, [user]);
 
 useEffect(() => {
   loadProfileDataMemo();
