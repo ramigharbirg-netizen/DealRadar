@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Target, MapPin, Euro, Clock, Users, Navigation, 
   ChevronLeft, Share2, Send, CheckCircle, XCircle, User
@@ -57,18 +57,7 @@ export const BountyDetail = ({ bounty, open, onClose }) => {
   const category = categoryConfig[bounty?.category] || categoryConfig.user_reported;
   const isCreator = user && bounty?.creator_id === user.id;
 
-  const loadBountyData = useCallback(() => {
-  if (bounty?.id && open && user) {
-    loadMyOpportunities();
-    if (isCreator) {
-      loadSubmissions();
-    }
-  }
-}, [bounty?.id, open, user, isCreator, loadMyOpportunities, loadSubmissions]);
-
-useEffect(() => {
-  loadBountyData();
-}, [loadBountyData]);
+  
 
   const loadMyOpportunities = async () => {
     try {
@@ -93,7 +82,15 @@ useEffect(() => {
       setLoadingSubmissions(false);
     }
   };
+useEffect(() => {
+  if (bounty?.id && open && user) {
+    loadMyOpportunities();
 
+    if (user && bounty?.creator_id === user.id) {
+      loadSubmissions();
+    }
+  }
+}, [bounty, open, user]);
   const handleSubmit = async () => {
     if (!user) {
       toast.error('Please login to submit');
