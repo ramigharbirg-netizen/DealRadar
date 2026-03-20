@@ -19,9 +19,7 @@ export const FeedView = () => {
   const [category, setCategory] = useState('all');
   const [sortBy, setSortBy] = useState('newest');
 
-  useEffect(() => {
-  loadOpportunities();
-}, [location, radius, category, sortBy]);
+ 
 
   const loadOpportunities = async () => {
   setLoading(true);
@@ -58,6 +56,9 @@ export const FeedView = () => {
     setLoading(false);
   }
 };
+ useEffect(() => {
+  loadOpportunities();
+}, [location, radius, category, sortBy]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
