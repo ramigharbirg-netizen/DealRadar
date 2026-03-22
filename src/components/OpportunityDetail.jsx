@@ -308,7 +308,7 @@ export const OpportunityDetail = ({ opportunity, open, onClose }) => {
     </div>
   )}
               <p className="text-gray-600 leading-relaxed">{opportunity.description}</p>
-            </div>
+              
 
             {/* Trust System */}
             <div>
