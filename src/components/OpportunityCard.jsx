@@ -135,11 +135,19 @@ export const OpportunityCard = ({ opportunity, onClick, compact = false }) => {
 
           <div className="grid grid-cols-3 gap-2 mb-2">
             <div>
-              <p className="text-[10px] text-gray-500">Price</p>
-              <p className="text-sm font-bold text-gray-900">
-                {formatPrice(opportunity.estimated_price) || 'Contact'}
-              </p>
-            </div>
+              <div>
+  <p className="text-[10px] text-gray-500">Price</p>
+
+  {opportunity.estimated_price === 0 ? (
+    <span className="inline-block bg-green-500 text-white text-xs font-bold px-2 py-0.5 rounded-md">
+      FREE
+    </span>
+  ) : (
+    <p className="text-sm font-bold text-gray-900">
+      {formatPrice(opportunity.estimated_price) || 'Contact'}
+    </p>
+  )}
+</div>
 
             <div>
               <p className="text-[10px] text-gray-500">Resale</p>

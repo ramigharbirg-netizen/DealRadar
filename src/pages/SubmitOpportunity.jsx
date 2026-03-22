@@ -21,6 +21,7 @@ const categories = [
   { id: 'business_sale', name: 'Business for Sale' },
   { id: 'auctions', name: 'Auctions & Bankruptcies' },
   { id: 'user_reported', name: 'User Reported' },
+  { id: 'free_deals', name: 'Free Deals' }
 ];
 
 export const SubmitOpportunity = () => {
