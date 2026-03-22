@@ -11,7 +11,8 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '../c
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { useLocation } from '../contexts/LocationContext';
 import { useAuth } from '../contexts/AuthContext';
-import { opportunitiesAPI, seedAPI, bountiesAPI } from '../lib/api';
+import { bountiesAPI } from '../lib/api';
+import { supabase } from '../lib/supabase';
 import { OpportunityCard } from '../components/OpportunityCard';
 import { OpportunityDetail } from '../components/OpportunityDetail';
 import { CategoryFilter } from '../components/CategoryFilter';
@@ -156,9 +157,10 @@ export const MapView = () => {
   }, [permissionState, locationLoading]);
 
   useEffect(() => {
-    seedAndLoad();
-    // eslint-disable-next-line
-  }, []);
+  loadOpportunities();
+  loadBounties();
+  // eslint-disable-next-line
+}, []);
 
   useEffect(() => {
     loadOpportunities();
@@ -166,34 +168,51 @@ export const MapView = () => {
     // eslint-disable-next-line
   }, [location, radius, category, sortBy]);
 
-  const seedAndLoad = async () => {
-    try {
-      await seedAPI.seed();
-    } catch (err) {
-      // Already seeded, ignore
-    }
-    loadOpportunities();
-    loadBounties();
-  };
+  
 
   const loadOpportunities = async () => {
-    setLoading(true);
-    try {
-      const params = {
-        lat: location.lat,
-        lon: location.lng,
-        radius,
-        category: category !== 'all' ? category : undefined,
-        sort: sortBy,
-      };
-      const res = await opportunitiesAPI.getAll(params);
-      setOpportunities(res.data);
-    } catch (err) {
-      toast.error('Failed to load opportunities');
-    } finally {
-      setLoading(false);
+  setLoading(true);
+
+  try {
+    let query = supabase
+      .from('opportunities')
+      .select('*');
+
+    if (category !== 'all') {
+      query = query.eq('category', category);
     }
-  };
+
+    if (sortBy === 'newest') {
+      query = query.order('created_at', { ascending: false });
+    } else if (sortBy === 'profit') {
+      query = query.order('estimated_resale_value', { ascending: false });
+    } else {
+      query = query.order('created_at', { ascending: false });
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      throw error;
+    }
+
+    const validOpportunities = (data || []).filter(
+      (opp) =>
+        opp.latitude !== null &&
+        opp.latitude !== undefined &&
+        opp.longitude !== null &&
+        opp.longitude !== undefined
+    );
+
+    setOpportunities(validOpportunities);
+  } catch (err) {
+    console.error('Supabase load opportunities error:', err);
+    toast.error('Failed to load opportunities');
+    setOpportunities([]);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const loadBounties = async () => {
     try {
