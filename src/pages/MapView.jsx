@@ -146,6 +146,7 @@ export const MapView = () => {
   const [listOpen, setListOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showLocationModal, setShowLocationModal] = useState(false);
+  const [legendOpen, setLegendOpen] = useState(false);
   const mapRef = useRef(null);
 
   // Show location permission modal on first visit if not granted
@@ -473,35 +474,57 @@ export const MapView = () => {
         </Sheet>
       </div>
 
-      {/* Map Legend */}
-      <div className="absolute left-4 bottom-24 z-10">
-        <div className="bg-white/95 backdrop-blur-md rounded-xl shadow-lg p-3">
-          <p className="text-xs font-semibold text-gray-700 mb-2">Legend</p>
-          <div className="space-y-1.5">
-            {Object.entries(categoryIcons).map(([key, val]) => (
-              <div key={key} className="flex items-center gap-2">
-                <div 
-                  className="w-4 h-4 rounded-full flex items-center justify-center"
-                  style={{ backgroundColor: val.color }}
-                >
-                  <val.icon className="w-2.5 h-2.5 text-white" />
-                </div>
-                <span className="text-xs text-gray-600">{val.name}</span>
-              </div>
-            ))}
-            {/* Bounty marker legend */}
-            <div className="flex items-center gap-2 pt-1 border-t border-gray-200 mt-1">
-              <div 
-                className="w-4 h-4 rounded-full flex items-center justify-center"
-                style={{ background: 'linear-gradient(135deg, #F59E0B 0%, #EA580C 100%)' }}
-              >
-                <Target className="w-2.5 h-2.5 text-white" />
-              </div>
-              <span className="text-xs text-amber-600 font-medium">Bounty</span>
+      {/* Compact Map Legend */}
+<div className="absolute left-4 bottom-24 z-10">
+  {!legendOpen ? (
+    <Button
+      size="sm"
+      variant="secondary"
+      className="rounded-full bg-white/95 backdrop-blur-md shadow-lg px-4 h-10"
+      onClick={() => setLegendOpen(true)}
+      data-testid="open-legend-btn"
+    >
+      Legend
+    </Button>
+  ) : (
+    <div className="bg-white/95 backdrop-blur-md rounded-xl shadow-lg p-3 w-48">
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-xs font-semibold text-gray-700">Legend</p>
+        <button
+          type="button"
+          onClick={() => setLegendOpen(false)}
+          className="text-xs text-gray-500 hover:text-gray-700"
+        >
+          Close
+        </button>
+      </div>
+
+      <div className="space-y-1.5">
+        {Object.entries(categoryIcons).map(([key, val]) => (
+          <div key={key} className="flex items-center gap-2">
+            <div
+              className="w-4 h-4 rounded-full flex items-center justify-center"
+              style={{ backgroundColor: val.color }}
+            >
+              <val.icon className="w-2.5 h-2.5 text-white" />
             </div>
+            <span className="text-xs text-gray-600">{val.name}</span>
           </div>
+        ))}
+
+        <div className="flex items-center gap-2 pt-1 border-t border-gray-200 mt-1">
+          <div
+            className="w-4 h-4 rounded-full flex items-center justify-center"
+            style={{ background: 'linear-gradient(135deg, #F59E0B 0%, #EA580C 100%)' }}
+          >
+            <Target className="w-2.5 h-2.5 text-white" />
+          </div>
+          <span className="text-xs text-amber-600 font-medium">Bounty</span>
         </div>
       </div>
+    </div>
+  )}
+</div>
 
       {/* Bottom List Sheet */}
       <div className="absolute bottom-20 left-0 right-0 z-10">
