@@ -308,7 +308,7 @@ export const OpportunityDetail = ({ opportunity, open, onClose }) => {
     </div>
   )}
               <p className="text-gray-600 leading-relaxed">{opportunity.description}</p>
-              
+
 
             {/* Trust System */}
             <div>
@@ -384,6 +384,21 @@ export const OpportunityDetail = ({ opportunity, open, onClose }) => {
                 )}
               </div>
             </div>
+
+{/* FREE PICKUP REQUEST */}
+{opportunity.estimated_price === 0 && (
+  <div className="mt-4">
+    <Button
+      className="w-full h-12 bg-green-500 hover:bg-green-600 text-white font-semibold rounded-xl"
+      onClick={() => {
+        alert('Richiesta inviata! (prossimo step: chat)');
+      }}
+      data-testid="request-pickup-btn"
+    >
+      Richiedi ritiro
+    </Button>
+  </div>
+)}
 
             {/* Posted By */}
             <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
