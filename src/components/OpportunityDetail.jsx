@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   MapPin, Phone, Mail, ExternalLink, TrendingUp, Clock, 
   CheckCircle, AlertTriangle, Heart, MessageCircle, Send,
@@ -167,147 +167,146 @@ export const OpportunityDetail = ({ opportunity, open, onClose }) => {
     <Sheet open={open} onOpenChange={onClose}>
       <SheetContent 
         side="bottom" 
-        className="h-[90vh] p-0 rounded-t-3xl"
+        className="h-[82vh] p-0 rounded-t-3xl"
         data-testid="opportunity-detail-sheet"
       >
         <ScrollArea className="h-full">
-          {/* Header Image */}
-          <div className="relative">
-            {opportunity.images?.[0] ? (
-              <img
-                src={opportunity.images[0]}
-                alt={opportunity.title}
-                className="w-full h-56 object-cover"
-              />
-            ) : (
-              <div className="w-full h-56 bg-gray-100 flex items-center justify-center">
-                <div className={`w-20 h-20 rounded-full ${category.color} opacity-20`}></div>
-              </div>
-            )}
-            
-            {/* Top Actions */}
-            <div className="absolute top-4 left-4 right-4 flex justify-between">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-10 w-10 rounded-full bg-white/90 backdrop-blur-sm"
-                onClick={() => onClose(false)}
-                data-testid="close-detail-btn"
-              >
-                <ChevronLeft className="h-5 w-5" />
-              </Button>
-              <div className="flex gap-2">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-10 w-10 rounded-full bg-white/90 backdrop-blur-sm"
-                  onClick={handleShare}
-                  data-testid="share-btn"
-                >
-                  <Share2 className="h-5 w-5" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className={`h-10 w-10 rounded-full backdrop-blur-sm ${
-                    isFavorite ? 'bg-red-500 text-white' : 'bg-white/90'
-                  }`}
-                  onClick={handleFavorite}
-                  data-testid="favorite-btn"
-                >
-                  <Heart className={`h-5 w-5 ${isFavorite ? 'fill-current' : ''}`} />
-                </Button>
-              </div>
-            </div>
+          {/* Compact Header */}
+<div className="sticky top-0 z-10 bg-white border-b border-gray-100 px-4 py-3">
+  <div className="flex items-start justify-between gap-3 mb-3">
+    <Button
+      variant="ghost"
+      size="icon"
+      className="h-10 w-10 rounded-full bg-gray-100"
+      onClick={() => onClose(false)}
+      data-testid="close-detail-btn"
+    >
+      <ChevronLeft className="h-5 w-5" />
+    </Button>
 
-            {/* Category Badge */}
-            <div className="absolute bottom-4 left-4 flex gap-2">
-              <Badge className={`${category.color} text-white border-0`}>
-                {category.name}
-              </Badge>
-              {opportunity.is_high_value && (
-                <Badge className="bg-yellow-400 text-yellow-900 border-0">
-                  <Star className="w-3 h-3 mr-1" />
-                  High Value
-                </Badge>
-              )}
-            </div>
+    <div className="flex gap-2">
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-10 w-10 rounded-full bg-gray-100"
+        onClick={handleShare}
+        data-testid="share-btn"
+      >
+        <Share2 className="h-5 w-5" />
+      </Button>
+
+      <Button
+        variant="ghost"
+        size="icon"
+        className={`h-10 w-10 rounded-full ${
+          isFavorite ? 'bg-red-500 text-white' : 'bg-gray-100'
+        }`}
+        onClick={handleFavorite}
+        data-testid="favorite-btn"
+      >
+        <Heart className={`h-5 w-5 ${isFavorite ? 'fill-current' : ''}`} />
+      </Button>
+    </div>
+  </div>
+
+  <div className="space-y-3">
+    <div className="flex flex-wrap gap-2">
+      <Badge className={`${category.color} text-white border-0`}>
+        {category.name}
+      </Badge>
+      {opportunity.is_high_value && (
+        <Badge className="bg-yellow-400 text-yellow-900 border-0">
+          <Star className="w-3 h-3 mr-1" />
+          High Value
+        </Badge>
+      )}
+    </div>
+
+    <SheetHeader className="text-left p-0 space-y-2">
+      <SheetTitle className="text-lg font-bold text-gray-900 leading-tight">
+        {opportunity.title}
+      </SheetTitle>
+
+      <div className="flex flex-wrap items-center gap-3 text-sm text-gray-500">
+        {opportunity.address && (
+          <span className="flex items-center gap-1">
+            <MapPin className="w-4 h-4" />
+            {opportunity.address}
+          </span>
+        )}
+        <span className="flex items-center gap-1">
+          <Clock className="w-4 h-4" />
+          {formatDate(opportunity.created_at)}
+        </span>
+      </div>
+
+      {opportunity.distance_km !== undefined && (
+        <div className="flex items-center gap-2 bg-primary/10 rounded-xl px-3 py-2 w-fit">
+          <Navigation className="w-4 h-4 text-primary" />
+          <span className="text-sm font-bold text-primary">
+            {formatDistance(opportunity.distance_km)}
+          </span>
+        </div>
+      )}
+    </SheetHeader>
+  </div>
+</div>
+
+{/* Compact Content */}
+<div className="p-4 space-y-4">
+  {/* Price & Profit Box */}
+  <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl p-4 border border-gray-200">
+    <div className="grid grid-cols-2 gap-4 mb-3">
+      <div>
+        <p className="text-xs text-gray-500 mb-1 flex items-center gap-1">
+          <Euro className="w-3 h-3" />
+          Purchase Price
+        </p>
+        <p className="text-xl font-bold text-gray-900">
+          {formatPrice(opportunity.estimated_price) || 'Contact'}
+        </p>
+      </div>
+
+      {opportunity.estimated_resale_value && (
+        <div>
+          <p className="text-xs text-gray-500 mb-1 flex items-center gap-1">
+            <Euro className="w-3 h-3" />
+            Resale Value
+          </p>
+          <p className="text-xl font-bold text-blue-600">
+            {formatPrice(opportunity.estimated_resale_value)}
+          </p>
+        </div>
+      )}
+    </div>
+
+    {profit && profit > 0 && (
+      <div className="pt-3 border-t border-gray-200">
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-gray-600 font-medium">Estimated Profit</p>
+          <div className="flex items-center gap-2">
+            <TrendingUp className="w-5 h-5 text-green-500" />
+            <span className="text-xl font-bold text-green-600">
+              {formatPrice(profit)}
+            </span>
           </div>
+        </div>
+      </div>
+    )}
+  </div>
 
-          {/* Content */}
-          <div className="p-5 space-y-5">
-            <SheetHeader className="text-left p-0 space-y-2">
-              <SheetTitle className="text-xl font-bold text-gray-900 leading-tight">
-                {opportunity.title}
-              </SheetTitle>
-              
-              {/* Distance - Prominent */}
-              {opportunity.distance_km !== undefined && (
-                <div className="flex items-center gap-2 bg-primary/10 rounded-xl px-3 py-2 w-fit">
-                  <Navigation className="w-5 h-5 text-primary" />
-                  <span className="text-base font-bold text-primary">
-                    {formatDistance(opportunity.distance_km)}
-                  </span>
-                </div>
-              )}
-
-              {/* Location & Date */}
-              <div className="flex items-center gap-4 text-sm text-gray-500">
-                {opportunity.address && (
-                  <span className="flex items-center gap-1">
-                    <MapPin className="w-4 h-4" />
-                    {opportunity.address}
-                  </span>
-                )}
-                <span className="flex items-center gap-1">
-                  <Clock className="w-4 h-4" />
-                  {formatDate(opportunity.created_at)}
-                </span>
-              </div>
-            </SheetHeader>
-
-            {/* Price & Profit Box - Euro */}
-            <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl p-4 border border-gray-200">
-              <div className="grid grid-cols-2 gap-4 mb-3">
-                <div>
-                  <p className="text-xs text-gray-500 mb-1 flex items-center gap-1">
-                    <Euro className="w-3 h-3" />
-                    Purchase Price
-                  </p>
-                  <p className="text-2xl font-bold text-gray-900">
-                    {formatPrice(opportunity.estimated_price) || 'Contact'}
-                  </p>
-                </div>
-                {opportunity.estimated_resale_value && (
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1 flex items-center gap-1">
-                      <Euro className="w-3 h-3" />
-                      Resale Value
-                    </p>
-                    <p className="text-2xl font-bold text-blue-600">
-                      {formatPrice(opportunity.estimated_resale_value)}
-                    </p>
-                  </div>
-                )}
-              </div>
-              {profit && profit > 0 && (
-                <div className="pt-3 border-t border-gray-200">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm text-gray-600 font-medium">Estimated Profit</p>
-                    <div className="flex items-center gap-2">
-                      <TrendingUp className="w-5 h-5 text-green-500" />
-                      <span className="text-2xl font-bold text-green-600">
-                        {formatPrice(profit)}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Description */}
-            <div>
-              <h4 className="font-semibold text-gray-900 mb-2">Description</h4>
+  {/* Small Photo / Visual */}
+  {opportunity.images?.[0] ? (
+    <img
+      src={opportunity.images[0]}
+      alt={opportunity.title}
+      className="w-full h-40 object-cover rounded-2xl"
+    />
+  ) : (
+    <div className="w-full h-28 bg-gray-100 rounded-2xl flex items-center justify-center">
+      <div className={`w-14 h-14 rounded-full ${category.color} opacity-20`}></div>
+    </div>
+  )}
               <p className="text-gray-600 leading-relaxed">{opportunity.description}</p>
             </div>
 

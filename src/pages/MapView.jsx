@@ -478,14 +478,14 @@ export const MapView = () => {
 <div className="absolute left-4 bottom-24 z-10">
   {!legendOpen ? (
     <Button
-      size="sm"
-      variant="secondary"
-      className="rounded-full bg-white/95 backdrop-blur-md shadow-lg px-4 h-10"
-      onClick={() => setLegendOpen(true)}
-      data-testid="open-legend-btn"
-    >
-      Legend
-    </Button>
+  size="sm"
+  variant="secondary"
+  className="rounded-full bg-white/95 text-gray-800 backdrop-blur-md shadow-lg px-4 h-10 border border-gray-200"
+  onClick={() => setLegendOpen(true)}
+  data-testid="open-legend-btn"
+>
+  Legend
+</Button>
   ) : (
     <div className="bg-white/95 backdrop-blur-md rounded-xl shadow-lg p-3 w-48">
       <div className="flex items-center justify-between mb-2">
@@ -532,15 +532,15 @@ export const MapView = () => {
           <SheetTrigger asChild>
             <div className="flex justify-center">
               <Button
-                variant="secondary"
-                className="rounded-full bg-white shadow-lg px-6 h-11 gap-2"
-                data-testid="show-list-btn"
-              >
-                <ChevronUp className={`w-5 h-5 transition-transform ${listOpen ? 'rotate-180' : ''}`} />
-                <span className="font-semibold">
-                  {filteredOpportunities.length} Deals within {radius} km
-                </span>
-              </Button>
+  variant="secondary"
+  className="rounded-full bg-white text-gray-800 border border-gray-200 shadow-lg px-6 h-11 gap-2"
+  data-testid="show-list-btn"
+>
+  <ChevronUp className={`w-5 h-5 transition-transform ${listOpen ? 'rotate-180' : ''}`} />
+  <span className="font-semibold">
+    {filteredOpportunities.length} Deals within {radius} km
+  </span>
+</Button>
             </div>
           </SheetTrigger>
           <SheetContent side="bottom" className="h-[60vh] rounded-t-3xl">
