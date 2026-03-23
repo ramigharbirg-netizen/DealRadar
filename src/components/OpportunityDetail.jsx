@@ -17,6 +17,8 @@ import {
   Navigation,
   Star,
   Euro,
+  X,
+ChevronRight,
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
@@ -72,6 +74,8 @@ export const OpportunityDetail = ({ opportunity, open, onClose }) => {
   });
   const [loadingTrust, setLoadingTrust] = useState(false);
   const [sendingPickup, setSendingPickup] = useState(false);
+  const [galleryOpen, setGalleryOpen] = useState(false);
+const [selectedImageIndex, setSelectedImageIndex] = useState(0);
 
   const category = categoryConfig[opportunity?.category] || categoryConfig.user_reported;
   const profit =
@@ -371,8 +375,13 @@ export const OpportunityDetail = ({ opportunity, open, onClose }) => {
             {opportunity.images?.length > 0 && (
   <div className="flex gap-2 overflow-x-auto pb-2">
     {opportunity.images.map((img, index) => (
-      <div
+      <button
         key={index}
+        type="button"
+        onClick={() => {
+          setSelectedImageIndex(index);
+          setGalleryOpen(true);
+        }}
         className="h-40 min-w-[220px] bg-gray-100 rounded-xl p-2 flex items-center justify-center flex-shrink-0"
       >
         <img
@@ -380,7 +389,7 @@ export const OpportunityDetail = ({ opportunity, open, onClose }) => {
           alt={`${opportunity.title}-${index + 1}`}
           className="max-h-full max-w-full object-contain rounded-lg"
         />
-      </div>
+      </button>
     ))}
   </div>
 )}
