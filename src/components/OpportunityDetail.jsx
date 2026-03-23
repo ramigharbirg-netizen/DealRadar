@@ -368,15 +368,22 @@ export const OpportunityDetail = ({ opportunity, open, onClose }) => {
               )}
             </div>
 
-            {opportunity.images?.[0] && (
-              <div className="w-full">
-                <img
-                  src={opportunity.images[0]}
-                  alt={opportunity.title}
-                  className="w-full max-w-[360px] h-24 object-cover rounded-lg"
-                />
-              </div>
-            )}
+            {opportunity.images?.length > 0 && (
+  <div className="flex gap-2 overflow-x-auto pb-2">
+    {opportunity.images.map((img, index) => (
+      <div
+        key={index}
+        className="h-40 min-w-[220px] bg-gray-100 rounded-xl p-2 flex items-center justify-center flex-shrink-0"
+      >
+        <img
+          src={img}
+          alt={`${opportunity.title}-${index + 1}`}
+          className="max-h-full max-w-full object-contain rounded-lg"
+        />
+      </div>
+    ))}
+  </div>
+)}
 
             <p className="text-sm text-gray-600 leading-relaxed">
               {opportunity.description}
