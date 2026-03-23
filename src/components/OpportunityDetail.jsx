@@ -12,6 +12,7 @@ import { ScrollArea } from './ui/scroll-area';
 import { useAuth } from '../contexts/AuthContext';
 import { opportunitiesAPI, commentsAPI, favoritesAPI } from '../lib/api';
 import { toast } from 'sonner';
+import { supabase } from '../lib/supabase';
 
 const categoryConfig = {
   store_liquidation: { name: 'Store Liquidation', color: 'bg-green-500' },
@@ -390,8 +391,33 @@ export const OpportunityDetail = ({ opportunity, open, onClose }) => {
   <div className="mt-4">
     <Button
       className="w-full h-12 bg-green-500 hover:bg-green-600 text-white font-semibold rounded-xl"
-      onClick={() => {
-        alert('Richiesta inviata! (prossimo step: chat)');
+      onClick={async () => {
+        if (!user) {
+          toast.error('Devi fare login');
+          return;
+        }
+
+        try {
+          const { error } = await supabase
+            .from('pickup_requests')
+            .insert([
+              {
+                opportunity_id: opportunity.id,
+                requester_name: user.email,
+                requester_email: user.email,
+                owner_name: opportunity.user_name,
+                owner_email: null,
+                status: 'pending',
+              },
+            ]);
+
+          if (error) throw error;
+
+          toast.success('Richiesta inviata!');
+        } catch (err) {
+          console.error(err);
+          toast.error('Errore invio richiesta');
+        }
       }}
       data-testid="request-pickup-btn"
     >
