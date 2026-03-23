@@ -369,23 +369,25 @@ export const OpportunityDetail = ({ opportunity, open, onClose }) => {
             </div>
 
             {opportunity.images?.[0] && (
-              <img
-                src={opportunity.images[0]}
-                alt={opportunity.title}
-                className="w-full h-24 object-cover rounded-lg"
-              />
+              <div className="w-full">
+                <img
+                  src={opportunity.images[0]}
+                  alt={opportunity.title}
+                  className="w-full max-w-[360px] h-24 object-cover rounded-lg"
+                />
+              </div>
             )}
 
             <p className="text-sm text-gray-600 leading-relaxed">
               {opportunity.description}
             </p>
 
-            <div className="grid grid-cols-2 gap-2">
+            <div className="flex flex-wrap gap-2">
               <button
                 type="button"
                 onClick={() => handleTrust('confirm')}
                 disabled={loadingTrust}
-                className="h-9 rounded-lg border border-green-200 bg-white text-green-700 text-sm font-medium flex items-center justify-center gap-2 hover:bg-green-50 disabled:opacity-50"
+                className="h-8 px-3 rounded-lg border border-green-200 bg-white text-green-700 text-sm font-medium inline-flex items-center justify-center gap-2 hover:bg-green-50 disabled:opacity-50"
               >
                 <CheckCircle className="w-4 h-4" />
                 Confirm
@@ -398,7 +400,7 @@ export const OpportunityDetail = ({ opportunity, open, onClose }) => {
                 type="button"
                 onClick={() => handleTrust('report')}
                 disabled={loadingTrust}
-                className="h-9 rounded-lg border border-red-200 bg-white text-red-600 text-sm font-medium flex items-center justify-center gap-2 hover:bg-red-50 disabled:opacity-50"
+                className="h-8 px-3 rounded-lg border border-red-200 bg-white text-red-600 text-sm font-medium inline-flex items-center justify-center gap-2 hover:bg-red-50 disabled:opacity-50"
               >
                 <AlertTriangle className="w-4 h-4" />
                 Report
@@ -408,11 +410,11 @@ export const OpportunityDetail = ({ opportunity, open, onClose }) => {
               </button>
             </div>
 
-            <div className="grid grid-cols-2 gap-2">
+            <div className="flex flex-wrap gap-2">
               {opportunity.contact_phone && (
                 <a
                   href={`tel:${opportunity.contact_phone}`}
-                  className="h-9 rounded-lg border border-green-200 bg-green-50 text-green-700 text-sm font-medium flex items-center justify-center gap-2 hover:bg-green-100"
+                  className="h-8 px-3 rounded-lg border border-green-200 bg-green-50 text-green-700 text-sm font-medium inline-flex items-center justify-center gap-2 hover:bg-green-100"
                   data-testid="contact-phone-btn"
                 >
                   <Phone className="w-4 h-4" />
@@ -423,7 +425,7 @@ export const OpportunityDetail = ({ opportunity, open, onClose }) => {
               {opportunity.contact_email && (
                 <a
                   href={`mailto:${opportunity.contact_email}`}
-                  className="h-9 rounded-lg border border-blue-200 bg-blue-50 text-blue-700 text-sm font-medium flex items-center justify-center gap-2 hover:bg-blue-100"
+                  className="h-8 px-3 rounded-lg border border-blue-200 bg-blue-50 text-blue-700 text-sm font-medium inline-flex items-center justify-center gap-2 hover:bg-blue-100"
                   data-testid="contact-email-btn"
                 >
                   <Mail className="w-4 h-4" />
@@ -436,7 +438,7 @@ export const OpportunityDetail = ({ opportunity, open, onClose }) => {
                   href={opportunity.contact_link}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="h-9 rounded-lg border border-gray-200 bg-gray-50 text-gray-700 text-sm font-medium flex items-center justify-center gap-2 col-span-2 hover:bg-gray-100"
+                  className="h-8 px-3 rounded-lg border border-gray-200 bg-gray-50 text-gray-700 text-sm font-medium inline-flex items-center justify-center gap-2 hover:bg-gray-100"
                   data-testid="contact-link-btn"
                 >
                   <ExternalLink className="w-4 h-4" />
@@ -446,15 +448,17 @@ export const OpportunityDetail = ({ opportunity, open, onClose }) => {
             </div>
 
             {opportunity.estimated_price === 0 && (
-              <button
-                type="button"
-                className="w-full h-9 rounded-lg border border-orange-200 bg-orange-50 text-orange-700 text-sm font-semibold flex items-center justify-center gap-2 hover:bg-orange-100 disabled:opacity-50"
-                onClick={handlePickupRequest}
-                disabled={sendingPickup}
-                data-testid="request-pickup-btn"
-              >
-                Richiedi ritiro
-              </button>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className="h-8 px-3 rounded-lg border border-orange-200 bg-orange-50 text-orange-700 text-sm font-semibold inline-flex items-center justify-center gap-2 hover:bg-orange-100 disabled:opacity-50"
+                  onClick={handlePickupRequest}
+                  disabled={sendingPickup}
+                  data-testid="request-pickup-btn"
+                >
+                  Richiedi ritiro
+                </button>
+              </div>
             )}
 
             <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
@@ -473,18 +477,18 @@ export const OpportunityDetail = ({ opportunity, open, onClose }) => {
                 Commenti ({comments.length})
               </h4>
 
-              <form onSubmit={handleComment} className="flex gap-2 mb-2">
+              <form onSubmit={handleComment} className="flex gap-2 mb-2 items-center">
                 <Input
                   placeholder={user ? 'Lascia un commento...' : 'Fai login per commentare'}
                   value={newComment}
                   onChange={(e) => setNewComment(e.target.value)}
                   disabled={!user}
-                  className="flex-1 h-9 rounded-lg text-sm"
+                  className="flex-1 h-8 rounded-lg text-sm"
                   data-testid="comment-input"
                 />
                 <button
                   type="submit"
-                  className="h-9 w-9 rounded-lg bg-primary text-white flex items-center justify-center disabled:opacity-50"
+                  className="h-8 w-8 rounded-lg bg-primary text-white inline-flex items-center justify-center disabled:opacity-50"
                   disabled={!user || !newComment.trim()}
                   data-testid="submit-comment-btn"
                 >
