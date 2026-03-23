@@ -228,11 +228,11 @@ export const OpportunityDetail = ({ opportunity, open, onClose }) => {
     <Sheet open={open} onOpenChange={onClose}>
       <SheetContent
         side="bottom"
-        className="h-[82vh] p-0 rounded-t-3xl"
+        className="h-[82vh] w-full sm:max-w-2xl mx-auto p-0 rounded-t-3xl"
         data-testid="opportunity-detail-sheet"
       >
         <ScrollArea className="h-full">
-          <div className="sticky top-0 z-10 bg-white border-b border-gray-100 px-4 py-3">
+          <div className="sticky top-0 z-10 bg-white border-b border-gray-100 px-4 py-3 max-w-2xl mx-auto">
             <div className="flex items-start justify-between gap-3 mb-3">
               <Button
                 variant="ghost"
@@ -319,7 +319,7 @@ export const OpportunityDetail = ({ opportunity, open, onClose }) => {
             </div>
           </div>
 
-          <div className="p-4 space-y-3">
+          <div className="p-4 space-y-3 max-w-2xl mx-auto">
             <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-3 border border-gray-200">
               <div className="grid grid-cols-2 gap-4 mb-2">
                 <div>

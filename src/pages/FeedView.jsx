@@ -111,7 +111,7 @@ export const FeedView = () => {
       </div>
 
       {/* Tabs */}
-      <Tabs value={sortBy} onValueChange={setSortBy} className="px-4 py-4">
+      <Tabs value={sortBy} onValueChange={setSortBy} className="px-4 py-4 max-w-4xl mx-auto">
         <TabsList className="w-full grid grid-cols-3 h-11 bg-gray-100 rounded-xl p-1">
           <TabsTrigger
             value="newest"
@@ -142,7 +142,7 @@ export const FeedView = () => {
         {/* Content */}
         <TabsContent value={sortBy} className="mt-4">
           {loading ? (
-            <div className="space-y-4">
+            <div className="space-y-3 max-w-4xl mx-auto">
               {[1, 2, 3].map((i) => (
                 <div key={i} className="skeleton h-64 rounded-xl"></div>
               ))}
@@ -156,7 +156,7 @@ export const FeedView = () => {
               </p>
             </div>
           ) : (
-            <div className="space-y-4 pb-20">
+            <div className="space-y-3 pb-20 max-w-4xl mx-auto">
               {/* Today's Section */}
               {sortBy === 'newest' && todayOpportunities.length > 0 && (
                 <div className="mb-6">
