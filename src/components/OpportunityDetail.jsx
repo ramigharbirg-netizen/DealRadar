@@ -79,6 +79,8 @@ export const OpportunityDetail = ({ opportunity, open, onClose }) => {
   const [sendingPickup, setSendingPickup] = useState(false);
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+const [hasRequested, setHasRequested] = useState(false);
+const [conversationId, setConversationId] = useState(null);
 
 
   const category = categoryConfig[opportunity?.category] || categoryConfig.user_reported;
@@ -228,18 +230,21 @@ export const OpportunityDetail = ({ opportunity, open, onClose }) => {
     if (pickupError) throw pickupError;
 
     const { data: conversationData, error: convError } = await supabase
-      .from('conversations')
-      .insert([
-        {
-          opportunity_id: opportunity.id,
-          requester_id: activeUser.id,
-          owner_id: opportunity.user_id || null,
-        },
-      ])
-      .select()
-      .single();
+  .from('conversations')
+  .insert([
+    {
+      opportunity_id: opportunity.id,
+      requester_id: activeUser.id,
+      owner_id: opportunity.user_id || null,
+    },
+  ])
+  .select()
+  .single();
 
-    if (convError) throw convError;
+if (convError) throw convError;
+
+setConversationId(conversationData.id);
+
 
     await supabase.from('conversation_messages').insert([
       {
@@ -250,9 +255,8 @@ export const OpportunityDetail = ({ opportunity, open, onClose }) => {
       },
     ]);
 
-    toast.success('Richiesta inviata + chat aperta 🚀');
-    onClose(false);
-    navigate(`/chats/${conversationData.id}`);
+    setHasRequested(true);
+toast.success('Richiesta inviata!');
   } catch (err) {
     console.error(err);
     toast.error('Errore invio richiesta');
@@ -266,11 +270,11 @@ export const OpportunityDetail = ({ opportunity, open, onClose }) => {
     <Sheet open={open} onOpenChange={onClose}>
       <SheetContent
         side="bottom"
-        className="h-[92vh] w-full sm:max-w-3xl mx-auto p-0 rounded-t-3xl"
+        className="h-[78vh] w-full sm:max-w-xl mx-auto p-0 rounded-t-3xl"
         data-testid="opportunity-detail-sheet"
       >
         <ScrollArea className="h-[calc(92vh-0px)]">
-          <div className="sticky top-0 z-10 bg-white border-b border-gray-100 px-4 py-3 max-w-2xl mx-auto">
+          <div className="sticky top-0 z-10 bg-white border-b border-gray-100 px-4 py-2 max-w-xl mx-auto">
             <div className="flex items-start justify-between gap-3 mb-3">
               <Button
                 variant="ghost"
@@ -357,7 +361,7 @@ export const OpportunityDetail = ({ opportunity, open, onClose }) => {
             </div>
           </div>
 
-          <div className="p-4 space-y-3 max-w-3xl mx-auto">
+          <div className="p-3 space-y-2.5 max-w-xl mx-auto">
             <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-3 border border-gray-200">
               <div className="grid grid-cols-2 gap-4 mb-2">
                 <div>
@@ -366,15 +370,29 @@ export const OpportunityDetail = ({ opportunity, open, onClose }) => {
                     Price
                   </p>
 
-                  {opportunity.estimated_price === 0 ? (
-                    <span className="inline-block bg-green-500 text-white text-xs font-bold px-2 py-1 rounded-md">
-                      FREE
-                    </span>
-                  ) : (
-                    <p className="text-lg font-bold text-gray-900">
-                      {formatPrice(opportunity.estimated_price) || 'Contact'}
-                    </p>
-                  )}
+                  {opportunity.estimated_price === 0 && (
+  <div className="flex flex-wrap gap-2">
+    {!hasRequested ? (
+      <button
+        type="button"
+        className="h-8 px-3 rounded-lg border border-orange-200 bg-orange-50 text-orange-700 text-sm font-semibold hover:bg-orange-100"
+        onClick={handlePickupRequest}
+        disabled={sendingPickup}
+      >
+        {sendingPickup ? 'Invio...' : 'Richiedi ritiro'}
+      </button>
+    ) : (
+      <button
+        type="button"
+        className="h-8 px-3 rounded-lg bg-primary text-white text-sm font-semibold"
+        onClick={() => navigate(`/chats/${conversationId}`)}
+        disabled={!conversationId}
+      >
+        Apri chat
+      </button>
+    )}
+  </div>
+)}
                 </div>
 
                 {opportunity.estimated_resale_value !== null &&
