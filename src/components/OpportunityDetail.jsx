@@ -198,33 +198,48 @@ export const OpportunityDetail = ({ opportunity, open, onClose }) => {
   };
 
   const handlePickupRequest = async () => {
-    if (!user) {
-      toast.error('Fai login prima');
-      return;
-    }
+  if (!user) {
+    toast.error('Fai login prima');
+    return;
+  }
 
-    setSendingPickup(true);
-    try {
-      const { error } = await supabase.from('pickup_requests').insert([
-        {
-          opportunity_id: opportunity.id,
-          requester_name: user.email,
-          requester_email: user.email,
-          owner_name: opportunity.user_name,
-          owner_email: null,
-          status: 'pending',
-        },
-      ]);
+  setSendingPickup(true);
 
-      if (error) throw error;
-      toast.success('Richiesta inviata!');
-    } catch (err) {
-      console.error(err);
-      toast.error('Errore invio richiesta');
-    } finally {
-      setSendingPickup(false);
-    }
-  };
+  try {
+    // richiesta ritiro
+    const { error: pickupError } = await supabase
+      .from('pickup_requests')
+      .insert([{
+        opportunity_id: opportunity.id,
+        requester_name: user.email,
+        requester_email: user.email,
+        owner_name: opportunity.user_name,
+        owner_email: null,
+        status: 'pending',
+      }]);
+
+    if (pickupError) throw pickupError;
+
+    // crea conversazione
+    const { error: convError } = await supabase
+      .from('conversations')
+      .insert([{
+        opportunity_id: opportunity.id,
+        requester_id: user.id,
+        owner_id: opportunity.user_id
+      }]);
+
+    if (convError) throw convError;
+
+    toast.success('Richiesta inviata + chat aperta 🚀');
+
+  } catch (err) {
+    console.error(err);
+    toast.error('Errore invio richiesta');
+  } finally {
+    setSendingPickup(false);
+  }
+};
 
   if (!opportunity) return null;
 
