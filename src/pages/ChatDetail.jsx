@@ -53,9 +53,9 @@ export const ChatDetail = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="h-screen bg-background flex flex-col">
       <div className="sticky top-0 z-20 bg-white border-b border-gray-100">
-        <div className="px-4 py-4 max-w-3xl mx-auto flex items-center gap-3">
+        <div className="px-4 py-4 max-w-4xl mx-auto flex items-center gap-3">
           <Button
             variant="ghost"
             size="icon"
@@ -72,7 +72,7 @@ export const ChatDetail = () => {
         </div>
       </div>
 
-      <div className="flex-1 p-4 max-w-3xl mx-auto w-full space-y-3 overflow-y-auto">
+      <div className="flex-1 p-4 max-w-4xl mx-auto w-full space-y-3 overflow-y-auto min-h-0">
         {messages.length === 0 ? (
           <div className="text-center text-gray-500 py-10">
             Nessun messaggio ancora
@@ -105,8 +105,8 @@ export const ChatDetail = () => {
       </div>
 
       <form
-        onSubmit={handleSend}
-        className="sticky bottom-0 bg-white border-t border-gray-100 p-3"
+  onSubmit={handleSend}
+  className="bg-white border-t border-gray-100 p-3"
       >
         <div className="max-w-3xl mx-auto flex gap-2">
           <Input
