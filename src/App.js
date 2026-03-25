@@ -16,6 +16,8 @@ import Login from "./pages/Login";
 import Register from "./pages/Register";
 import BountiesView from "./pages/BountiesView";
 import CreateBounty from "./pages/CreateBounty";
+import ChatsView from './pages/ChatsView';
+import ChatDetail from './pages/ChatDetail';
 
 function App() {
   return (
@@ -33,6 +35,8 @@ function App() {
               <Route path="/favorites" element={<Favorites />} />
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
+              <Route path="/chats" element={<ChatsView />} />
+              <Route path="/chats/:id" element={<ChatDetail />} />
             </Routes>
           </Layout>
           <Toaster position="top-center" richColors />

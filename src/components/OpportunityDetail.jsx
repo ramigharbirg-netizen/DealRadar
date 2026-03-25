@@ -29,6 +29,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { opportunitiesAPI, commentsAPI, favoritesAPI } from '../lib/api';
 import { supabase } from '../lib/supabase';
 import { toast } from 'sonner';
+import { useNavigate } from 'react-router-dom';
 
 const categoryConfig = {
   store_liquidation: { name: 'Store Liquidation', color: 'bg-green-500' },
@@ -65,6 +66,7 @@ const formatDistance = (km) => {
 
 export const OpportunityDetail = ({ opportunity, open, onClose }) => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   console.log("USER:", user);
   const [comments, setComments] = useState([]);
   const [newComment, setNewComment] = useState('');
@@ -210,28 +212,45 @@ export const OpportunityDetail = ({ opportunity, open, onClose }) => {
   try {
     const { error: pickupError } = await supabase
       .from('pickup_requests')
-      .insert([{
-        opportunity_id: opportunity.id,
-        requester_name: activeUser.name || activeUser.email,
-        requester_email: activeUser.email,
-        owner_name: opportunity.user_name,
-        owner_email: null,
-        status: 'pending',
-      }]);
+      .insert([
+        {
+          opportunity_id: opportunity.id,
+          requester_name: activeUser.name || activeUser.email,
+          requester_email: activeUser.email,
+          owner_name: opportunity.user_name,
+          owner_email: null,
+          status: 'pending',
+        },
+      ]);
 
     if (pickupError) throw pickupError;
 
-    const { error: convError } = await supabase
+    const { data: conversationData, error: convError } = await supabase
       .from('conversations')
-      .insert([{
-        opportunity_id: opportunity.id,
-        requester_id: activeUser.id,
-        owner_id: opportunity.user_id || null,
-      }]);
+      .insert([
+        {
+          opportunity_id: opportunity.id,
+          requester_id: activeUser.id,
+          owner_id: opportunity.user_id || null,
+        },
+      ])
+      .select()
+      .single();
 
     if (convError) throw convError;
 
+    await supabase.from('conversation_messages').insert([
+      {
+        conversation_id: conversationData.id,
+        sender_name: activeUser.name,
+        sender_email: activeUser.email,
+        message: 'Ciao, sono interessato al ritiro. Quando sarebbe possibile passare?',
+      },
+    ]);
+
     toast.success('Richiesta inviata + chat aperta 🚀');
+    onClose(false);
+    navigate(`/chats/${conversationData.id}`);
   } catch (err) {
     console.error(err);
     toast.error('Errore invio richiesta');
@@ -239,7 +258,6 @@ export const OpportunityDetail = ({ opportunity, open, onClose }) => {
     setSendingPickup(false);
   }
 };
-
   if (!opportunity) return null;
 
   return (
