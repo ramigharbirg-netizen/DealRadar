@@ -12,13 +12,13 @@ import {
   MessageCircle,
   Send,
   ChevronLeft,
+  ChevronRight,
   Share2,
   User,
   Navigation,
   Star,
   Euro,
   X,
-ChevronRight,
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
@@ -75,7 +75,7 @@ export const OpportunityDetail = ({ opportunity, open, onClose }) => {
   const [loadingTrust, setLoadingTrust] = useState(false);
   const [sendingPickup, setSendingPickup] = useState(false);
   const [galleryOpen, setGalleryOpen] = useState(false);
-const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
 
   const category = categoryConfig[opportunity?.category] || categoryConfig.user_reported;
   const profit =
@@ -375,21 +375,20 @@ const [selectedImageIndex, setSelectedImageIndex] = useState(0);
             {opportunity.images?.length > 0 && (
   <div className="flex gap-2 overflow-x-auto pb-2">
     {opportunity.images.map((img, index) => (
-      <button
+      <div
         key={index}
-        type="button"
         onClick={() => {
           setSelectedImageIndex(index);
           setGalleryOpen(true);
         }}
-        className="h-40 min-w-[220px] bg-gray-100 rounded-xl p-2 flex items-center justify-center flex-shrink-0"
+        className="h-40 min-w-[220px] bg-gray-100 rounded-xl p-2 flex items-center justify-center flex-shrink-0 cursor-zoom-in"
       >
         <img
           src={img}
           alt={`${opportunity.title}-${index + 1}`}
-          className="max-h-full max-w-full object-contain rounded-lg"
+          className="max-h-full max-w-full object-contain rounded-lg pointer-events-none"
         />
-      </button>
+      </div>
     ))}
   </div>
 )}
@@ -539,9 +538,74 @@ const [selectedImageIndex, setSelectedImageIndex] = useState(0);
               </div>
             </div>
 
-            <div className="h-12"></div>
+                        <div className="h-12"></div>
           </div>
         </ScrollArea>
+
+        {galleryOpen && opportunity.images?.length > 0 && (
+  <div
+    className="fixed inset-0 z-[99999] bg-black/95 flex items-center justify-center"
+    onClick={() => setGalleryOpen(false)}
+  >
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        setGalleryOpen(false);
+      }}
+      className="absolute top-4 right-4 h-10 w-10 rounded-full bg-white/10 text-white flex items-center justify-center"
+    >
+      <X className="w-5 h-5" />
+    </button>
+
+    {opportunity.images.length > 1 && (
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          setSelectedImageIndex((prev) =>
+            prev === 0 ? opportunity.images.length - 1 : prev - 1
+          );
+        }}
+        className="absolute left-4 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-white/10 text-white flex items-center justify-center"
+      >
+        <ChevronLeft className="w-5 h-5" />
+      </button>
+    )}
+
+    <div
+      className="w-full h-full flex items-center justify-center p-6"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <img
+        src={opportunity.images[selectedImageIndex]}
+        alt={`${opportunity.title}-${selectedImageIndex + 1}`}
+        className="max-w-full max-h-full object-contain rounded-xl"
+      />
+    </div>
+
+    {opportunity.images.length > 1 && (
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          setSelectedImageIndex((prev) =>
+            prev === opportunity.images.length - 1 ? 0 : prev + 1
+          );
+        }}
+        className="absolute right-4 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-white/10 text-white flex items-center justify-center"
+      >
+        <ChevronRight className="w-5 h-5" />
+      </button>
+    )}
+
+    {opportunity.images.length > 1 && (
+      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-white text-sm bg-white/10 px-3 py-1 rounded-full">
+        {selectedImageIndex + 1} / {opportunity.images.length}
+      </div>
+    )}
+  </div>
+)}
       </SheetContent>
     </Sheet>
   );
