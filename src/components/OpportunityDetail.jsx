@@ -65,6 +65,7 @@ const formatDistance = (km) => {
 
 export const OpportunityDetail = ({ opportunity, open, onClose }) => {
   const { user } = useAuth();
+  console.log("USER:", user);
   const [comments, setComments] = useState([]);
   const [newComment, setNewComment] = useState('');
   const [isFavorite, setIsFavorite] = useState(false);
@@ -198,21 +199,21 @@ export const OpportunityDetail = ({ opportunity, open, onClose }) => {
   };
 
   const handlePickupRequest = async () => {
-  if (!user) {
-    toast.error('Fai login prima');
-    return;
-  }
+  const activeUser = user || {
+    id: null,
+    email: 'manual@dealradar.app',
+    name: 'Manual User',
+  };
 
   setSendingPickup(true);
 
   try {
-    // richiesta ritiro
     const { error: pickupError } = await supabase
       .from('pickup_requests')
       .insert([{
         opportunity_id: opportunity.id,
-        requester_name: user.email,
-        requester_email: user.email,
+        requester_name: activeUser.name || activeUser.email,
+        requester_email: activeUser.email,
         owner_name: opportunity.user_name,
         owner_email: null,
         status: 'pending',
@@ -220,19 +221,17 @@ export const OpportunityDetail = ({ opportunity, open, onClose }) => {
 
     if (pickupError) throw pickupError;
 
-    // crea conversazione
     const { error: convError } = await supabase
       .from('conversations')
       .insert([{
         opportunity_id: opportunity.id,
-        requester_id: user.id,
-        owner_id: opportunity.user_id
+        requester_id: activeUser.id,
+        owner_id: opportunity.user_id || null,
       }]);
 
     if (convError) throw convError;
 
     toast.success('Richiesta inviata + chat aperta 🚀');
-
   } catch (err) {
     console.error(err);
     toast.error('Errore invio richiesta');
