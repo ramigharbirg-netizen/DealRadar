@@ -79,6 +79,7 @@ export const OpportunityDetail = ({ opportunity, open, onClose }) => {
   const [sendingPickup, setSendingPickup] = useState(false);
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+  const [hasRequested, setHasRequested] = useState(false);
 
   const category = categoryConfig[opportunity?.category] || categoryConfig.user_reported;
   const profit =
@@ -120,23 +121,6 @@ export const OpportunityDetail = ({ opportunity, open, onClose }) => {
     loadData();
   }, [opportunity?.id, open, user, opportunity?.confirmations, opportunity?.reports]);
 
-  useEffect(() => {
-  const checkRequest = async () => {
-    const { data } = await supabase
-      .from('pickup_requests')
-      .select('*')
-      .eq('opportunity_id', opportunity.id)
-      .limit(1);
-
-    if (data && data.length > 0) {
-      setHasRequested(true);
-    }
-  };
-
-  if (opportunity?.id) {
-    checkRequest();
-  }
-}, [opportunity?.id]);
 
   const handleTrust = async (action) => {
     if (!user) {
@@ -514,23 +498,14 @@ export const OpportunityDetail = ({ opportunity, open, onClose }) => {
 
             {opportunity.estimated_price === 0 && (
   <div className="flex flex-wrap gap-2">
-    {!hasRequested ? (
-      <button
-        type="button"
-        className="h-8 px-3 rounded-lg border border-orange-200 bg-orange-50 text-orange-700 text-sm font-semibold hover:bg-orange-100"
-        onClick={handlePickupRequest}
-      >
-        Richiedi ritiro
-      </button>
-    ) : (
-      <button
-        type="button"
-        className="h-8 px-3 rounded-lg bg-primary text-white text-sm font-semibold"
-        onClick={() => navigate('/chats')}
-      >
-        Vai alla chat
-      </button>
-    )}
+    <button
+      type="button"
+      className="h-8 px-3 rounded-lg border border-orange-200 bg-orange-50 text-orange-700 text-sm font-semibold hover:bg-orange-100"
+      onClick={handlePickupRequest}
+      disabled={sendingPickup}
+    >
+      {sendingPickup ? 'Invio...' : 'Richiedi ritiro'}
+    </button>
   </div>
 )}
 
