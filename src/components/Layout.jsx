@@ -1,17 +1,23 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { Map, Newspaper, MessageCircle, Heart, User, Plus } from 'lucide-react';
-
-const navItems = [
-  { path: '/', icon: Map, label: 'Map' },
-  { path: '/feed', icon: Newspaper, label: 'Feed' },
-  { path: '/chats', icon: MessageCircle, label: 'Chat' },
-  { path: '/favorites', icon: Heart, label: 'Saved' },
-  { path: '/profile', icon: User, label: 'Profile' },
-];
+import { Map, Newspaper, MessageCircle, User, Plus } from 'lucide-react';
+import { supabase } from '../lib/supabase';
 
 export const Layout = ({ children }) => {
   const location = useLocation();
+  const [chatCount, setChatCount] = useState(0);
+
+  useEffect(() => {
+    const loadChatCount = async () => {
+      const { count } = await supabase
+        .from('conversations')
+        .select('*', { count: 'exact', head: true });
+
+      setChatCount(count || 0);
+    };
+
+    loadChatCount();
+  }, [location.pathname]);
 
   const hideNav =
     location.pathname === '/login' ||
@@ -65,12 +71,19 @@ export const Layout = ({ children }) => {
           <NavLink
             to="/chats"
             className={({ isActive }) =>
-              `flex flex-col items-center justify-center w-full h-full space-y-1 ${
+              `relative flex flex-col items-center justify-center w-full h-full space-y-1 ${
                 isActive ? 'text-primary' : 'text-gray-400'
               }`
             }
           >
-            <MessageCircle className="w-5 h-5" />
+            <div className="relative">
+              <MessageCircle className="w-5 h-5" />
+              {chatCount > 0 && (
+                <span className="absolute -top-2 -right-3 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+                  {chatCount > 99 ? '99+' : chatCount}
+                </span>
+              )}
+            </div>
             <span className="text-xs font-medium">Chat</span>
           </NavLink>
 
