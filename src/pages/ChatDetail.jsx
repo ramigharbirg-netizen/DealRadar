@@ -1,9 +1,26 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Send } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
+
+const STORAGE_KEY = 'dealradar_last_read_map';
+
+const getLastReadMap = () => {
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+  } catch {
+    return {};
+  }
+};
+
+const setLastReadForConversation = (conversationId, timestamp) => {
+  const map = getLastReadMap();
+  map[conversationId] = timestamp;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(map));
+  window.dispatchEvent(new Event('chat-read-updated'));
+};
 
 export const ChatDetail = () => {
   const { id } = useParams();
@@ -13,10 +30,13 @@ export const ChatDetail = () => {
   const [newMessage, setNewMessage] = useState('');
   const [opportunity, setOpportunity] = useState(null);
 
-  const activeUser = {
-    name: 'Manual User',
-    email: 'manual@dealradar.app',
-  };
+  const activeUser = useMemo(
+    () => ({
+      name: 'Manual User',
+      email: 'manual@dealradar.app',
+    }),
+    []
+  );
 
   const loadMessages = async () => {
     const { data, error } = await supabase
@@ -27,6 +47,11 @@ export const ChatDetail = () => {
 
     if (!error) {
       setMessages(data || []);
+
+      const lastMessage = data?.[data.length - 1];
+      if (lastMessage?.created_at) {
+        setLastReadForConversation(id, lastMessage.created_at);
+      }
     }
   };
 
@@ -53,22 +78,56 @@ export const ChatDetail = () => {
     loadOpportunity();
   }, [id]);
 
+  useEffect(() => {
+    const channel = supabase
+      .channel(`conversation-${id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'conversation_messages',
+          filter: `conversation_id=eq.${id}`,
+        },
+        (payload) => {
+          setMessages((prev) => {
+            const exists = prev.some((msg) => msg.id === payload.new.id);
+            if (exists) return prev;
+            return [...prev, payload.new];
+          });
+
+          if (payload.new?.created_at) {
+            setLastReadForConversation(id, payload.new.created_at);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [id]);
+
   const handleSend = async (e) => {
     e.preventDefault();
     if (!newMessage.trim()) return;
+
+    const messageToSend = newMessage.trim();
+    setNewMessage('');
 
     const { error } = await supabase.from('conversation_messages').insert([
       {
         conversation_id: id,
         sender_name: activeUser.name,
         sender_email: activeUser.email,
-        message: newMessage.trim(),
+        message: messageToSend,
       },
     ]);
 
-    if (!error) {
-      setNewMessage('');
-      loadMessages();
+    if (error) {
+      setNewMessage(messageToSend);
+    } else {
+      window.dispatchEvent(new Event('chat-read-updated'));
     }
   };
 

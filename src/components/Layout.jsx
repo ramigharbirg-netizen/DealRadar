@@ -3,21 +3,83 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { Map, Newspaper, MessageCircle, User, Plus } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
+const STORAGE_KEY = 'dealradar_last_read_map';
+
+const getLastReadMap = () => {
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+  } catch {
+    return {};
+  }
+};
+
 export const Layout = ({ children }) => {
   const location = useLocation();
   const [chatCount, setChatCount] = useState(0);
 
+  const refreshUnreadCount = async () => {
+    const { data: convs } = await supabase.from('conversations').select('id');
+    const conversationIds = (convs || []).map((c) => c.id);
+
+    if (conversationIds.length === 0) {
+      setChatCount(0);
+      return;
+    }
+
+    const { data: msgs } = await supabase
+      .from('conversation_messages')
+      .select('id,conversation_id,created_at')
+      .in('conversation_id', conversationIds)
+      .order('created_at', { ascending: false });
+
+    const latestByConversation = {};
+    (msgs || []).forEach((msg) => {
+      if (!latestByConversation[msg.conversation_id]) {
+        latestByConversation[msg.conversation_id] = msg.created_at;
+      }
+    });
+
+    const lastReadMap = getLastReadMap();
+
+    let unread = 0;
+    Object.entries(latestByConversation).forEach(([conversationId, latestCreatedAt]) => {
+      const lastRead = lastReadMap[conversationId];
+      if (!lastRead || new Date(latestCreatedAt) > new Date(lastRead)) {
+        unread += 1;
+      }
+    });
+
+    setChatCount(unread);
+  };
+
   useEffect(() => {
-    const loadChatCount = async () => {
-      const { count } = await supabase
-        .from('conversations')
-        .select('*', { count: 'exact', head: true });
-
-      setChatCount(count || 0);
-    };
-
-    loadChatCount();
+    refreshUnreadCount();
   }, [location.pathname]);
+
+  useEffect(() => {
+    const channel = supabase
+      .channel('layout-chat-badge')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'conversation_messages',
+        },
+        () => {
+          refreshUnreadCount();
+        }
+      )
+      .subscribe();
+
+    const handleReadUpdate = () => refreshUnreadCount();
+    window.addEventListener('chat-read-updated', handleReadUpdate);
+
+    return () => {
+      supabase.removeChannel(channel);
+      window.removeEventListener('chat-read-updated', handleReadUpdate);
+    };
+  }, []);
 
   const hideNav =
     location.pathname === '/login' ||
