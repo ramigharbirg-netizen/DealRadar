@@ -4,6 +4,16 @@ import { MessageCircle, ChevronRight, Clock } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Card, CardContent } from '../components/ui/card';
 
+const STORAGE_KEY = 'dealradar_last_read_map';
+
+const getLastReadMap = () => {
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+  } catch {
+    return {};
+  }
+};
+
 const formatDate = (dateString) => {
   if (!dateString) return '';
   return new Date(dateString).toLocaleDateString('en-US', {
@@ -17,56 +27,96 @@ export const ChatsView = () => {
   const [conversations, setConversations] = useState([]);
   const [messagesMap, setMessagesMap] = useState({});
   const [opportunitiesMap, setOpportunitiesMap] = useState({});
+  const [unreadMap, setUnreadMap] = useState({});
 
-  useEffect(() => {
-    const loadAll = async () => {
-      const { data: convs, error: convError } = await supabase
-        .from('conversations')
+  const loadAll = async () => {
+    const { data: convs, error: convError } = await supabase
+      .from('conversations')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (convError || !convs) {
+      setConversations([]);
+      return;
+    }
+
+    setConversations(convs);
+
+    const opportunityIds = [...new Set(convs.map((c) => c.opportunity_id).filter(Boolean))];
+
+    if (opportunityIds.length > 0) {
+      const { data: opps } = await supabase
+        .from('opportunities')
+        .select('id,title,images,address')
+        .in('id', opportunityIds);
+
+      const oppMap = {};
+      (opps || []).forEach((opp) => {
+        oppMap[opp.id] = opp;
+      });
+      setOpportunitiesMap(oppMap);
+    }
+
+    const convIds = convs.map((c) => c.id);
+
+    if (convIds.length > 0) {
+      const { data: msgs } = await supabase
+        .from('conversation_messages')
         .select('*')
+        .in('conversation_id', convIds)
         .order('created_at', { ascending: false });
 
-      if (convError || !convs) {
-        setConversations([]);
-        return;
-      }
+      const latestMessageMap = {};
+      (msgs || []).forEach((msg) => {
+        if (!latestMessageMap[msg.conversation_id]) {
+          latestMessageMap[msg.conversation_id] = msg;
+        }
+      });
+      setMessagesMap(latestMessageMap);
 
-      setConversations(convs);
+      const lastReadMap = getLastReadMap();
+      const unreadState = {};
 
-      const opportunityIds = [...new Set(convs.map((c) => c.opportunity_id).filter(Boolean))];
+      Object.entries(latestMessageMap).forEach(([conversationId, msg]) => {
+        const lastRead = lastReadMap[conversationId];
+        unreadState[conversationId] =
+          !lastRead || new Date(msg.created_at) > new Date(lastRead);
+      });
 
-      if (opportunityIds.length > 0) {
-        const { data: opps } = await supabase
-          .from('opportunities')
-          .select('id,title,images')
-          .in('id', opportunityIds);
+      setUnreadMap(unreadState);
+    } else {
+      setMessagesMap({});
+      setUnreadMap({});
+    }
+  };
 
-        const oppMap = {};
-        (opps || []).forEach((opp) => {
-          oppMap[opp.id] = opp;
-        });
-        setOpportunitiesMap(oppMap);
-      }
-
-      const convIds = convs.map((c) => c.id);
-
-      if (convIds.length > 0) {
-        const { data: msgs } = await supabase
-          .from('conversation_messages')
-          .select('*')
-          .in('conversation_id', convIds)
-          .order('created_at', { ascending: false });
-
-        const map = {};
-        (msgs || []).forEach((msg) => {
-          if (!map[msg.conversation_id]) {
-            map[msg.conversation_id] = msg;
-          }
-        });
-        setMessagesMap(map);
-      }
-    };
-
+  useEffect(() => {
     loadAll();
+  }, []);
+
+  useEffect(() => {
+    const channel = supabase
+      .channel('chats-view-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'conversation_messages',
+        },
+        () => {
+          loadAll();
+        }
+      )
+      .subscribe();
+
+    const handleReadUpdate = () => loadAll();
+    window.addEventListener('chat-read-updated', handleReadUpdate);
+
+    return () => {
+      supabase.removeChannel(channel);
+      window.removeEventListener('chat-read-updated', handleReadUpdate);
+    };
   }, []);
 
   return (
@@ -87,6 +137,7 @@ export const ChatsView = () => {
           conversations.map((conv) => {
             const lastMessage = messagesMap[conv.id];
             const opp = opportunitiesMap[conv.opportunity_id];
+            const isUnread = unreadMap[conv.id];
 
             return (
               <Card
@@ -109,9 +160,15 @@ export const ChatsView = () => {
                     )}
 
                     <div className="min-w-0 flex-1">
-                      <p className="font-semibold text-gray-900 truncate">
-                        {opp?.title || 'Chat opportunità'}
-                      </p>
+                      <div className="flex items-center gap-2">
+                        <p className="font-semibold text-gray-900 truncate">
+                          {opp?.title || 'Chat opportunità'}
+                        </p>
+
+                        {isUnread && (
+                          <span className="w-2.5 h-2.5 rounded-full bg-red-500 flex-shrink-0"></span>
+                        )}
+                      </div>
 
                       <p className="text-sm text-gray-500 truncate mt-1">
                         {lastMessage?.message || 'Nessun messaggio'}
@@ -120,6 +177,12 @@ export const ChatsView = () => {
                       <div className="flex items-center gap-1 mt-1 text-xs text-gray-400">
                         <Clock className="w-3 h-3" />
                         <span>{formatDate(lastMessage?.created_at || conv.created_at)}</span>
+                        {opp?.address && (
+                          <>
+                            <span>•</span>
+                            <span className="truncate">{opp.address}</span>
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>
