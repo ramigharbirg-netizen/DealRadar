@@ -30,8 +30,27 @@ export const ChatDetail = () => {
     }
   };
 
+  const loadOpportunity = async () => {
+    const { data: conv } = await supabase
+      .from('conversations')
+      .select('opportunity_id')
+      .eq('id', id)
+      .single();
+
+    if (conv?.opportunity_id) {
+      const { data: opp } = await supabase
+        .from('opportunities')
+        .select('*')
+        .eq('id', conv.opportunity_id)
+        .single();
+
+      setOpportunity(opp);
+    }
+  };
+
   useEffect(() => {
     loadMessages();
+    loadOpportunity();
   }, [id]);
 
   const handleSend = async (e) => {
@@ -50,25 +69,6 @@ export const ChatDetail = () => {
     if (!error) {
       setNewMessage('');
       loadMessages();
-      const loadOpportunity = async () => {
-  const { data: conv } = await supabase
-    .from('conversations')
-    .select('opportunity_id')
-    .eq('id', id)
-    .single();
-
-  if (conv?.opportunity_id) {
-    const { data: opp } = await supabase
-      .from('opportunities')
-      .select('*')
-      .eq('id', conv.opportunity_id)
-      .single();
-
-    setOpportunity(opp);
-  }
-};
-
-loadOpportunity();
     }
   };
 
@@ -87,12 +87,12 @@ loadOpportunity();
             </Button>
 
             <div className="min-w-0">
-              <h1 className="text-lg font-bold text-gray-900">
-  {opportunity?.title || 'Chat'}
-</h1>
-<p className="truncate text-sm text-gray-500">
-  {opportunity?.address || 'Conversazione'}
-</p>
+              <h1 className="truncate text-lg font-bold text-gray-900">
+                {opportunity?.title || 'Chat'}
+              </h1>
+              <p className="truncate text-sm text-gray-500">
+                {opportunity?.address || 'Conversazione'}
+              </p>
             </div>
           </div>
         </div>
@@ -116,7 +116,7 @@ loadOpportunity();
                       className={`max-w-[78%] rounded-2xl px-4 py-2 text-sm shadow-sm ${
                         isMine
                           ? 'bg-primary text-white'
-                          : 'bg-white text-gray-900 border border-gray-200'
+                          : 'border border-gray-200 bg-white text-gray-900'
                       }`}
                     >
                       <p className="mb-1 text-xs font-semibold opacity-80">
