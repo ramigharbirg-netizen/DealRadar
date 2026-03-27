@@ -11,6 +11,7 @@ export const ChatDetail = () => {
 
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
+  const [opportunity, setOpportunity] = useState(null);
 
   const activeUser = {
     name: 'Manual User',
@@ -49,6 +50,25 @@ export const ChatDetail = () => {
     if (!error) {
       setNewMessage('');
       loadMessages();
+      const loadOpportunity = async () => {
+  const { data: conv } = await supabase
+    .from('conversations')
+    .select('opportunity_id')
+    .eq('id', id)
+    .single();
+
+  if (conv?.opportunity_id) {
+    const { data: opp } = await supabase
+      .from('opportunities')
+      .select('*')
+      .eq('id', conv.opportunity_id)
+      .single();
+
+    setOpportunity(opp);
+  }
+};
+
+loadOpportunity();
     }
   };
 
@@ -67,10 +87,12 @@ export const ChatDetail = () => {
             </Button>
 
             <div className="min-w-0">
-              <h1 className="text-lg font-bold text-gray-900">Chat</h1>
-              <p className="truncate text-sm text-gray-500">
-                Conversation ID: {id}
-              </p>
+              <h1 className="text-lg font-bold text-gray-900">
+  {opportunity?.title || 'Chat'}
+</h1>
+<p className="truncate text-sm text-gray-500">
+  {opportunity?.address || 'Conversazione'}
+</p>
             </div>
           </div>
         </div>
