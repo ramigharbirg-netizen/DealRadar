@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Send } from 'lucide-react';
+import { ArrowLeft, Send, Check, X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
+import { toast } from 'sonner';
 
 const STORAGE_KEY = 'dealradar_last_read_map';
 
@@ -22,6 +23,14 @@ const setLastReadForConversation = (conversationId, timestamp) => {
   window.dispatchEvent(new Event('chat-read-updated'));
 };
 
+const formatMessageTime = (dateString) => {
+  if (!dateString) return '';
+  return new Date(dateString).toLocaleTimeString('it-IT', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+};
+
 export const ChatDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -29,6 +38,8 @@ export const ChatDetail = () => {
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   const [opportunity, setOpportunity] = useState(null);
+  const [pickupRequest, setPickupRequest] = useState(null);
+  const [updatingRequest, setUpdatingRequest] = useState(false);
 
   const activeUser = useMemo(
     () => ({
@@ -55,7 +66,7 @@ export const ChatDetail = () => {
     }
   };
 
-  const loadOpportunity = async () => {
+  const loadOpportunityAndRequest = async () => {
     const { data: conv } = await supabase
       .from('conversations')
       .select('opportunity_id')
@@ -69,17 +80,26 @@ export const ChatDetail = () => {
         .eq('id', conv.opportunity_id)
         .single();
 
-      setOpportunity(opp);
+      setOpportunity(opp || null);
+
+      const { data: requestRows } = await supabase
+        .from('pickup_requests')
+        .select('*')
+        .eq('opportunity_id', conv.opportunity_id)
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      setPickupRequest(requestRows?.[0] || null);
     }
   };
 
   useEffect(() => {
     loadMessages();
-    loadOpportunity();
+    loadOpportunityAndRequest();
   }, [id]);
 
   useEffect(() => {
-    const channel = supabase
+    const messagesChannel = supabase
       .channel(`conversation-${id}`)
       .on(
         'postgres_changes',
@@ -103,10 +123,30 @@ export const ChatDetail = () => {
       )
       .subscribe();
 
+    let pickupChannel;
+    if (opportunity?.id) {
+      pickupChannel = supabase
+        .channel(`pickup-request-${opportunity.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'pickup_requests',
+            filter: `opportunity_id=eq.${opportunity.id}`,
+          },
+          () => {
+            loadOpportunityAndRequest();
+          }
+        )
+        .subscribe();
+    }
+
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(messagesChannel);
+      if (pickupChannel) supabase.removeChannel(pickupChannel);
     };
-  }, [id]);
+  }, [id, opportunity?.id]);
 
   const handleSend = async (e) => {
     e.preventDefault();
@@ -126,10 +166,63 @@ export const ChatDetail = () => {
 
     if (error) {
       setNewMessage(messageToSend);
+      toast.error('Invio messaggio non riuscito');
     } else {
       window.dispatchEvent(new Event('chat-read-updated'));
     }
   };
+
+  const handleRequestStatus = async (status) => {
+    if (!pickupRequest?.id) return;
+
+    setUpdatingRequest(true);
+    try {
+      const { error } = await supabase
+        .from('pickup_requests')
+        .update({ status })
+        .eq('id', pickupRequest.id);
+
+      if (error) throw error;
+
+      const statusLabel =
+        status === 'accepted' ? 'Richiesta accettata' : 'Richiesta rifiutata';
+
+      await supabase.from('conversation_messages').insert([
+        {
+          conversation_id: id,
+          sender_name: activeUser.name,
+          sender_email: activeUser.email,
+          message:
+            status === 'accepted'
+              ? 'Richiesta accettata. Possiamo organizzarci per il ritiro.'
+              : 'Richiesta rifiutata.',
+        },
+      ]);
+
+      toast.success(statusLabel);
+      loadOpportunityAndRequest();
+      loadMessages();
+    } catch (err) {
+      console.error(err);
+      toast.error('Aggiornamento richiesta non riuscito');
+    } finally {
+      setUpdatingRequest(false);
+    }
+  };
+
+  const requestStatusLabel =
+    pickupRequest?.status === 'accepted'
+      ? 'Accettata'
+      : pickupRequest?.status === 'rejected'
+      ? 'Rifiutata'
+      : 'In attesa';
+
+  const requestStatusClasses =
+    pickupRequest?.status === 'accepted'
+      ? 'bg-green-100 text-green-700'
+      : pickupRequest?.status === 'rejected'
+      ? 'bg-red-100 text-red-700'
+      : 'bg-amber-100 text-amber-700';
 
   return (
     <div className="h-screen bg-background overflow-hidden">
@@ -145,7 +238,7 @@ export const ChatDetail = () => {
               <ArrowLeft className="w-5 h-5" />
             </Button>
 
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <h1 className="truncate text-lg font-bold text-gray-900">
                 {opportunity?.title || 'Chat'}
               </h1>
@@ -154,6 +247,40 @@ export const ChatDetail = () => {
               </p>
             </div>
           </div>
+
+          {pickupRequest && (
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <span
+                className={`inline-flex h-8 items-center rounded-lg px-3 text-sm font-semibold ${requestStatusClasses}`}
+              >
+                Stato richiesta: {requestStatusLabel}
+              </span>
+
+              {pickupRequest.status === 'pending' && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => handleRequestStatus('accepted')}
+                    disabled={updatingRequest}
+                    className="inline-flex h-8 items-center gap-1 rounded-lg border border-green-200 bg-green-50 px-3 text-sm font-semibold text-green-700 hover:bg-green-100 disabled:opacity-50"
+                  >
+                    <Check className="w-4 h-4" />
+                    Accetta
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleRequestStatus('rejected')}
+                    disabled={updatingRequest}
+                    className="inline-flex h-8 items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-3 text-sm font-semibold text-red-700 hover:bg-red-100 disabled:opacity-50"
+                  >
+                    <X className="w-4 h-4" />
+                    Rifiuta
+                  </button>
+                </>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="flex-1 min-h-0 overflow-y-auto bg-gray-50 px-3 py-3">
@@ -182,6 +309,13 @@ export const ChatDetail = () => {
                         {msg.sender_name}
                       </p>
                       <p>{msg.message}</p>
+                      <p
+                        className={`mt-1 text-[11px] ${
+                          isMine ? 'text-white/80' : 'text-gray-400'
+                        }`}
+                      >
+                        {formatMessageTime(msg.created_at)}
+                      </p>
                     </div>
                   </div>
                 );
