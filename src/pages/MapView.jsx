@@ -11,7 +11,6 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '../c
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { useLocation } from '../contexts/LocationContext';
 import { useAuth } from '../contexts/AuthContext';
-import { bountiesAPI } from '../lib/api';
 import { supabase } from '../lib/supabase';
 import { OpportunityCard } from '../components/OpportunityCard';
 import { OpportunityDetail } from '../components/OpportunityDetail';
@@ -157,11 +156,6 @@ export const MapView = () => {
     }
   }, [permissionState, locationLoading]);
 
-  useEffect(() => {
-  loadOpportunities();
-  loadBounties();
-  // eslint-disable-next-line
-}, []);
 
   useEffect(() => {
     loadOpportunities();
@@ -216,19 +210,34 @@ export const MapView = () => {
 };
 
   const loadBounties = async () => {
-    try {
-      const params = {
-        lat: location.lat,
-        lon: location.lng,
-        category: category !== 'all' ? category : undefined,
-        status: 'active',
-      };
-      const res = await bountiesAPI.getAll(params);
-      setBounties(res.data);
-    } catch (err) {
-      console.error('Failed to load bounties:', err);
+  try {
+    let query = supabase
+      .from('bounties')
+      .select('*')
+      .eq('status', 'active');
+
+    if (category !== 'all') {
+      query = query.eq('category', category);
     }
-  };
+
+    const { data, error } = await query.order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    const validBounties = (data || []).filter(
+      (bounty) =>
+        bounty.latitude !== null &&
+        bounty.latitude !== undefined &&
+        bounty.longitude !== null &&
+        bounty.longitude !== undefined
+    );
+
+    setBounties(validBounties);
+  } catch (err) {
+    console.error('Failed to load bounties:', err);
+    setBounties([]);
+  }
+};
 
   const handleMarkerClick = (opp) => {
     setSelectedOpportunity(opp);
