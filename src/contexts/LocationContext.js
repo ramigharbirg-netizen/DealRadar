@@ -18,12 +18,39 @@ export const LocationProvider = ({ children }) => {
     setRadius(value);
   };
 
+  const applyPosition = (position) => {
+    const accuracy = position.coords.accuracy ?? null;
+    const coords = {
+      lat: position.coords.latitude,
+      lng: position.coords.longitude,
+      accuracy,
+    };
+
+    console.log('REAL LOCATION:', coords.lat, coords.lng);
+    console.log('ACCURACY:', accuracy);
+
+    setLocation(coords);
+    setPermissionState('granted');
+    setIsUsingUserLocation(true);
+    setError(null);
+    setLoading(false);
+  };
+
+  const applyFallback = (message) => {
+    setPermissionState('denied');
+    setIsUsingUserLocation(false);
+    setError(message || 'Location error');
+    setLoading(false);
+    setLocation({
+      lat: 41.9028,
+      lng: 12.4964,
+      accuracy: null,
+    });
+  };
+
   const requestLocation = () => {
     if (!navigator.geolocation) {
-      setError('Geolocation not supported');
-      setLoading(false);
-      setPermissionState('denied');
-      setIsUsingUserLocation(false);
+      applyFallback('Geolocation not supported');
       return;
     }
 
@@ -31,42 +58,12 @@ export const LocationProvider = ({ children }) => {
 
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        const accuracy = position.coords.accuracy;
-        const coords = {
-          lat: position.coords.latitude,
-          lng: position.coords.longitude,
-          accuracy,
-        };
-
-        console.log('REAL LOCATION:', coords.lat, coords.lng);
-        console.log('ACCURACY:', accuracy);
-
-        if (accuracy > 100) {
-          console.log('Posizione scartata, troppo imprecisa:', accuracy);
-          setLoading(false);
-          return;
-        }
-
-        setLocation(coords);
-        setPermissionState('granted');
-        setIsUsingUserLocation(true);
-        setError(null);
-        setLoading(false);
+        applyPosition(position);
       },
       (err) => {
         console.error('GPS ERROR:', err);
         console.error('Geolocation error:', err.message);
-
-        setPermissionState('denied');
-        setIsUsingUserLocation(false);
-        setError(err.message || 'Location error');
-        setLoading(false);
-
-        setLocation({
-          lat: 41.9028,
-          lng: 12.4964,
-          accuracy: null,
-        });
+        applyFallback(err.message || 'Location error');
       },
       {
         enableHighAccuracy: true,
@@ -78,62 +75,39 @@ export const LocationProvider = ({ children }) => {
 
   useEffect(() => {
     if (!navigator.geolocation) {
-      setLoading(false);
-      setPermissionState('denied');
-      setError('Geolocation not supported');
+      applyFallback('Geolocation not supported');
       return;
     }
 
     let watchId = null;
+    let fallbackTimer = null;
 
     setLoading(true);
 
+    fallbackTimer = setTimeout(() => {
+      setLoading(false);
+    }, 12000);
+
     watchId = navigator.geolocation.watchPosition(
       (position) => {
-        const accuracy = position.coords.accuracy;
-        const coords = {
-          lat: position.coords.latitude,
-          lng: position.coords.longitude,
-          accuracy,
-        };
-
-        console.log('REAL LOCATION:', coords.lat, coords.lng);
-        console.log('ACCURACY:', accuracy);
-
-        if (accuracy > 300) {
-          console.log('Posizione scartata, troppo imprecisa:', accuracy);
-          return;
-        }
-
-        setLocation(coords);
-        setPermissionState('granted');
-        setIsUsingUserLocation(true);
-        setError(null);
-        setLoading(false);
+        if (fallbackTimer) clearTimeout(fallbackTimer);
+        applyPosition(position);
       },
       (err) => {
         console.error('GPS ERROR:', err);
         console.error('Geolocation error:', err.message);
-
-        setPermissionState('denied');
-        setIsUsingUserLocation(false);
-        setError(err.message || 'Location error');
-        setLoading(false);
-
-        setLocation({
-          lat: 41.9028,
-          lng: 12.4964,
-          accuracy: null,
-        });
+        if (fallbackTimer) clearTimeout(fallbackTimer);
+        applyFallback(err.message || 'Location error');
       },
       {
         enableHighAccuracy: true,
         timeout: 15000,
-        maximumAge: 0,
+        maximumAge: 5000,
       }
     );
 
     return () => {
+      if (fallbackTimer) clearTimeout(fallbackTimer);
       if (watchId !== null) {
         navigator.geolocation.clearWatch(watchId);
       }

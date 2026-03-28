@@ -263,19 +263,16 @@ export const MapView = () => {
     opp.description.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  if (locationLoading) {
-  return (
-    <div className="h-screen flex items-center justify-center">
-      <p>Sto trovando la tua posizione...</p>
-    </div>
-  );
-}
+  const mapCenter =
+  location?.lat && location?.lng
+    ? [location.lat, location.lng]
+    : [41.9028, 12.4964];
 
   return (
     <div className="relative h-screen" data-testid="map-view">
       {/* Map */}
       <MapContainer
-  center={location?.lat && location?.lng ? [location.lat, location.lng] : [41.9028, 12.4964]}
+  center={mapCenter}
         zoom={12}
         className="map-container z-0"
         ref={mapRef}
@@ -286,7 +283,7 @@ export const MapView = () => {
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         <MapController
-  center={location?.lat && location?.lng ? [location.lat, location.lng] : [41.9028, 12.4964]}
+ center={mapCenter} 
 />
         
         {/* User location marker */}
