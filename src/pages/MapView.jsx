@@ -263,11 +263,19 @@ export const MapView = () => {
     opp.description.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  if (locationLoading) {
+  return (
+    <div className="h-screen flex items-center justify-center">
+      <p>Sto trovando la tua posizione...</p>
+    </div>
+  );
+}
+
   return (
     <div className="relative h-screen" data-testid="map-view">
       {/* Map */}
       <MapContainer
-        center={[location.lat, location.lng]}
+  center={location?.lat && location?.lng ? [location.lat, location.lng] : [41.9028, 12.4964]}
         zoom={12}
         className="map-container z-0"
         ref={mapRef}
@@ -277,23 +285,29 @@ export const MapView = () => {
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-        <MapController center={[location.lat, location.lng]} />
+        <MapController
+  center={location?.lat && location?.lng ? [location.lat, location.lng] : [41.9028, 12.4964]}
+/>
         
         {/* User location marker */}
-        <UserLocationMarker position={[location.lat, location.lng]} />
+        {location?.lat && location?.lng && (
+  <UserLocationMarker position={[location.lat, location.lng]} />
+)}
         
         {/* Radius circle */}
-        <Circle
-          center={[location.lat, location.lng]}
-          radius={radius * 1000}
-          pathOptions={{
-            color: '#00C853',
-            fillColor: '#00C853',
-            fillOpacity: 0.05,
-            weight: 2,
-            dashArray: '5, 10',
-          }}
-        />
+        {location?.lat && location?.lng && (
+  <Circle
+    center={[location.lat, location.lng]}
+    radius={radius * 1000}
+    pathOptions={{
+      color: '#00C853',
+      fillColor: '#00C853',
+      fillOpacity: 0.05,
+      weight: 2,
+      dashArray: '5, 10',
+    }}
+  />
+)}
         
         {/* Opportunity markers with preview popup */}
         {filteredOpportunities.map((opp) => (
@@ -389,7 +403,7 @@ export const MapView = () => {
           <div className="flex items-center gap-2">
             <MapPinOff className="w-5 h-5 text-amber-600" />
             <span className="text-sm text-amber-800">
-              Using default location (NYC)
+              Using default location (Rome)
             </span>
           </div>
           <Button

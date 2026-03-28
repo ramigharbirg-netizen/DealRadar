@@ -1,167 +1,156 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
 
-const LocationContext = createContext(null);
-
-export const useLocation = () => {
-  const context = useContext(LocationContext);
-  if (!context) {
-    throw new Error('useLocation must be used within a LocationProvider');
-  }
-  return context;
-};
-
-// Default location (New York City for demo)
-const DEFAULT_LOCATION = {
-  lat: 40.7128,
-  lng: -74.0060,
-};
+const LocationContext = createContext();
 
 export const LocationProvider = ({ children }) => {
-  const [location, setLocation] = useState(DEFAULT_LOCATION);
+  const [location, setLocation] = useState({
+    lat: 41.9028,
+    lng: 12.4964,
+    accuracy: null,
+  });
+  const [radius, setRadius] = useState(10);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [radius, setRadius] = useState(50); // km
-  const [permissionState, setPermissionState] = useState('prompt'); // 'prompt', 'granted', 'denied'
+  const [permissionState, setPermissionState] = useState('prompt');
   const [isUsingUserLocation, setIsUsingUserLocation] = useState(false);
+  const [error, setError] = useState(null);
 
-  // Check permission state on mount
- useEffect(() => {
-  const initLocation = async () => {
-    try {
-      if (!navigator.geolocation) {
-        setError('Geolocation not supported');
-        setLoading(false);
-        return;
-      }
-
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const lat = position.coords.latitude;
-          const lng = position.coords.longitude;
-
-          console.log("REAL LOCATION:", lat, lng);
-
-          setLocation({ lat, lng });
-          setIsUsingUserLocation(true);
-          setPermissionState('granted');
-          setLoading(false);
-          setError(null);
-        },
-        (err) => {
-          console.log("GPS ERROR:", err);
-
-          setIsUsingUserLocation(false);
-          setLoading(false);
-
-          if (err.code === 1) {
-            setError('Location denied');
-            setPermissionState('denied');
-          } else {
-            setError('Location error');
-          }
-        },
-        {
-          enableHighAccuracy: true,
-          timeout: 20000,
-          maximumAge: 0,
-        }
-      );
-    } catch (e) {
-      console.log("INIT ERROR:", e);
-      setLoading(false);
-    }
+  const updateRadius = (value) => {
+    setRadius(value);
   };
 
-  initLocation();
-}, []);
-
-  const requestLocation = useCallback(() => {
-    if (!('geolocation' in navigator)) {
-      setError('Geolocation not supported by your browser');
+  const requestLocation = () => {
+    if (!navigator.geolocation) {
+      setError('Geolocation not supported');
       setLoading(false);
+      setPermissionState('denied');
+      setIsUsingUserLocation(false);
       return;
     }
 
     setLoading(true);
-    setError(null);
 
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        setLocation({
+        const accuracy = position.coords.accuracy;
+        const coords = {
           lat: position.coords.latitude,
           lng: position.coords.longitude,
-        });
-        setIsUsingUserLocation(true);
-        setPermissionState('granted');
-        setLoading(false);
-        setError(null);
-      },
-      (err) => {
-        console.log('Geolocation error:', err.message);
-        if (err.code === 1) {
-          setError('Location access denied');
-          setPermissionState('denied');
-        } else if (err.code === 2) {
-          setError('Location unavailable');
-        } else if (err.code === 3) {
-          setError('Location request timed out');
+          accuracy,
+        };
+
+        console.log('REAL LOCATION:', coords.lat, coords.lng);
+        console.log('ACCURACY:', accuracy);
+
+        if (accuracy > 100) {
+          console.log('Posizione scartata, troppo imprecisa:', accuracy);
+          setLoading(false);
+          return;
         }
-        setIsUsingUserLocation(false);
+
+        setLocation(coords);
+        setPermissionState('granted');
+        setIsUsingUserLocation(true);
+        setError(null);
         setLoading(false);
       },
+      (err) => {
+        console.error('GPS ERROR:', err);
+        console.error('Geolocation error:', err.message);
+
+        setPermissionState('denied');
+        setIsUsingUserLocation(false);
+        setError(err.message || 'Location error');
+        setLoading(false);
+
+        setLocation({
+          lat: 41.9028,
+          lng: 12.4964,
+          accuracy: null,
+        });
+      },
       {
         enableHighAccuracy: true,
         timeout: 15000,
-        maximumAge: 60000,
+        maximumAge: 0,
       }
     );
-  }, []);
+  };
 
-  // Watch position for real-time updates (optional)
-  const startWatchingPosition = useCallback(() => {
-    if (!('geolocation' in navigator)) return null;
+  useEffect(() => {
+    if (!navigator.geolocation) {
+      setLoading(false);
+      setPermissionState('denied');
+      setError('Geolocation not supported');
+      return;
+    }
 
-    return navigator.geolocation.watchPosition(
+    let watchId = null;
+
+    setLoading(true);
+
+    watchId = navigator.geolocation.watchPosition(
       (position) => {
-        setLocation({
+        const accuracy = position.coords.accuracy;
+        const coords = {
           lat: position.coords.latitude,
           lng: position.coords.longitude,
-        });
+          accuracy,
+        };
+
+        console.log('REAL LOCATION:', coords.lat, coords.lng);
+        console.log('ACCURACY:', accuracy);
+
+        if (accuracy > 300) {
+          console.log('Posizione scartata, troppo imprecisa:', accuracy);
+          return;
+        }
+
+        setLocation(coords);
+        setPermissionState('granted');
         setIsUsingUserLocation(true);
+        setError(null);
+        setLoading(false);
       },
       (err) => {
-        console.log('Watch position error:', err.message);
+        console.error('GPS ERROR:', err);
+        console.error('Geolocation error:', err.message);
+
+        setPermissionState('denied');
+        setIsUsingUserLocation(false);
+        setError(err.message || 'Location error');
+        setLoading(false);
+
+        setLocation({
+          lat: 41.9028,
+          lng: 12.4964,
+          accuracy: null,
+        });
       },
       {
         enableHighAccuracy: true,
         timeout: 15000,
-        maximumAge: 30000,
+        maximumAge: 0,
       }
     );
+
+    return () => {
+      if (watchId !== null) {
+        navigator.geolocation.clearWatch(watchId);
+      }
+    };
   }, []);
-
-  const updateLocation = (newLocation) => {
-    setLocation(newLocation);
-  };
-
-  const updateRadius = (newRadius) => {
-    setRadius(newRadius);
-  };
 
   return (
     <LocationContext.Provider
       value={{
         location,
-        loading,
-        error,
         radius,
+        updateRadius,
+        loading,
         permissionState,
         isUsingUserLocation,
-        updateLocation,
-        updateRadius,
         requestLocation,
-        startWatchingPosition,
-        defaultLocation: DEFAULT_LOCATION,
+        error,
       }}
     >
       {children}
@@ -169,4 +158,4 @@ export const LocationProvider = ({ children }) => {
   );
 };
 
-export default LocationContext;
+export const useLocation = () => useContext(LocationContext);

@@ -238,3 +238,4 @@ export const OpportunityCard = ({ opportunity, onClick, compact = false }) => {
 };
 
 export default OpportunityCard;
+
