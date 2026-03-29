@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Camera, MapPin, DollarSign, Phone, Mail, Link,
-  X, Plus, Loader2, ArrowLeft, Check
+  X, Loader2, ArrowLeft, Check
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -34,8 +34,8 @@ export const SubmitOpportunity = () => {
     title: '',
     description: '',
     category: '',
-    latitude: location?.lat || 0,
-    longitude: location?.lng || 0,
+    latitude: location?.lat || null,
+    longitude: location?.lng || null,
     address: '',
     estimated_price: '',
     estimated_resale_value: '',
@@ -69,14 +69,49 @@ export const SubmitOpportunity = () => {
     setImages((prev) => prev.filter((_, i) => i !== index));
   };
 
+  const geocodeAddress = async (address) => {
+    const params = new URLSearchParams({
+      q: address,
+      format: 'jsonv2',
+      limit: '1',
+      countrycodes: 'it',
+      addressdetails: '1',
+    });
+
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/search?${params.toString()}`,
+      {
+        headers: {
+          Accept: 'application/json',
+        },
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error('Address search failed');
+    }
+
+    const results = await response.json();
+
+    if (!Array.isArray(results) || results.length === 0) {
+      return null;
+    }
+
+    return {
+      lat: Number(results[0].lat),
+      lng: Number(results[0].lon),
+      displayName: results[0].display_name,
+    };
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
     const demoUser = {
-  id: null,
-  name: 'Manual User',
-  email: 'manual@dealradar.app',
-};
+      id: null,
+      name: 'Manual User',
+      email: 'manual@dealradar.app',
+    };
 
     if (!formData.title || !formData.description || !formData.category) {
       toast.error('Please fill in all required fields');
@@ -86,6 +121,33 @@ export const SubmitOpportunity = () => {
     setLoading(true);
 
     try {
+      let finalLatitude = formData.latitude ? Number(formData.latitude) : null;
+      let finalLongitude = formData.longitude ? Number(formData.longitude) : null;
+      let finalAddress = formData.address?.trim() || null;
+
+      if (finalAddress) {
+        const geocoded = await geocodeAddress(finalAddress);
+
+        if (!geocoded) {
+          toast.error('Address not found. Try a more precise address.');
+          setLoading(false);
+          return;
+        }
+
+        finalLatitude = geocoded.lat;
+        finalLongitude = geocoded.lng;
+        finalAddress = geocoded.displayName || finalAddress;
+      } else if (location?.lat && location?.lng) {
+        finalLatitude = location.lat;
+        finalLongitude = location.lng;
+      }
+
+      if (finalLatitude === null || finalLongitude === null) {
+        toast.error('Missing coordinates. Add an address or use current location.');
+        setLoading(false);
+        return;
+      }
+
       const estimatedPrice = formData.estimated_price
         ? Number(formData.estimated_price)
         : null;
@@ -103,9 +165,9 @@ export const SubmitOpportunity = () => {
         title: formData.title,
         description: formData.description,
         category: formData.category,
-        latitude: formData.latitude ? Number(formData.latitude) : null,
-        longitude: formData.longitude ? Number(formData.longitude) : null,
-        address: formData.address || null,
+        latitude: finalLatitude,
+        longitude: finalLongitude,
+        address: finalAddress,
         estimated_price: estimatedPrice,
         estimated_resale_value: estimatedResaleValue,
         contact_phone: formData.contact_phone || null,
@@ -115,8 +177,8 @@ export const SubmitOpportunity = () => {
         is_high_value: isHighValue,
         confirmations: 0,
         reports: 0,
-        user_name: (user?.name || user?.email || demoUser.name),
-user_id: user?.id || demoUser.id,
+        user_name: user?.name || user?.email || demoUser.name,
+        user_id: user?.id || demoUser.id,
       };
 
       const { error } = await supabase
@@ -157,7 +219,6 @@ user_id: user?.id || demoUser.id,
     }
   };
 
-  
   return (
     <div className="min-h-screen bg-background pb-20" data-testid="submit-opportunity-page">
       <div className="sticky top-0 z-20 bg-white border-b border-gray-100">

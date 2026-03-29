@@ -143,10 +143,14 @@ export const MapView = () => {
   const [category, setCategory] = useState('all');
   const [sortBy, setSortBy] = useState('newest');
   const [listOpen, setListOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [legendOpen, setLegendOpen] = useState(false);
   const mapRef = useRef(null);
+  const [placeQuery, setPlaceQuery] = useState('');
+const [placeResults, setPlaceResults] = useState([]);
+const [searchingPlaces, setSearchingPlaces] = useState(false);
+const [selectedPlace, setSelectedPlace] = useState(null);
+const [manualCenter, setManualCenter] = useState(null);
 
   // Show location permission modal on first visit if not granted
   useEffect(() => {
@@ -155,6 +159,54 @@ export const MapView = () => {
       setShowLocationModal(true);
     }
   }, [permissionState, locationLoading]);
+
+  useEffect(() => {
+  const runPlaceSearch = async () => {
+    if (!placeQuery || placeQuery.trim().length < 3) {
+      setPlaceResults([]);
+      return;
+    }
+
+    setSearchingPlaces(true);
+
+    try {
+      const params = new URLSearchParams({
+        q: placeQuery.trim(),
+        format: 'jsonv2',
+        limit: '5',
+        countrycodes: 'it',
+        addressdetails: '1',
+      });
+
+      if (location?.lat && location?.lng) {
+        params.append(
+          'viewbox',
+          `${location.lng - 0.25},${location.lat + 0.15},${location.lng + 0.25},${location.lat - 0.15}`
+        );
+      }
+
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?${params.toString()}`,
+        {
+          headers: {
+            Accept: 'application/json',
+          },
+        }
+      );
+
+      const data = await res.json();
+      setPlaceResults(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Place search error:', err);
+      setPlaceResults([]);
+    } finally {
+      setSearchingPlaces(false);
+    }
+  };
+
+  const timer = setTimeout(runPlaceSearch, 350);
+  return () => clearTimeout(timer);
+}, [placeQuery, location]);
 
 
   useEffect(() => {
@@ -243,18 +295,38 @@ export const MapView = () => {
     setSelectedOpportunity(opp);
   };
 
+  const handlePlaceSelect = (place) => {
+  const lat = Number(place.lat);
+  const lng = Number(place.lon);
+
+  setSelectedPlace(place);
+  setManualCenter([lat, lng]);
+  setPlaceQuery(place.display_name);
+  setPlaceResults([]);
+
+  if (mapRef.current) {
+    mapRef.current.setView([lat, lng], 14);
+  }
+
+  toast.success('Luogo trovato');
+};
+
   const handleLocateMe = () => {
-    if (permissionState !== 'granted') {
-      setShowLocationModal(true);
-      return;
-    }
-    
-    requestLocation();
-    if (mapRef.current && location) {
-      mapRef.current.setView([location.lat, location.lng], 13);
-    }
-    toast.success('Location updated');
-  };
+  if (permissionState !== 'granted') {
+    setShowLocationModal(true);
+    return;
+  }
+
+  requestLocation();
+  setSelectedPlace(null);
+  setManualCenter(null);
+
+  if (mapRef.current && location?.lat && location?.lng) {
+    mapRef.current.setView([location.lat, location.lng], 13);
+  }
+
+  toast.success('Location updated');
+};
 
   const handleLocationPermission = () => {
     localStorage.setItem('location_modal_seen', 'true');
@@ -267,15 +339,13 @@ export const MapView = () => {
     setShowLocationModal(false);
   };
 
-  const filteredOpportunities = opportunities.filter(opp =>
-    opp.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    opp.description.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredOpportunities = opportunities;
 
-  const mapCenter =
-  location?.lat && location?.lng
+    const mapCenter =
+  manualCenter ||
+  (location?.lat && location?.lng
     ? [location.lat, location.lng]
-    : [41.9028, 12.4964];
+    : [41.9028, 12.4964]);
 
   return (
     <div className="relative h-screen" data-testid="map-view">
@@ -296,12 +366,18 @@ export const MapView = () => {
 />
         
         {/* User location marker */}
-        {location?.lat && location?.lng && (
+{location?.lat && location?.lng && (
   <UserLocationMarker position={[location.lat, location.lng]} />
 )}
-        
-        {/* Radius circle */}
-        {location?.lat && location?.lng && (
+
+{selectedPlace && (
+  <Marker position={[Number(selectedPlace.lat), Number(selectedPlace.lon)]}>
+    <Popup>{selectedPlace.display_name}</Popup>
+  </Marker>
+)}
+
+{/* Radius circle */}
+{location?.lat && location?.lng && (
   <Circle
     center={[location.lat, location.lng]}
     radius={radius * 1000}
@@ -338,7 +414,7 @@ export const MapView = () => {
         ))}
         
         {/* Bounty markers */}
-        {bounties.map((bounty) => (
+        {/* {bounties.map((bounty) => (
           <Marker
             key={`bounty-${bounty.id}`}
             position={[bounty.latitude, bounty.longitude]}
@@ -373,22 +449,49 @@ export const MapView = () => {
               </div>
             </Popup>
           </Marker>
-        ))}
+        ))} */}
       </MapContainer>
 
       {/* Top Controls */}
       <div className="absolute top-4 left-4 right-4 z-10 space-y-3">
         {/* Search Bar */}
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-          <Input
-            placeholder="Search deals..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10 pr-4 h-12 bg-white/95 backdrop-blur-md border-0 shadow-lg rounded-xl"
-            data-testid="search-input"
-          />
+  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 z-10" />
+  <Input
+    placeholder="Cerca un luogo o indirizzo..."
+    value={placeQuery}
+    onChange={(e) => setPlaceQuery(e.target.value)}
+    className="pl-10 pr-4 h-12 bg-white/95 backdrop-blur-md border-0 shadow-lg rounded-xl"
+    data-testid="place-search-input"
+  />
+
+  {(searchingPlaces || placeResults.length > 0) && (
+    <div className="absolute top-14 left-0 right-0 bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden z-20">
+      {searchingPlaces && (
+        <div className="px-4 py-3 text-sm text-gray-500">
+          Sto cercando il luogo...
         </div>
+      )}
+
+      {!searchingPlaces &&
+        placeResults.map((place) => (
+          <button
+            key={place.place_id}
+            type="button"
+            onClick={() => handlePlaceSelect(place)}
+            className="w-full text-left px-4 py-3 hover:bg-gray-50 border-b border-gray-100 last:border-b-0"
+          >
+            <div className="text-sm font-medium text-gray-900 line-clamp-1">
+              {place.display_name}
+            </div>
+            <div className="text-xs text-gray-500 mt-1">
+              {place.type}
+            </div>
+          </button>
+        ))}
+    </div>
+  )}
+</div>
 
         {/* Category Filter */}
         <CategoryFilter selected={category} onSelect={setCategory} />
