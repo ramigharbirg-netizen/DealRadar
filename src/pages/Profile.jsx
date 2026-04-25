@@ -12,8 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Checkbox } from '../components/ui/checkbox';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '../components/ui/sheet';
 import { useAuth } from '../contexts/AuthContext';
-import { userAPI, opportunitiesAPI } from '../lib/api';
-import api from '../lib/api';
+import { supabase } from '../lib/supabase';
 import { OpportunityCard } from '../components/OpportunityCard';
 import { OpportunityDetail } from '../components/OpportunityDetail';
 import { toast } from 'sonner';
@@ -82,36 +81,102 @@ useEffect(() => {
   }
 }, [user]);
 
-  const loadUserData = async () => {
-    try {
-      const [statsRes, oppsRes, meRes] = await Promise.all([
-        userAPI.getStats(user.id),
-        opportunitiesAPI.getAll({ limit: 100 }),
-        api.get('/auth/me'),
-      ]);
-      setStats(statsRes.data);
-      setMyOpportunities(oppsRes.data.filter(opp => opp.user_id === user.id));
-      
-      // Load notification preferences
-      const userData = meRes.data;
-      setNotificationsEnabled(userData.notification_enabled ?? true);
-      setNotificationCategories(userData.notification_categories ?? []);
-      setNotificationRadius(userData.notification_radius ?? 20);
-    } catch (err) {
-      console.error('Error loading user data:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+const loadUserData = async () => {
+  try {
+    const { data: myOpps, error: oppsError } = await supabase
+      .from('opportunities')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(100);
 
-  const loadLeaderboard = async () => {
-    try {
-      const res = await api.get('/leaderboard?limit=5');
-      setLeaderboard(res.data);
-    } catch (err) {
-      console.error('Error loading leaderboard:', err);
+    if (oppsError) {
+      throw oppsError;
     }
-  };
+
+    const opportunities = myOpps || [];
+
+    const totalDeals = opportunities.length;
+    const highValueDeals = opportunities.filter((opp) => opp.is_high_value).length;
+    const freeDeals = opportunities.filter((opp) => Number(opp.estimated_price) === 0).length;
+
+    const totalEstimatedProfit = opportunities.reduce((sum, opp) => {
+      const price = Number(opp.estimated_price);
+      const resale = Number(opp.estimated_resale_value);
+
+      if (Number.isNaN(price) || Number.isNaN(resale)) {
+        return sum;
+      }
+
+      return sum + Math.max(resale - price, 0);
+    }, 0);
+
+    setStats({
+      total_deals: totalDeals,
+      high_value_deals: highValueDeals,
+      free_deals: freeDeals,
+      estimated_profit: totalEstimatedProfit,
+    });
+
+    setMyOpportunities(opportunities);
+
+    setNotificationsEnabled(true);
+    setNotificationCategories([]);
+    setNotificationRadius(20);
+  } catch (err) {
+    console.error('Error loading user data:', err);
+    setStats({
+      total_deals: 0,
+      high_value_deals: 0,
+      free_deals: 0,
+      estimated_profit: 0,
+    });
+    setMyOpportunities([]);
+  } finally {
+    setLoading(false);
+  }
+};
+      
+
+
+const loadLeaderboard = async () => {
+  try {
+    const { data, error } = await supabase
+      .from('opportunities')
+      .select('user_id, user_name')
+      .not('user_id', 'is', null)
+      .limit(500);
+
+    if (error) {
+      throw error;
+    }
+
+    const grouped = {};
+
+    (data || []).forEach((opp) => {
+      if (!opp.user_id) return;
+
+      if (!grouped[opp.user_id]) {
+        grouped[opp.user_id] = {
+          user_id: opp.user_id,
+          name: opp.user_name || 'User',
+          total_deals: 0,
+        };
+      }
+
+      grouped[opp.user_id].total_deals += 1;
+    });
+
+    const topUsers = Object.values(grouped)
+      .sort((a, b) => b.total_deals - a.total_deals)
+      .slice(0, 5);
+
+    setLeaderboard(topUsers);
+  } catch (err) {
+    console.error('Error loading leaderboard:', err);
+    setLeaderboard([]);
+  }
+};
 
   const handleLogout = () => {
     logout();

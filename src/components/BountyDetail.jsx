@@ -10,7 +10,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from './ui/sheet';
 import { ScrollArea } from './ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { useAuth } from '../contexts/AuthContext';
-import { bountiesAPI, opportunitiesAPI } from '../lib/api';
+import { supabase } from '../lib/supabase';
 import { toast } from 'sonner';
 
 const categoryConfig = {
@@ -55,88 +55,140 @@ export const BountyDetail = ({ bounty, open, onClose }) => {
   const [loadingSubmissions, setLoadingSubmissions] = useState(false);
 
   const category = categoryConfig[bounty?.category] || categoryConfig.user_reported;
-  const isCreator = user && bounty?.creator_id === user.id;
+const isCreator = user && bounty?.user_id === user.id;
 
   
 
   const loadMyOpportunities = async () => {
-    try {
-      const res = await opportunitiesAPI.getAll({ limit: 100 });
-      // Filter to show opportunities that match the bounty category or all
-      setMyOpportunities(res.data.filter(opp => 
-        opp.category === bounty.category || bounty.category === 'all'
-      ));
-    } catch (err) {
-      console.error('Error loading opportunities:', err);
+  try {
+    let query = supabase
+      .from('opportunities')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(100);
+
+    if (bounty.category && bounty.category !== 'all') {
+      query = query.eq('category', bounty.category);
     }
-  };
+
+    const { data, error } = await query;
+
+    if (error) throw error;
+
+    setMyOpportunities(data || []);
+  } catch (err) {
+    console.error('Error loading opportunities:', err);
+    setMyOpportunities([]);
+  }
+};
 
   const loadSubmissions = async () => {
-    setLoadingSubmissions(true);
-    try {
-      const res = await bountiesAPI.getSubmissions(bounty.id);
-      setSubmissions(res.data);
-    } catch (err) {
-      console.error('Error loading submissions:', err);
-    } finally {
-      setLoadingSubmissions(false);
-    }
-  };
+  setLoadingSubmissions(true);
+
+  try {
+    const { data, error } = await supabase
+      .from('bounty_submissions')
+      .select(`
+        *,
+        opportunity:opportunities(*)
+      `)
+      .eq('bounty_id', bounty.id)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    setSubmissions(data || []);
+  } catch (err) {
+    console.error('Error loading submissions:', err);
+    setSubmissions([]);
+  } finally {
+    setLoadingSubmissions(false);
+  }
+};
 useEffect(() => {
   if (bounty?.id && open && user) {
     loadMyOpportunities();
 
-    if (user && bounty?.creator_id === user.id) {
-      loadSubmissions();
-    }
+    if (user && bounty?.user_id === user.id) {
+  loadSubmissions();
+}
   }
 }, [bounty, open, user]);
   const handleSubmit = async () => {
-    if (!user) {
-      toast.error('Please login to submit');
-      return;
-    }
-    if (!selectedOpportunity) {
-      toast.error('Please select an opportunity');
-      return;
-    }
+  if (!user) {
+    toast.error('Please login to submit');
+    return;
+  }
 
-    setSubmitting(true);
-    try {
-      await bountiesAPI.submit(bounty.id, {
-        opportunity_id: selectedOpportunity,
-        note: note || null,
-      });
-      toast.success('Submission sent! The bounty creator will review it.');
-      setSelectedOpportunity('');
-      setNote('');
-    } catch (err) {
-      toast.error(err.response?.data?.detail || 'Failed to submit');
-    } finally {
-      setSubmitting(false);
-    }
-  };
+  if (!selectedOpportunity) {
+    toast.error('Please select an opportunity');
+    return;
+  }
+
+  setSubmitting(true);
+
+  try {
+    const payload = {
+      bounty_id: bounty.id,
+      opportunity_id: selectedOpportunity,
+      user_id: user.id,
+      user_name: user.name || user.email,
+      note: note || null,
+      status: 'pending',
+    };
+
+    const { error } = await supabase
+      .from('bounty_submissions')
+      .insert([payload]);
+
+    if (error) throw error;
+
+    toast.success('Submission sent! The bounty creator will review it.');
+    setSelectedOpportunity('');
+    setNote('');
+  } catch (err) {
+    console.error('Submit bounty error:', err);
+    toast.error(err.message || 'Failed to submit');
+  } finally {
+    setSubmitting(false);
+  }
+};
 
   const handleApprove = async (submissionId) => {
-    try {
-      await bountiesAPI.approveSubmission(bounty.id, submissionId);
-      toast.success('Submission approved! Reward sent to the hunter.');
-      loadSubmissions();
-      onClose(false);
-    } catch (err) {
-      toast.error(err.response?.data?.detail || 'Failed to approve');
-    }
-  };
+  try {
+    const { error } = await supabase
+      .from('bounty_submissions')
+      .update({ status: 'approved' })
+      .eq('id', submissionId);
 
-  const handleReject = async (submissionId) => {
-    try {
-      await bountiesAPI.rejectSubmission(bounty.id, submissionId);
-      toast.success('Submission rejected');
-      loadSubmissions();
-    } catch (err) {
-      toast.error(err.response?.data?.detail || 'Failed to reject');
-    }
-  };
+    if (error) throw error;
+
+    toast.success('Submission approved!');
+    loadSubmissions();
+    onClose(false);
+  } catch (err) {
+    console.error('Approve submission error:', err);
+    toast.error(err.message || 'Failed to approve');
+  }
+};
+
+ const handleReject = async (submissionId) => {
+  try {
+    const { error } = await supabase
+      .from('bounty_submissions')
+      .update({ status: 'rejected' })
+      .eq('id', submissionId);
+
+    if (error) throw error;
+
+    toast.success('Submission rejected');
+    loadSubmissions();
+  } catch (err) {
+    console.error('Reject submission error:', err);
+    toast.error(err.message || 'Failed to reject');
+  }
+};
 
   const handleShare = async () => {
     if (navigator.share) {
@@ -264,7 +316,7 @@ useEffect(() => {
                 <User className="w-5 h-5 text-amber-600" />
               </div>
               <div>
-                <p className="font-medium text-gray-900">{bounty.creator_name}</p>
+                <p className="font-medium text-gray-900">{bounty.user_name}</p>
                 <p className="text-sm text-gray-500">Posted {formatDate(bounty.created_at)}</p>
               </div>
             </div>

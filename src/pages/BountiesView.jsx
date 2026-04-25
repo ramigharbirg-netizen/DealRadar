@@ -6,7 +6,7 @@ import { Input } from '../components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { useLocation } from '../contexts/LocationContext';
 import { useAuth } from '../contexts/AuthContext';
-import { bountiesAPI } from '../lib/api';
+import { supabase } from '../lib/supabase';
 import { BountyCard } from '../components/BountyCard';
 import { BountyDetail } from '../components/BountyDetail';
 import { CategoryFilter } from '../components/CategoryFilter';
@@ -42,40 +42,73 @@ useEffect(() => {
 }, [user, activeTab]);
 
   const loadBounties = async () => {
-    setLoading(true);
-    try {
-      const params = {
-        lat: location.lat,
-        lon: location.lng,
-        category: category !== 'all' ? category : undefined,
-        status: 'active',
-      };
-      const res = await bountiesAPI.getAll(params);
-      setBounties(res.data);
-    } catch (err) {
-      toast.error('Failed to load bounties');
-    } finally {
-      setLoading(false);
-    }
-  };
+  setLoading(true);
 
-  const loadMyBounties = async () => {
-    try {
-      const res = await bountiesAPI.getMyBounties();
-      setMyBounties(res.data);
-    } catch (err) {
-      console.error('Error loading my bounties:', err);
-    }
-  };
+  try {
+    let query = supabase
+      .from('bounties')
+      .select('*')
+      .eq('status', 'active')
+      .order('created_at', { ascending: false });
 
-  const loadMySubmissions = async () => {
-    try {
-      const res = await bountiesAPI.getMySubmissions();
-      setMySubmissions(res.data);
-    } catch (err) {
-      console.error('Error loading my submissions:', err);
+    if (category !== 'all') {
+      query = query.eq('category', category);
     }
-  };
+
+    const { data, error } = await query;
+
+    if (error) throw error;
+
+    setBounties(data || []);
+  } catch (err) {
+    console.error('Error loading bounties:', err);
+    toast.error('Failed to load bounties');
+    setBounties([]);
+  } finally {
+    setLoading(false);
+  }
+};
+
+const loadMyBounties = async () => {
+  if (!user) return;
+
+  try {
+    const { data, error } = await supabase
+      .from('bounties')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    setMyBounties(data || []);
+  } catch (err) {
+    console.error('Error loading my bounties:', err);
+    setMyBounties([]);
+  }
+};
+
+const loadMySubmissions = async () => {
+  if (!user) return;
+
+  try {
+    const { data, error } = await supabase
+      .from('bounty_submissions')
+      .select(`
+        *,
+        bounty:bounties(*)
+      `)
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    setMySubmissions(data || []);
+  } catch (err) {
+    console.error('Error loading my submissions:', err);
+    setMySubmissions([]);
+  }
+};
 
   const handleRefresh = async () => {
     setRefreshing(true);

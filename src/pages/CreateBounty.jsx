@@ -10,7 +10,7 @@ import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { useAuth } from '../contexts/AuthContext';
 import { useLocation } from '../contexts/LocationContext';
-import { bountiesAPI } from '../lib/api';
+import { supabase } from '../lib/supabase';
 import { toast } from 'sonner';
 
 const categories = [
@@ -68,11 +68,23 @@ export const CreateBounty = () => {
         radius_km: Number(formData.radius_km),
       };
       
-      await bountiesAPI.create(data);
+      const payload = {
+  ...data,
+  user_id: user.id,
+  user_name: user.name || user.email,
+  status: 'active',
+};
+
+const { error } = await supabase.from('bounties').insert([payload]);
+
+if (error) {
+  throw error;
+}
       toast.success('Bounty created! Hunters will be notified.');
       navigate('/bounties');
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'Failed to create bounty');
+     console.error('Create bounty error:', err);
+toast.error(err.message || 'Failed to create bounty');
     } finally {
       setLoading(false);
     }
