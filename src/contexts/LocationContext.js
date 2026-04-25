@@ -1,15 +1,17 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useState } from 'react';
 
 const LocationContext = createContext();
 
+const DEFAULT_LOCATION = {
+  lat: 41.9028,
+  lng: 12.4964,
+  accuracy: null,
+};
+
 export const LocationProvider = ({ children }) => {
-  const [location, setLocation] = useState({
-    lat: 41.9028,
-    lng: 12.4964,
-    accuracy: null,
-  });
+  const [location, setLocation] = useState(DEFAULT_LOCATION);
   const [radius, setRadius] = useState(10);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [permissionState, setPermissionState] = useState('prompt');
   const [isUsingUserLocation, setIsUsingUserLocation] = useState(false);
   const [error, setError] = useState(null);
@@ -41,78 +43,45 @@ export const LocationProvider = ({ children }) => {
     setIsUsingUserLocation(false);
     setError(message || 'Location error');
     setLoading(false);
-    setLocation({
-      lat: 41.9028,
-      lng: 12.4964,
-      accuracy: null,
+    setLocation(DEFAULT_LOCATION);
+  };
+
+  const requestLocation = async () => {
+    if (!navigator.geolocation) {
+      applyFallback('Geolocation not supported');
+      return null;
+    }
+
+    setLoading(true);
+
+    return new Promise((resolve) => {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          applyPosition(position);
+          resolve(position);
+        },
+        (err) => {
+          console.error('GPS ERROR:', err);
+          console.error('Geolocation error:', err.message);
+          applyFallback(err.message || 'Location error');
+          resolve(null);
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 15000,
+          maximumAge: 60000,
+        }
+      );
     });
   };
 
-  const requestLocation = () => {
-    if (!navigator.geolocation) {
-      applyFallback('Geolocation not supported');
-      return;
-    }
-
-    setLoading(true);
-
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        applyPosition(position);
-      },
-      (err) => {
-        console.error('GPS ERROR:', err);
-        console.error('Geolocation error:', err.message);
-        applyFallback(err.message || 'Location error');
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: 15000,
-        maximumAge: 0,
-      }
-    );
+  const resetToDefaultLocation = () => {
+    setLocation(DEFAULT_LOCATION);
+    setIsUsingUserLocation(false);
+    setPermissionState('prompt');
+    setError(null);
+    setLoading(false);
   };
-
-  useEffect(() => {
-    if (!navigator.geolocation) {
-      applyFallback('Geolocation not supported');
-      return;
-    }
-
-    let watchId = null;
-    let fallbackTimer = null;
-
-    setLoading(true);
-
-    fallbackTimer = setTimeout(() => {
-      setLoading(false);
-    }, 12000);
-
-    watchId = navigator.geolocation.watchPosition(
-      (position) => {
-        if (fallbackTimer) clearTimeout(fallbackTimer);
-        applyPosition(position);
-      },
-      (err) => {
-        console.error('GPS ERROR:', err);
-        console.error('Geolocation error:', err.message);
-        if (fallbackTimer) clearTimeout(fallbackTimer);
-        applyFallback(err.message || 'Location error');
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: 15000,
-        maximumAge: 5000,
-      }
-    );
-
-    return () => {
-      if (fallbackTimer) clearTimeout(fallbackTimer);
-      if (watchId !== null) {
-        navigator.geolocation.clearWatch(watchId);
-      }
-    };
-  }, []);
 
   return (
     <LocationContext.Provider
@@ -124,6 +93,7 @@ export const LocationProvider = ({ children }) => {
         permissionState,
         isUsingUserLocation,
         requestLocation,
+        resetToDefaultLocation,
         error,
       }}
     >

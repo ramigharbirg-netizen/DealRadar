@@ -1,16 +1,26 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap, Circle } from 'react-leaflet';
 import L from 'leaflet';
-import { 
-  Search, Filter, Navigation, ChevronUp, MapPin, TrendingUp,
-  Store, Package, Wrench, Building2, Gavel, Star, MapPinOff, Bell, Target
+import {
+  Search,
+  Filter,
+  Navigation,
+  ChevronUp,
+  MapPin,
+  Store,
+  Package,
+  Wrench,
+  Building2,
+  Gavel,
+  Star,
+  MapPinOff,
+  Target,
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '../components/ui/sheet';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { useLocation } from '../contexts/LocationContext';
-import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { OpportunityCard } from '../components/OpportunityCard';
 import { OpportunityDetail } from '../components/OpportunityDetail';
@@ -18,12 +28,10 @@ import { CategoryFilter } from '../components/CategoryFilter';
 import { DistanceFilter } from '../components/DistanceFilter';
 import { MapPreviewCard } from '../components/MapPreviewCard';
 import { LocationPermissionModal } from '../components/LocationPermissionModal';
-import { BountyCard } from '../components/BountyCard';
-import { BountyDetail } from '../components/BountyDetail';
 import { toast } from 'sonner';
 import 'leaflet/dist/leaflet.css';
 
-// Fix Leaflet default marker icon
+// Fix marker Leaflet
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
@@ -31,19 +39,73 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
 });
 
-// Updated category icons and colors per user request
+const DEFAULT_MAP_CENTER = [41.9028, 12.4964]; // Rome
+
 const categoryIcons = {
-  store_liquidation: { icon: Store, color: '#00C853', name: 'Store Liquidation' }, // Green
-  product_stock: { icon: Package, color: '#F59E0B', name: 'Product Stock' }, // Yellow
-  equipment: { icon: Wrench, color: '#3B82F6', name: 'Equipment' }, // Blue
-  business_sale: { icon: Building2, color: '#8B5CF6', name: 'Business Sale' }, // Purple
-  auctions: { icon: Gavel, color: '#EF4444', name: 'Auctions' }, // Red
-  user_reported: { icon: Star, color: '#F97316', name: 'User Reported' }, // Orange
+  store_liquidation: { icon: Store, color: '#00C853', name: 'Store Liquidation' },
+  product_stock: { icon: Package, color: '#F59E0B', name: 'Product Stock' },
+  equipment: { icon: Wrench, color: '#3B82F6', name: 'Equipment' },
+  business_sale: { icon: Building2, color: '#8B5CF6', name: 'Business Sale' },
+  auctions: { icon: Gavel, color: '#EF4444', name: 'Auctions' },
+  user_reported: { icon: Star, color: '#F97316', name: 'User Reported' },
+};
+
+const toRadians = (deg) => (deg * Math.PI) / 180;
+
+const distanceKm = (lat1, lon1, lat2, lon2) => {
+  if (lat1 == null || lon1 == null || lat2 == null || lon2 == null) return null;
+
+  const nLat1 = Number(lat1);
+  const nLon1 = Number(lon1);
+  const nLat2 = Number(lat2);
+  const nLon2 = Number(lon2);
+
+  if (
+    Number.isNaN(nLat1) ||
+    Number.isNaN(nLon1) ||
+    Number.isNaN(nLat2) ||
+    Number.isNaN(nLon2)
+  ) {
+    return null;
+  }
+
+  const R = 6371;
+  const dLat = toRadians(nLat2 - nLat1);
+  const dLon = toRadians(nLon2 - nLon1);
+
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRadians(nLat1)) *
+      Math.cos(toRadians(nLat2)) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+};
+
+const getIconSvg = (category) => {
+  const paths = {
+    store_liquidation:
+      '<path d="m2 7 4.41-4.41A2 2 0 0 1 7.83 2h8.34a2 2 0 0 1 1.42.59L22 7"/><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><path d="M15 22v-4a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2v4"/><path d="M2 7h20"/><path d="M22 7v3a2 2 0 0 1-2 2a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 16 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 12 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 8 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 4 12a2 2 0 0 1-2-2V7"/>',
+    product_stock:
+      '<path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z"/><path d="M12 22V12"/><path d="m3.3 7 7.703 4.734a2 2 0 0 0 1.994 0L20.7 7"/><path d="m7.5 4.27 9 5.15"/>',
+    equipment:
+      '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>',
+    business_sale:
+      '<path d="M6 22V2a1 1 0 0 1 1-1h9a1 1 0 0 1 1 1v1"/><path d="M18 11h4v11h-9"/><path d="M6 12H2v10h4"/><path d="M10 6h4"/><path d="M10 10h4"/><path d="M10 14h4"/><path d="M10 18h4"/>',
+    auctions:
+      '<path d="m14.5 12.5-8 8a2.119 2.119 0 1 1-3-3l8-8"/><path d="m16 16 6-6"/><path d="m8 8 6-6"/><path d="m9 7 8 8"/><path d="m21 11-11 11"/>',
+    user_reported:
+      '<path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>',
+  };
+
+  return paths[category] || paths.user_reported;
 };
 
 const createCustomIcon = (category) => {
   const config = categoryIcons[category] || categoryIcons.user_reported;
-  
+
   return L.divIcon({
     className: 'custom-div-icon',
     html: `
@@ -59,32 +121,19 @@ const createCustomIcon = (category) => {
   });
 };
 
-const getIconSvg = (category) => {
-  const paths = {
-    store_liquidation: '<path d="m2 7 4.41-4.41A2 2 0 0 1 7.83 2h8.34a2 2 0 0 1 1.42.59L22 7"/><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><path d="M15 22v-4a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2v4"/><path d="M2 7h20"/><path d="M22 7v3a2 2 0 0 1-2 2a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 16 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 12 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 8 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 4 12a2 2 0 0 1-2-2V7"/>',
-    product_stock: '<path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z"/><path d="M12 22V12"/><path d="m3.3 7 7.703 4.734a2 2 0 0 0 1.994 0L20.7 7"/><path d="m7.5 4.27 9 5.15"/>',
-    equipment: '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>',
-    business_sale: '<path d="M6 22V2a1 1 0 0 1 1-1h9a1 1 0 0 1 1 1v1"/><path d="M18 11h4v11h-9"/><path d="M6 12H2v10h4"/><path d="M10 6h4"/><path d="M10 10h4"/><path d="M10 14h4"/><path d="M10 18h4"/>',
-    auctions: '<path d="m14.5 12.5-8 8a2.119 2.119 0 1 1-3-3l8-8"/><path d="m16 16 6-6"/><path d="m8 8 6-6"/><path d="m9 7 8 8"/><path d="m21 11-11 11"/>',
-    user_reported: '<path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>',
-  };
-  return paths[category] || paths.user_reported;
-};
-
-// Component to handle map view changes
-const MapController = ({ center, zoom }) => {
+const MapController = ({ center, zoom, shouldRecenter, onRecenterDone }) => {
   const map = useMap();
-  
+
   useEffect(() => {
-    if (center) {
+    if (center && shouldRecenter) {
       map.setView(center, zoom || map.getZoom());
+      onRecenterDone?.();
     }
-  }, [center, zoom, map]);
-  
+  }, [center, zoom, shouldRecenter, map, onRecenterDone]);
+
   return null;
 };
 
-// User location marker with pulse animation
 const UserLocationMarker = ({ position }) => {
   const userIcon = L.divIcon({
     className: 'user-location-icon',
@@ -101,305 +150,351 @@ const UserLocationMarker = ({ position }) => {
   return <Marker position={position} icon={userIcon} />;
 };
 
-// Bounty marker icon (target)
-const createBountyIcon = () => {
-  return L.divIcon({
-    className: 'bounty-marker-icon',
-    html: `
-      <div class="bounty-marker">
-        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="10"/>
-          <circle cx="12" cy="12" r="6"/>
-          <circle cx="12" cy="12" r="2"/>
-        </svg>
-      </div>
-    `,
-    iconSize: [44, 44],
-    iconAnchor: [22, 22],
-    popupAnchor: [0, -26],
-  });
-};
-
 export const MapView = () => {
-  const { 
-    location, 
-    radius, 
-    updateRadius, 
-    loading: locationLoading,
+  const {
+    location,
+    radius,
+    updateRadius,
     permissionState,
     isUsingUserLocation,
     requestLocation,
-    error: locationError
+    error: locationError,
   } = useLocation();
-  const { user } = useAuth();
-  
-  const [opportunities, setOpportunities] = useState([]);
-  const [bounties, setBounties] = useState([]);
-  const [loading, setLoading] = useState(true);
+
+  const [allOpportunities, setAllOpportunities] = useState([]);
   const [selectedOpportunity, setSelectedOpportunity] = useState(null);
-  const [selectedBounty, setSelectedBounty] = useState(null);
   const [detailOpen, setDetailOpen] = useState(false);
-  const [bountyDetailOpen, setBountyDetailOpen] = useState(false);
   const [category, setCategory] = useState('all');
   const [sortBy, setSortBy] = useState('newest');
   const [listOpen, setListOpen] = useState(false);
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [legendOpen, setLegendOpen] = useState(false);
-  const mapRef = useRef(null);
   const [placeQuery, setPlaceQuery] = useState('');
-const [placeResults, setPlaceResults] = useState([]);
-const [searchingPlaces, setSearchingPlaces] = useState(false);
-const [selectedPlace, setSelectedPlace] = useState(null);
-const [manualCenter, setManualCenter] = useState(null);
+  const [placeResults, setPlaceResults] = useState([]);
+  const [searchingPlaces, setSearchingPlaces] = useState(false);
+  const [selectedPlace, setSelectedPlace] = useState(null);
+  const [manualCenter, setManualCenter] = useState(null);
+  const [shouldRecenter, setShouldRecenter] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [opportunitiesError, setOpportunitiesError] = useState('');
+  const [debugError, setDebugError] = useState('');
 
-  // Show location permission modal on first visit if not granted
+  const mapRef = useRef(null);
+  const hasLoadedOpportunitiesRef = useRef(false);
+
   useEffect(() => {
-    const hasSeenModal = localStorage.getItem('location_modal_seen');
-    if (!hasSeenModal && permissionState === 'prompt' && !locationLoading) {
-      setShowLocationModal(true);
-    }
-  }, [permissionState, locationLoading]);
+    let isCancelled = false;
 
-  useEffect(() => {
-  const runPlaceSearch = async () => {
-    if (!placeQuery || placeQuery.trim().length < 3) {
-      setPlaceResults([]);
-      return;
-    }
+    const runPlaceSearch = async () => {
+      const cleanQuery = placeQuery.trim();
 
-    setSearchingPlaces(true);
-
-    try {
-      const params = new URLSearchParams({
-        q: placeQuery.trim(),
-        format: 'jsonv2',
-        limit: '5',
-        countrycodes: 'it',
-        addressdetails: '1',
-      });
-
-      if (location?.lat && location?.lng) {
-        params.append(
-          'viewbox',
-          `${location.lng - 0.25},${location.lat + 0.15},${location.lng + 0.25},${location.lat - 0.15}`
-        );
+      if (cleanQuery.length < 3) {
+        setPlaceResults([]);
+        setSearchingPlaces(false);
+        return;
       }
 
-      const res = await fetch(
-        `https://nominatim.openstreetmap.org/search?${params.toString()}`,
-        {
-          headers: {
-            Accept: 'application/json',
-          },
+      setSearchingPlaces(true);
+
+      try {
+        const params = new URLSearchParams({
+          q: cleanQuery,
+          format: 'jsonv2',
+          limit: '5',
+          countrycodes: 'it',
+          addressdetails: '1',
+        });
+
+        if (location?.lat && location?.lng) {
+          params.append(
+            'viewbox',
+            `${location.lng - 0.25},${location.lat + 0.15},${location.lng + 0.25},${location.lat - 0.15}`
+          );
         }
-      );
 
-      const data = await res.json();
-      setPlaceResults(Array.isArray(data) ? data : []);
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/search?${params.toString()}`,
+          {
+            method: 'GET',
+            headers: {
+              Accept: 'application/json',
+            },
+          }
+        );
+
+        const rawText = await res.text();
+
+        if (!res.ok) {
+          throw new Error(`Nominatim HTTP ${res.status}: ${rawText || 'Empty response'}`);
+        }
+
+        let parsedResults = [];
+
+        try {
+          parsedResults = JSON.parse(rawText);
+        } catch (parseErr) {
+          console.error('Nominatim JSON parse error:', parseErr);
+          console.error('Nominatim raw response:', rawText);
+          parsedResults = [];
+        }
+
+        if (!isCancelled) {
+          setPlaceResults(Array.isArray(parsedResults) ? parsedResults : []);
+        }
+      } catch (err) {
+        console.error('Place search error:', err);
+        if (!isCancelled) {
+          setPlaceResults([]);
+        }
+      } finally {
+        if (!isCancelled) {
+          setSearchingPlaces(false);
+        }
+      }
+    };
+
+    const timer = setTimeout(() => {
+      runPlaceSearch();
+    }, 350);
+
+    return () => {
+      isCancelled = true;
+      clearTimeout(timer);
+    };
+  }, [placeQuery, location?.lat, location?.lng]);
+
+  const loadOpportunities = useCallback(async () => {
+    setLoading(true);
+    setOpportunitiesError('');
+    setDebugError('');
+
+    try {
+      const { data, error } = await supabase
+        .from('opportunities')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(100);
+
+      if (error) {
+        throw error;
+      }
+
+      const validOpportunities = (data || [])
+        .filter(
+          (opp) =>
+            opp &&
+            opp.latitude !== null &&
+            opp.latitude !== undefined &&
+            opp.longitude !== null &&
+            opp.longitude !== undefined &&
+            !Number.isNaN(Number(opp.latitude)) &&
+            !Number.isNaN(Number(opp.longitude))
+        )
+        .map((opp) => ({
+          ...opp,
+          latitude: Number(opp.latitude),
+          longitude: Number(opp.longitude),
+        }));
+
+      setAllOpportunities(validOpportunities);
     } catch (err) {
-      console.error('Place search error:', err);
-      setPlaceResults([]);
+      console.error('MAP REAL ERROR:', err);
+      setAllOpportunities([]);
+      setOpportunitiesError('Opportunità non disponibili');
+      setDebugError(err?.message || JSON.stringify(err));
     } finally {
-      setSearchingPlaces(false);
+      setLoading(false);
     }
-  };
-
-  const timer = setTimeout(runPlaceSearch, 350);
-  return () => clearTimeout(timer);
-}, [placeQuery, location]);
-
+  }, []);
 
   useEffect(() => {
+    if (hasLoadedOpportunitiesRef.current) return;
+
+    hasLoadedOpportunitiesRef.current = true;
     loadOpportunities();
-    loadBounties();
-    // eslint-disable-next-line
-  }, [location, radius, category, sortBy]);
+  }, [loadOpportunities]);
 
-  
-
-  const loadOpportunities = async () => {
-  setLoading(true);
-
-  try {
-    let query = supabase
-      .from('opportunities')
-      .select('*');
+  const filteredOpportunities = useMemo(() => {
+    let filtered = [...allOpportunities];
 
     if (category !== 'all') {
-      query = query.eq('category', category);
+      filtered = filtered.filter((opp) => opp.category === category);
     }
 
-    if (sortBy === 'newest') {
-      query = query.order('created_at', { ascending: false });
-    } else if (sortBy === 'profit') {
-      query = query.order('estimated_resale_value', { ascending: false });
+    filtered = filtered.map((opp) => ({
+      ...opp,
+      distance_km:
+        location?.lat != null && location?.lng != null
+          ? distanceKm(location.lat, location.lng, opp.latitude, opp.longitude)
+          : null,
+    }));
+
+    if (location?.lat != null && location?.lng != null) {
+      filtered = filtered.filter(
+        (opp) => opp.distance_km == null || opp.distance_km <= radius
+      );
+    }
+
+    if (sortBy === 'profit') {
+      filtered.sort(
+        (a, b) =>
+          Number(b.estimated_resale_value || 0) - Number(a.estimated_resale_value || 0)
+      );
+    } else if (sortBy === 'distance') {
+      filtered.sort((a, b) => {
+        const aDist = a.distance_km ?? Number.MAX_SAFE_INTEGER;
+        const bDist = b.distance_km ?? Number.MAX_SAFE_INTEGER;
+        return aDist - bDist;
+      });
     } else {
-      query = query.order('created_at', { ascending: false });
+      filtered.sort(
+        (a, b) =>
+          new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
+      );
     }
 
-    const { data, error } = await query;
-
-    if (error) {
-      throw error;
-    }
-
-    const validOpportunities = (data || []).filter(
-      (opp) =>
-        opp.latitude !== null &&
-        opp.latitude !== undefined &&
-        opp.longitude !== null &&
-        opp.longitude !== undefined
-    );
-
-    setOpportunities(validOpportunities);
-  } catch (err) {
-    console.error('Supabase load opportunities error:', err);
-    toast.error('Failed to load opportunities');
-    setOpportunities([]);
-  } finally {
-    setLoading(false);
-  }
-};
-
-  const loadBounties = async () => {
-  try {
-    let query = supabase
-      .from('bounties')
-      .select('*')
-      .eq('status', 'active');
-
-    if (category !== 'all') {
-      query = query.eq('category', category);
-    }
-
-    const { data, error } = await query.order('created_at', { ascending: false });
-
-    if (error) throw error;
-
-    const validBounties = (data || []).filter(
-      (bounty) =>
-        bounty.latitude !== null &&
-        bounty.latitude !== undefined &&
-        bounty.longitude !== null &&
-        bounty.longitude !== undefined
-    );
-
-    setBounties(validBounties);
-  } catch (err) {
-    console.error('Failed to load bounties:', err);
-    setBounties([]);
-  }
-};
+    return filtered;
+  }, [allOpportunities, category, sortBy, radius, location?.lat, location?.lng]);
 
   const handleMarkerClick = (opp) => {
     setSelectedOpportunity(opp);
   };
 
   const handlePlaceSelect = (place) => {
-  const lat = Number(place.lat);
-  const lng = Number(place.lon);
+    const lat = Number(place.lat);
+    const lng = Number(place.lon);
 
-  setSelectedPlace(place);
-  setManualCenter([lat, lng]);
-  setPlaceQuery(place.display_name);
-  setPlaceResults([]);
+    if (Number.isNaN(lat) || Number.isNaN(lng)) {
+      toast.error('Coordinate luogo non valide');
+      return;
+    }
 
-  if (mapRef.current) {
-    mapRef.current.setView([lat, lng], 14);
-  }
+    setSelectedPlace(place);
+    setManualCenter([lat, lng]);
+    setPlaceQuery(place.display_name);
+    setPlaceResults([]);
+    setShouldRecenter(true);
 
-  toast.success('Luogo trovato');
-};
+    if (mapRef.current) {
+      mapRef.current.setView([lat, lng], 14);
+    }
 
-  const handleLocateMe = () => {
-  if (permissionState !== 'granted') {
-    setShowLocationModal(true);
-    return;
-  }
+    toast.success('Luogo trovato');
+  };
 
-  requestLocation();
-  setSelectedPlace(null);
-  setManualCenter(null);
+  const handleLocateMe = async () => {
+    try {
+      const position = await requestLocation();
 
-  if (mapRef.current && location?.lat && location?.lng) {
-    mapRef.current.setView([location.lat, location.lng], 13);
-  }
+      if (!position) {
+        setShowLocationModal(true);
+        return;
+      }
 
-  toast.success('Location updated');
-};
+      const lat = position.coords.latitude;
+      const lng = position.coords.longitude;
 
-  const handleLocationPermission = () => {
-    localStorage.setItem('location_modal_seen', 'true');
-    requestLocation();
-    setShowLocationModal(false);
+      setSelectedPlace(null);
+      setManualCenter([lat, lng]);
+      setShouldRecenter(true);
+
+      if (mapRef.current) {
+        mapRef.current.setView([lat, lng], 13);
+      }
+
+      toast.success('Posizione aggiornata');
+    } catch (err) {
+      console.error('Locate me error:', err);
+      toast.error('Impossibile aggiornare la posizione');
+    }
+  };
+
+  const handleLocationPermission = async () => {
+    try {
+      const position = await requestLocation();
+
+      if (position) {
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+        setSelectedPlace(null);
+        setManualCenter([lat, lng]);
+        setShouldRecenter(true);
+
+        if (mapRef.current) {
+          mapRef.current.setView([lat, lng], 13);
+        }
+
+        toast.success('Posizione aggiornata');
+      }
+    } catch (err) {
+      console.error('Location permission error:', err);
+    } finally {
+      setShowLocationModal(false);
+    }
   };
 
   const handleCloseLocationModal = () => {
-    localStorage.setItem('location_modal_seen', 'true');
     setShowLocationModal(false);
   };
 
-  const filteredOpportunities = opportunities;
-
-    const mapCenter =
-  manualCenter ||
-  (location?.lat && location?.lng
-    ? [location.lat, location.lng]
-    : [41.9028, 12.4964]);
+  const mapCenter =
+    manualCenter ||
+    (location?.lat && location?.lng
+      ? [location.lat, location.lng]
+      : DEFAULT_MAP_CENTER);
 
   return (
     <div className="relative h-screen" data-testid="map-view">
-      {/* Map */}
       <MapContainer
-  center={mapCenter}
+        center={mapCenter}
         zoom={12}
         className="map-container z-0"
-        ref={mapRef}
+        whenCreated={(mapInstance) => {
+          mapRef.current = mapInstance;
+        }}
         zoomControl={false}
       >
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
+
         <MapController
- center={mapCenter} 
-/>
-        
-        {/* User location marker */}
-{location?.lat && location?.lng && (
-  <UserLocationMarker position={[location.lat, location.lng]} />
-)}
+          center={mapCenter}
+          shouldRecenter={shouldRecenter}
+          onRecenterDone={() => setShouldRecenter(false)}
+        />
 
-{selectedPlace && (
-  <Marker position={[Number(selectedPlace.lat), Number(selectedPlace.lon)]}>
-    <Popup>{selectedPlace.display_name}</Popup>
-  </Marker>
-)}
+        {isUsingUserLocation && location?.lat && location?.lng && (
+          <UserLocationMarker position={[location.lat, location.lng]} />
+        )}
 
-{/* Radius circle */}
-{location?.lat && location?.lng && (
-  <Circle
-    center={[location.lat, location.lng]}
-    radius={radius * 1000}
-    pathOptions={{
-      color: '#00C853',
-      fillColor: '#00C853',
-      fillOpacity: 0.05,
-      weight: 2,
-      dashArray: '5, 10',
-    }}
-  />
-)}
-        
-        {/* Opportunity markers with preview popup */}
+        {selectedPlace && (
+          <Marker position={[Number(selectedPlace.lat), Number(selectedPlace.lon)]}>
+            <Popup>{selectedPlace.display_name}</Popup>
+          </Marker>
+        )}
+
+        {isUsingUserLocation && location?.lat && location?.lng && (
+          <Circle
+            center={[location.lat, location.lng]}
+            radius={radius * 1000}
+            pathOptions={{
+              color: '#00C853',
+              fillColor: '#00C853',
+              fillOpacity: 0.05,
+              weight: 2,
+              dashArray: '5, 10',
+            }}
+          />
+        )}
+
         {filteredOpportunities.map((opp) => (
           <Marker
             key={opp.id}
             position={[opp.latitude, opp.longitude]}
             icon={createCustomIcon(opp.category)}
-            eventHandlers={{
-              click: () => handleMarkerClick(opp),
-            }}
+            eventHandlers={{ click: () => handleMarkerClick(opp) }}
           >
             <Popup closeButton={false} className="map-preview-popup">
               <MapPreviewCard
@@ -412,108 +507,61 @@ const [manualCenter, setManualCenter] = useState(null);
             </Popup>
           </Marker>
         ))}
-        
-        {/* Bounty markers */}
-        {/* {bounties.map((bounty) => (
-          <Marker
-            key={`bounty-${bounty.id}`}
-            position={[bounty.latitude, bounty.longitude]}
-            icon={createBountyIcon()}
-            eventHandlers={{
-              click: () => {
-                setSelectedBounty(bounty);
-                setBountyDetailOpen(true);
-              },
-            }}
-          >
-            <Popup closeButton={false} className="map-preview-popup">
-              <div className="w-[260px] bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl shadow-xl p-4 border-2 border-dashed border-amber-300">
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="w-8 h-8 rounded-full bg-amber-500 flex items-center justify-center">
-                    <Target className="w-4 h-4 text-white" />
-                  </div>
-                  <span className="text-xs font-bold text-amber-600 uppercase">Bounty</span>
-                  <span className="ml-auto text-lg font-bold text-amber-600">€{bounty.reward_amount}</span>
-                </div>
-                <h4 className="font-bold text-gray-900 text-sm line-clamp-2 mb-2">{bounty.title}</h4>
-                <p className="text-xs text-gray-600 line-clamp-2 mb-3">{bounty.description}</p>
-                <Button
-                  onClick={() => {
-                    setSelectedBounty(bounty);
-                    setBountyDetailOpen(true);
-                  }}
-                  className="w-full h-9 bg-amber-500 hover:bg-amber-600 text-white rounded-lg font-semibold text-sm"
-                >
-                  View Bounty
-                </Button>
-              </div>
-            </Popup>
-          </Marker>
-        ))} */}
       </MapContainer>
 
-      {/* Top Controls */}
       <div className="absolute top-4 left-4 right-4 z-10 space-y-3">
-        {/* Search Bar */}
         <div className="relative">
-  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 z-10" />
-  <Input
-    placeholder="Cerca un luogo o indirizzo..."
-    value={placeQuery}
-    onChange={(e) => setPlaceQuery(e.target.value)}
-    className="pl-10 pr-4 h-12 bg-white/95 backdrop-blur-md border-0 shadow-lg rounded-xl"
-    data-testid="place-search-input"
-  />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 z-10" />
+          <Input
+            placeholder="Cerca un luogo o indirizzo..."
+            value={placeQuery}
+            onChange={(e) => setPlaceQuery(e.target.value)}
+            className="pl-10 pr-4 h-12 bg-white/95 backdrop-blur-md border-0 shadow-lg rounded-xl"
+            data-testid="place-search-input"
+          />
 
-  {(searchingPlaces || placeResults.length > 0) && (
-    <div className="absolute top-14 left-0 right-0 bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden z-20">
-      {searchingPlaces && (
-        <div className="px-4 py-3 text-sm text-gray-500">
-          Sto cercando il luogo...
+          {(searchingPlaces || placeResults.length > 0) && (
+            <div className="absolute top-14 left-0 right-0 bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden z-20">
+              {searchingPlaces && (
+                <div className="px-4 py-3 text-sm text-gray-500">
+                  Sto cercando il luogo...
+                </div>
+              )}
+
+              {!searchingPlaces &&
+                placeResults.map((place) => (
+                  <button
+                    key={place.place_id}
+                    type="button"
+                    onClick={() => handlePlaceSelect(place)}
+                    className="w-full text-left px-4 py-3 hover:bg-gray-50 border-b border-gray-100 last:border-b-0"
+                  >
+                    <div className="text-sm font-medium text-gray-900 line-clamp-1">
+                      {place.display_name}
+                    </div>
+                    <div className="text-xs text-gray-500 mt-1">{place.type}</div>
+                  </button>
+                ))}
+            </div>
+          )}
         </div>
-      )}
 
-      {!searchingPlaces &&
-        placeResults.map((place) => (
-          <button
-            key={place.place_id}
-            type="button"
-            onClick={() => handlePlaceSelect(place)}
-            className="w-full text-left px-4 py-3 hover:bg-gray-50 border-b border-gray-100 last:border-b-0"
-          >
-            <div className="text-sm font-medium text-gray-900 line-clamp-1">
-              {place.display_name}
-            </div>
-            <div className="text-xs text-gray-500 mt-1">
-              {place.type}
-            </div>
-          </button>
-        ))}
-    </div>
-  )}
-</div>
-
-        {/* Category Filter */}
         <CategoryFilter selected={category} onSelect={setCategory} />
-        
-        {/* Distance Filter - Prominent */}
+
         <div className="flex justify-center">
           <DistanceFilter selected={radius} onSelect={updateRadius} />
         </div>
       </div>
 
-      {/* Location Status Banner */}
       {!isUsingUserLocation && (
-        <div 
+        <div
           className="absolute top-44 left-4 right-4 z-10 bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-center justify-between cursor-pointer"
           onClick={() => setShowLocationModal(true)}
           data-testid="location-banner"
         >
           <div className="flex items-center gap-2">
             <MapPinOff className="w-5 h-5 text-amber-600" />
-            <span className="text-sm text-amber-800">
-              Using default location (Rome)
-            </span>
+            <span className="text-sm text-amber-800">Using default location (Rome)</span>
           </div>
           <Button
             size="sm"
@@ -525,9 +573,23 @@ const [manualCenter, setManualCenter] = useState(null);
         </div>
       )}
 
-      {/* Map Controls */}
+      {opportunitiesError && (
+        <div className="absolute left-1/2 top-56 z-20 -translate-x-1/2 w-[90%] max-w-md">
+          <div className="rounded-xl bg-white px-4 py-3 shadow-lg border border-red-200">
+            <div className="text-sm font-semibold text-red-700">{opportunitiesError}</div>
+            <div className="text-xs text-red-600 mt-1 break-words">{debugError}</div>
+            <button
+              type="button"
+              onClick={loadOpportunities}
+              className="mt-2 text-sm font-semibold text-primary"
+            >
+              Riprova
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="absolute right-4 top-56 z-10 flex flex-col gap-2">
-        {/* Locate Me */}
         <Button
           size="icon"
           variant="secondary"
@@ -537,10 +599,11 @@ const [manualCenter, setManualCenter] = useState(null);
           onClick={handleLocateMe}
           data-testid="locate-me-btn"
         >
-          <Navigation className={`w-5 h-5 ${isUsingUserLocation ? 'text-white' : 'text-primary'}`} />
+          <Navigation
+            className={`w-5 h-5 ${isUsingUserLocation ? 'text-white' : 'text-primary'}`}
+          />
         </Button>
 
-        {/* Filter Sheet */}
         <Sheet>
           <SheetTrigger asChild>
             <Button
@@ -552,16 +615,18 @@ const [manualCenter, setManualCenter] = useState(null);
               <Filter className="w-5 h-5 text-gray-600" />
             </Button>
           </SheetTrigger>
+
           <SheetContent side="right" className="w-80">
             <SheetHeader>
               <SheetTitle>Filters</SheetTitle>
             </SheetHeader>
+
             <div className="space-y-6 mt-6">
-              {/* Radius */}
               <div>
                 <label className="text-sm font-medium text-gray-700 mb-2 block">
                   Search Radius
                 </label>
+
                 <Select value={String(radius)} onValueChange={(v) => updateRadius(Number(v))}>
                   <SelectTrigger data-testid="radius-select">
                     <SelectValue />
@@ -576,11 +641,11 @@ const [manualCenter, setManualCenter] = useState(null);
                 </Select>
               </div>
 
-              {/* Sort */}
               <div>
                 <label className="text-sm font-medium text-gray-700 mb-2 block">
                   Sort By
                 </label>
+
                 <Select value={sortBy} onValueChange={setSortBy}>
                   <SelectTrigger data-testid="sort-select">
                     <SelectValue />
@@ -597,81 +662,89 @@ const [manualCenter, setManualCenter] = useState(null);
         </Sheet>
       </div>
 
-      {/* Compact Map Legend */}
-<div className="absolute left-4 bottom-24 z-10">
-  {!legendOpen ? (
-    <Button
-  size="sm"
-  variant="secondary"
-  className="rounded-full bg-white/95 text-gray-800 backdrop-blur-md shadow-lg px-4 h-10 border border-gray-200"
-  onClick={() => setLegendOpen(true)}
-  data-testid="open-legend-btn"
->
-  Legend
-</Button>
-  ) : (
-    <div className="bg-white/95 backdrop-blur-md rounded-xl shadow-lg p-3 w-48">
-      <div className="flex items-center justify-between mb-2">
-        <p className="text-xs font-semibold text-gray-700">Legend</p>
-        <button
-          type="button"
-          onClick={() => setLegendOpen(false)}
-          className="text-xs text-gray-500 hover:text-gray-700"
-        >
-          Close
-        </button>
-      </div>
-
-      <div className="space-y-1.5">
-        {Object.entries(categoryIcons).map(([key, val]) => (
-          <div key={key} className="flex items-center gap-2">
-            <div
-              className="w-4 h-4 rounded-full flex items-center justify-center"
-              style={{ backgroundColor: val.color }}
-            >
-              <val.icon className="w-2.5 h-2.5 text-white" />
-            </div>
-            <span className="text-xs text-gray-600">{val.name}</span>
-          </div>
-        ))}
-
-        <div className="flex items-center gap-2 pt-1 border-t border-gray-200 mt-1">
-          <div
-            className="w-4 h-4 rounded-full flex items-center justify-center"
-            style={{ background: 'linear-gradient(135deg, #F59E0B 0%, #EA580C 100%)' }}
+      <div className="absolute left-4 bottom-24 z-10">
+        {!legendOpen ? (
+          <Button
+            size="sm"
+            variant="secondary"
+            className="rounded-full bg-white/95 text-gray-800 backdrop-blur-md shadow-lg px-4 h-10 border border-gray-200"
+            onClick={() => setLegendOpen(true)}
+            data-testid="open-legend-btn"
           >
-            <Target className="w-2.5 h-2.5 text-white" />
-          </div>
-          <span className="text-xs text-amber-600 font-medium">Bounty</span>
-        </div>
-      </div>
-    </div>
-  )}
-</div>
+            Legend
+          </Button>
+        ) : (
+          <div className="bg-white/95 backdrop-blur-md rounded-xl shadow-lg p-3 w-48">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-semibold text-gray-700">Legend</p>
+              <button
+                type="button"
+                onClick={() => setLegendOpen(false)}
+                className="text-xs text-gray-500 hover:text-gray-700"
+              >
+                Close
+              </button>
+            </div>
 
-      {/* Bottom List Sheet */}
+            <div className="space-y-1.5">
+              {Object.entries(categoryIcons).map(([key, val]) => (
+                <div key={key} className="flex items-center gap-2">
+                  <div
+                    className="w-4 h-4 rounded-full flex items-center justify-center"
+                    style={{ backgroundColor: val.color }}
+                  >
+                    <val.icon className="w-2.5 h-2.5 text-white" />
+                  </div>
+                  <span className="text-xs text-gray-600">{val.name}</span>
+                </div>
+              ))}
+
+              <div className="flex items-center gap-2 pt-1 border-t border-gray-200 mt-1">
+                <div
+                  className="w-4 h-4 rounded-full flex items-center justify-center"
+                  style={{ background: 'linear-gradient(135deg, #F59E0B 0%, #EA580C 100%)' }}
+                >
+                  <Target className="w-2.5 h-2.5 text-white" />
+                </div>
+                <span className="text-xs text-amber-600 font-medium">Bounty</span>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
       <div className="absolute bottom-20 left-0 right-0 z-10">
         <Sheet open={listOpen} onOpenChange={setListOpen}>
           <SheetTrigger asChild>
             <div className="flex justify-center">
               <Button
-  variant="secondary"
-  className="rounded-full bg-white text-gray-800 border border-gray-200 shadow-lg px-6 h-11 gap-2"
-  data-testid="show-list-btn"
->
-  <ChevronUp className={`w-5 h-5 transition-transform ${listOpen ? 'rotate-180' : ''}`} />
-  <span className="font-semibold">
-    {filteredOpportunities.length} Deals within {radius} km
-  </span>
-</Button>
+                variant="secondary"
+                className="rounded-full bg-white text-gray-800 border border-gray-200 shadow-lg px-6 h-11 gap-2"
+                data-testid="show-list-btn"
+              >
+                <ChevronUp
+                  className={`w-5 h-5 transition-transform ${listOpen ? 'rotate-180' : ''}`}
+                />
+                <span className="font-semibold">
+                  {filteredOpportunities.length} Deals within {radius} km
+                </span>
+              </Button>
             </div>
           </SheetTrigger>
+
           <SheetContent side="bottom" className="h-[60vh] rounded-t-3xl">
             <SheetHeader className="pb-4">
               <SheetTitle>Deals Near You</SheetTitle>
             </SheetHeader>
+
             <div className="overflow-y-auto h-[calc(60vh-80px)] space-y-4 pb-8">
-              {filteredOpportunities.length === 0 ? (
+              {loading ? (
+                <div className="empty-state">
+                  <MapPin className="empty-state-icon" />
+                  <h3 className="empty-state-title">Loading deals...</h3>
+                  <p className="empty-state-text">Please wait a moment</p>
+                </div>
+              ) : filteredOpportunities.length === 0 ? (
                 <div className="empty-state">
                   <MapPin className="empty-state-icon" />
                   <h3 className="empty-state-title">No deals found</h3>
@@ -697,14 +770,12 @@ const [manualCenter, setManualCenter] = useState(null);
         </Sheet>
       </div>
 
-      {/* Opportunity Detail Sheet */}
       <OpportunityDetail
         opportunity={selectedOpportunity}
         open={detailOpen}
         onClose={setDetailOpen}
       />
 
-      {/* Location Permission Modal */}
       <LocationPermissionModal
         open={showLocationModal}
         onClose={handleCloseLocationModal}

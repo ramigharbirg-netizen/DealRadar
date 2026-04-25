@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Eye, EyeOff, Loader2, ArrowLeft, Radar } from 'lucide-react';
 import { Button } from '../components/ui/button';
@@ -8,42 +8,91 @@ import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'sonner';
 
 export const Register = () => {
-  const { register } = useAuth();
+  const { register, user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
-  const [formData, setFormData] = useState({ name: '', email: '', password: '' });
+
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    password: '',
+  });
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
+  useEffect(() => {
+    if (!authLoading && user) {
+      navigate('/', { replace: true });
+    }
+  }, [authLoading, user, navigate]);
+
   const handleChange = (e) => {
-    setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
+    const { name, value } = e.target;
+
+    setFormData((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    if (formData.password.length < 6) {
-      toast.error('Password must be at least 6 characters');
+
+    const name = formData.name.trim();
+    const email = formData.email.trim();
+    const password = formData.password;
+
+    if (!name) {
+      toast.error('Inserisci il tuo nome');
+      return;
+    }
+
+    if (!email) {
+      toast.error('Inserisci la tua email');
+      return;
+    }
+
+    if (password.length < 6) {
+      toast.error('La password deve avere almeno 6 caratteri');
+      return;
+    }
+
+    if (loading || authLoading) {
       return;
     }
 
     setLoading(true);
 
     try {
-      await register(formData.name, formData.email, formData.password);
-      toast.success('Account created! Start hunting deals! 🎯');
-      navigate('/');
+      const newUser = await register(name, email, password);
+
+      if (!newUser) {
+        toast.success('Account creato. Controlla la tua email per confermare.');
+      } else {
+        toast.success('Account created! Start hunting deals! 🎯');
+      }
+
+      navigate('/', { replace: true });
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'Registration failed');
+      console.error('Register error:', err);
+      toast.error(err?.message || 'Registration failed');
     } finally {
       setLoading(false);
     }
   };
 
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="w-6 h-6 animate-spin text-primary" />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background flex flex-col" data-testid="register-page">
-      {/* Header */}
       <div className="p-4">
         <Button
+          type="button"
           variant="ghost"
           size="icon"
           className="h-10 w-10 rounded-full"
@@ -54,9 +103,7 @@ export const Register = () => {
         </Button>
       </div>
 
-      {/* Content */}
       <div className="flex-1 flex flex-col justify-center px-6 pb-10">
-        {/* Logo */}
         <div className="text-center mb-8">
           <div className="w-16 h-16 bg-primary rounded-2xl flex items-center justify-center mx-auto mb-4 relative">
             <Radar className="w-8 h-8 text-white" />
@@ -66,7 +113,6 @@ export const Register = () => {
           <p className="text-gray-500 mt-1">Discover opportunities near you</p>
         </div>
 
-        {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>
             <Label htmlFor="name">Full Name</Label>
@@ -79,6 +125,7 @@ export const Register = () => {
               className="mt-1.5 h-12 rounded-xl"
               required
               data-testid="name-input"
+              autoComplete="name"
             />
           </div>
 
@@ -94,6 +141,7 @@ export const Register = () => {
               className="mt-1.5 h-12 rounded-xl"
               required
               data-testid="email-input"
+              autoComplete="email"
             />
           </div>
 
@@ -110,11 +158,13 @@ export const Register = () => {
                 className="h-12 rounded-xl pr-12"
                 required
                 data-testid="password-input"
+                autoComplete="new-password"
               />
               <button
                 type="button"
-                onClick={() => setShowPassword(!showPassword)}
+                onClick={() => setShowPassword((prev) => !prev)}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                aria-label={showPassword ? 'Nascondi password' : 'Mostra password'}
               >
                 {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
               </button>
@@ -124,7 +174,7 @@ export const Register = () => {
           <Button
             type="submit"
             className="w-full h-12 bg-primary rounded-xl text-base font-semibold"
-            disabled={loading}
+            disabled={loading || authLoading}
             data-testid="register-submit-btn"
           >
             {loading ? (
@@ -138,7 +188,6 @@ export const Register = () => {
           </Button>
         </form>
 
-        {/* Login Link */}
         <p className="text-center mt-6 text-gray-600">
           Already have an account?{' '}
           <Link to="/login" className="text-primary font-semibold hover:underline">
@@ -146,7 +195,6 @@ export const Register = () => {
           </Link>
         </p>
 
-        {/* Benefits */}
         <div className="mt-8 p-4 bg-primary/5 rounded-xl border border-primary/20">
           <p className="text-sm font-medium text-gray-700 mb-2">Why join DealRadar?</p>
           <ul className="text-xs text-gray-600 space-y-1">

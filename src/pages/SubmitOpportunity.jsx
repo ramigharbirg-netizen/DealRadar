@@ -1,14 +1,28 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Camera, MapPin, DollarSign, Phone, Mail, Link,
-  X, Loader2, ArrowLeft, Check
+  Camera,
+  MapPin,
+  DollarSign,
+  Phone,
+  Mail,
+  Link as LinkIcon,
+  X,
+  Loader2,
+  ArrowLeft,
+  Check,
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Textarea } from '../components/ui/textarea';
 import { Label } from '../components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../components/ui/select';
 import { useAuth } from '../contexts/AuthContext';
 import { useLocation } from '../contexts/LocationContext';
 import { supabase } from '../lib/supabase';
@@ -21,12 +35,12 @@ const categories = [
   { id: 'business_sale', name: 'Business for Sale' },
   { id: 'auctions', name: 'Auctions & Bankruptcies' },
   { id: 'user_reported', name: 'User Reported' },
-  { id: 'free_deals', name: 'Free Deals' }
+  { id: 'free_deals', name: 'Free Deals' },
 ];
 
 export const SubmitOpportunity = () => {
-  const { user } = useAuth();
-  const { location } = useLocation();
+  const { user, loading: authLoading } = useAuth();
+  const { location, requestLocation, isUsingUserLocation } = useLocation();
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
 
@@ -48,6 +62,16 @@ export const SubmitOpportunity = () => {
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState(1);
 
+  useEffect(() => {
+    if (isUsingUserLocation && location?.lat && location?.lng) {
+      setFormData((prev) => ({
+        ...prev,
+        latitude: location.lat,
+        longitude: location.lng,
+      }));
+    }
+  }, [isUsingUserLocation, location?.lat, location?.lng]);
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
@@ -55,14 +79,28 @@ export const SubmitOpportunity = () => {
 
   const handleImageUpload = (e) => {
     const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
 
     files.forEach((file) => {
       const reader = new FileReader();
+
       reader.onload = (event) => {
-        setImages((prev) => [...prev, event.target.result]);
+        const result = event?.target?.result;
+        if (!result) return;
+
+        setImages((prev) => {
+          if (prev.length >= 5) {
+            toast.error('Puoi caricare massimo 5 immagini');
+            return prev;
+          }
+          return [...prev, result];
+        });
       };
+
       reader.readAsDataURL(file);
     });
+
+    e.target.value = '';
   };
 
   const removeImage = (index) => {
@@ -81,6 +119,7 @@ export const SubmitOpportunity = () => {
     const response = await fetch(
       `https://nominatim.openstreetmap.org/search?${params.toString()}`,
       {
+        method: 'GET',
         headers: {
           Accept: 'application/json',
         },
@@ -88,7 +127,7 @@ export const SubmitOpportunity = () => {
     );
 
     if (!response.ok) {
-      throw new Error('Address search failed');
+      throw new Error(`Address search failed (${response.status})`);
     }
 
     const results = await response.json();
@@ -107,29 +146,44 @@ export const SubmitOpportunity = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    const demoUser = {
-      id: null,
-      name: 'Manual User',
-      email: 'manual@dealradar.app',
-    };
+    if (authLoading || loading) return;
 
-    if (!formData.title || !formData.description || !formData.category) {
-      toast.error('Please fill in all required fields');
+    if (!user) {
+      toast.error('Devi fare login per pubblicare un’opportunità');
+      navigate('/login');
+      return;
+    }
+
+    const title = formData.title.trim();
+    const description = formData.description.trim();
+    const category = formData.category;
+    const address = formData.address.trim();
+
+    if (!title || !description || !category) {
+      toast.error('Compila tutti i campi obbligatori');
       return;
     }
 
     setLoading(true);
 
     try {
-      let finalLatitude = formData.latitude ? Number(formData.latitude) : null;
-      let finalLongitude = formData.longitude ? Number(formData.longitude) : null;
-      let finalAddress = formData.address?.trim() || null;
+      let finalLatitude =
+        formData.latitude !== null && formData.latitude !== ''
+          ? Number(formData.latitude)
+          : null;
+
+      let finalLongitude =
+        formData.longitude !== null && formData.longitude !== ''
+          ? Number(formData.longitude)
+          : null;
+
+      let finalAddress = address || null;
 
       if (finalAddress) {
         const geocoded = await geocodeAddress(finalAddress);
 
         if (!geocoded) {
-          toast.error('Address not found. Try a more precise address.');
+          toast.error('Indirizzo non trovato. Prova a scriverlo meglio.');
           setLoading(false);
           return;
         }
@@ -138,23 +192,40 @@ export const SubmitOpportunity = () => {
         finalLongitude = geocoded.lng;
         finalAddress = geocoded.displayName || finalAddress;
       } else if (location?.lat && location?.lng) {
-        finalLatitude = location.lat;
-        finalLongitude = location.lng;
+        finalLatitude = Number(location.lat);
+        finalLongitude = Number(location.lng);
       }
 
-      if (finalLatitude === null || finalLongitude === null) {
-        toast.error('Missing coordinates. Add an address or use current location.');
+      if (
+        finalLatitude === null ||
+        finalLongitude === null ||
+        Number.isNaN(finalLatitude) ||
+        Number.isNaN(finalLongitude)
+      ) {
+        toast.error('Mancano le coordinate. Inserisci un indirizzo o usa la posizione attuale.');
         setLoading(false);
         return;
       }
 
-      const estimatedPrice = formData.estimated_price
-        ? Number(formData.estimated_price)
-        : null;
+      const estimatedPrice =
+        formData.estimated_price !== '' ? Number(formData.estimated_price) : null;
 
-      const estimatedResaleValue = formData.estimated_resale_value
-        ? Number(formData.estimated_resale_value)
-        : null;
+      const estimatedResaleValue =
+        formData.estimated_resale_value !== ''
+          ? Number(formData.estimated_resale_value)
+          : null;
+
+      if (estimatedPrice !== null && Number.isNaN(estimatedPrice)) {
+        toast.error('Asking Price non valido');
+        setLoading(false);
+        return;
+      }
+
+      if (estimatedResaleValue !== null && Number.isNaN(estimatedResaleValue)) {
+        toast.error('Resale Value non valido');
+        setLoading(false);
+        return;
+      }
 
       const isHighValue =
         estimatedPrice !== null &&
@@ -162,28 +233,28 @@ export const SubmitOpportunity = () => {
         estimatedResaleValue - estimatedPrice >= 10000;
 
       const payload = {
-        title: formData.title,
-        description: formData.description,
-        category: formData.category,
+        title,
+        description,
+        category,
         latitude: finalLatitude,
         longitude: finalLongitude,
         address: finalAddress,
         estimated_price: estimatedPrice,
         estimated_resale_value: estimatedResaleValue,
-        contact_phone: formData.contact_phone || null,
-        contact_email: formData.contact_email || null,
-        contact_link: formData.contact_link || null,
+        contact_phone: formData.contact_phone.trim() || null,
+        contact_email: formData.contact_email.trim() || null,
+        contact_link: formData.contact_link.trim() || null,
         images: images.length > 0 ? images : [],
         is_high_value: isHighValue,
         confirmations: 0,
         reports: 0,
-        user_name: user?.name || user?.email || demoUser.name,
-        user_id: user?.id || demoUser.id,
+        user_name: user.name || user.email || null,
+          user_id: user.id,
       };
 
-      const { error } = await supabase
-        .from('opportunities')
-        .insert([payload]);
+      console.log('SUBMIT PAYLOAD:', payload);
+
+      const { error } = await supabase.from('opportunities').insert([payload]);
 
       if (error) {
         throw error;
@@ -192,30 +263,42 @@ export const SubmitOpportunity = () => {
       toast.success('Opportunity submitted successfully!');
       navigate('/feed');
     } catch (err) {
-      console.error('Submit opportunity error:', err);
-      toast.error(err.message || 'Failed to submit opportunity');
+      console.error('Submit opportunity error FULL:', err);
+      console.error('Submit opportunity message:', err?.message);
+      console.error('Submit opportunity details:', err?.details);
+      console.error('Submit opportunity hint:', err?.hint);
+      console.error('Submit opportunity code:', err?.code);
+      toast.error(err?.message || 'Failed to submit opportunity');
     } finally {
       setLoading(false);
     }
   };
 
-  const useCurrentLocation = () => {
-    if ('geolocation' in navigator) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setFormData((prev) => ({
-            ...prev,
-            latitude: position.coords.latitude,
-            longitude: position.coords.longitude,
-          }));
-          toast.success('Location updated');
-        },
-        () => {
-          toast.error('Could not get your location');
-        }
-      );
-    } else {
-      toast.error('Geolocation not supported');
+  const useCurrentLocation = async () => {
+    if (!user) {
+      toast.error('Devi fare login per pubblicare un’opportunità');
+      navigate('/login');
+      return;
+    }
+
+    try {
+      const position = await requestLocation();
+
+      if (!position) {
+        toast.error('Could not get your location');
+        return;
+      }
+
+      setFormData((prev) => ({
+        ...prev,
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+      }));
+
+      toast.success('Location updated');
+    } catch (err) {
+      console.error('Use current location error:', err);
+      toast.error('Could not get your location');
     }
   };
 
@@ -225,6 +308,7 @@ export const SubmitOpportunity = () => {
         <div className="flex items-center justify-between px-4 py-4">
           <div className="flex items-center gap-3">
             <Button
+              type="button"
               variant="ghost"
               size="icon"
               className="h-10 w-10 rounded-full"
@@ -345,7 +429,9 @@ export const SubmitOpportunity = () => {
               type="button"
               onClick={() => setStep(2)}
               className="w-full h-12 bg-primary rounded-xl"
-              disabled={!formData.title || !formData.description || !formData.category}
+              disabled={
+                !formData.title.trim() || !formData.description.trim() || !formData.category
+              }
               data-testid="next-step-btn"
             >
               Continue
@@ -440,7 +526,7 @@ export const SubmitOpportunity = () => {
                 />
               </div>
               <div className="relative">
-                <Link className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <LinkIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <Input
                   name="contact_link"
                   value={formData.contact_link}
@@ -465,7 +551,7 @@ export const SubmitOpportunity = () => {
               <Button
                 type="submit"
                 className="flex-1 h-12 bg-primary rounded-xl"
-                disabled={loading}
+                disabled={loading || authLoading}
                 data-testid="submit-btn"
               >
                 {loading ? (
