@@ -143,6 +143,72 @@ export const SubmitOpportunity = () => {
     };
   };
 
+  const createAutomaticBountyMatches = async (opportunity) => {
+  try {
+    const { data: activeBounties, error: bountyError } = await supabase
+      .from('bounties')
+      .select('*')
+      .eq('status', 'active')
+      .neq('user_id', user.id);
+
+    if (bountyError) throw bountyError;
+
+    const text = `${opportunity.title} ${opportunity.description}`.toLowerCase();
+
+    const matches = (activeBounties || [])
+      .map((bounty) => {
+        let score = 0;
+
+        if (bounty.category === opportunity.category) {
+          score += 50;
+        }
+
+        const bountyWords = `${bounty.title} ${bounty.description}`
+          .toLowerCase()
+          .split(/\s+/)
+          .filter((word) => word.length > 3);
+
+        const commonWords = bountyWords.filter((word) => text.includes(word));
+
+        score += Math.min(commonWords.length * 10, 30);
+
+        if (
+          bounty.max_price &&
+          opportunity.estimated_price &&
+          Number(opportunity.estimated_price) <= Number(bounty.max_price)
+        ) {
+          score += 20;
+        }
+
+        return {
+          bounty_id: bounty.id,
+          opportunity_id: opportunity.id,
+          hunter_id: user.id,
+          match_score: score,
+          status: 'suggested',
+        };
+      })
+      .filter((match) => match.match_score >= 50);
+
+    if (matches.length === 0) {
+      return 0;
+    }
+
+    const { error: matchError } = await supabase
+      .from('bounty_matches')
+      .upsert(matches, {
+        onConflict: 'bounty_id,opportunity_id',
+      });
+
+    if (matchError) throw matchError;
+
+    return matches.length;
+  } catch (err) {
+    console.error('Auto match error:', err);
+    return 0;
+  }
+};
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -254,14 +320,26 @@ export const SubmitOpportunity = () => {
 
       console.log('SUBMIT PAYLOAD:', payload);
 
-      const { error } = await supabase.from('opportunities').insert([payload]);
+    const { data: createdOpportunity, error } = await supabase
+  .from('opportunities')
+  .insert([payload])
+  .select()
+  .single();
 
-      if (error) {
-        throw error;
-      }
+if (error) {
+  throw error;
+}
 
-      toast.success('Opportunity submitted successfully!');
-      navigate('/feed');
+const matchesCount = await createAutomaticBountyMatches(createdOpportunity);
+
+if (matchesCount > 0) {
+  toast.success(`Opportunity submitted! ${matchesCount} possible bounty match found.`);
+} else {
+  toast.success('Opportunity submitted successfully!');
+}
+
+navigate('/feed');
+
     } catch (err) {
       console.error('Submit opportunity error FULL:', err);
       console.error('Submit opportunity message:', err?.message);

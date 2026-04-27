@@ -53,6 +53,8 @@ export const BountyDetail = ({ bounty, open, onClose }) => {
   const [submitting, setSubmitting] = useState(false);
   const [submissions, setSubmissions] = useState([]);
   const [loadingSubmissions, setLoadingSubmissions] = useState(false);
+  const [suggestedMatches, setSuggestedMatches] = useState([]);
+const [loadingMatches, setLoadingMatches] = useState(false);
 
   const category = categoryConfig[bounty?.category] || categoryConfig.user_reported;
 const isCreator = user && bounty?.user_id === user.id;
@@ -106,12 +108,39 @@ const isCreator = user && bounty?.user_id === user.id;
     setLoadingSubmissions(false);
   }
 };
+
+const loadSuggestedMatches = async () => {
+  setLoadingMatches(true);
+
+  try {
+    const { data, error } = await supabase
+      .from('bounty_matches')
+      .select(`
+        *,
+        opportunity:opportunities(*)
+      `)
+      .eq('bounty_id', bounty.id)
+      .eq('status', 'suggested')
+      .order('match_score', { ascending: false });
+
+    if (error) throw error;
+
+    setSuggestedMatches(data || []);
+  } catch (err) {
+    console.error('Error loading suggested matches:', err);
+    setSuggestedMatches([]);
+  } finally {
+    setLoadingMatches(false);
+  }
+};
+
 useEffect(() => {
   if (bounty?.id && open && user) {
     loadMyOpportunities();
 
     if (user && bounty?.user_id === user.id) {
   loadSubmissions();
+  loadSuggestedMatches();
 }
   }
 }, [bounty, open, user]);
@@ -390,89 +419,60 @@ useEffect(() => {
               </div>
             )}
 
-            {/* Submissions Section (for creators) */}
-            {isCreator && (
-              <div className="space-y-4">
-                <h4 className="font-semibold text-gray-900 flex items-center gap-2">
-                  <Users className="w-5 h-5" />
-                  Submissions ({submissions.length})
-                </h4>
+{/* Suggested Matches Section (for creators) */}
+{isCreator && (
+  <div className="space-y-4">
+    <h4 className="font-semibold text-gray-900 flex items-center gap-2">
+      <Target className="w-5 h-5 text-amber-500" />
+      Suggested Matches ({suggestedMatches.length})
+    </h4>
 
-                {loadingSubmissions ? (
-                  <div className="text-center py-4 text-gray-500">Loading...</div>
-                ) : submissions.length === 0 ? (
-                  <div className="text-center py-4 text-gray-500">
-                    No submissions yet
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {submissions.map((sub) => (
-                      <div
-                        key={sub.id}
-                        className={`p-4 rounded-xl border ${
-                          sub.status === 'approved' ? 'bg-green-50 border-green-200' :
-                          sub.status === 'rejected' ? 'bg-red-50 border-red-200' :
-                          'bg-white border-gray-200'
-                        }`}
-                      >
-                        <div className="flex items-start justify-between mb-2">
-                          <div>
-                            <p className="font-medium text-gray-900">{sub.user_name}</p>
-                            <p className="text-xs text-gray-500">{formatDate(sub.created_at)}</p>
-                          </div>
-                          <Badge
-                            className={
-                              sub.status === 'approved' ? 'bg-green-500' :
-                              sub.status === 'rejected' ? 'bg-red-500' :
-                              'bg-amber-500'
-                            }
-                          >
-                            {sub.status}
-                          </Badge>
-                        </div>
-
-                        {sub.opportunity && (
-                          <div className="p-3 bg-gray-50 rounded-lg mb-3">
-                            <p className="font-medium text-sm">{sub.opportunity.title}</p>
-                            {sub.opportunity.estimated_price && (
-                              <p className="text-sm text-gray-600">
-                                Price: {formatPrice(sub.opportunity.estimated_price)}
-                              </p>
-                            )}
-                          </div>
-                        )}
-
-                        {sub.note && (
-                          <p className="text-sm text-gray-600 mb-3 italic">"{sub.note}"</p>
-                        )}
-
-                        {sub.status === 'pending' && (
-                          <div className="flex gap-2">
-                            <Button
-                              onClick={() => handleApprove(sub.id)}
-                              className="flex-1 bg-green-500 hover:bg-green-600"
-                              data-testid={`approve-${sub.id}`}
-                            >
-                              <CheckCircle className="w-4 h-4 mr-2" />
-                              Approve & Pay
-                            </Button>
-                            <Button
-                              onClick={() => handleReject(sub.id)}
-                              variant="outline"
-                              className="flex-1 border-red-300 text-red-600 hover:bg-red-50"
-                              data-testid={`reject-${sub.id}`}
-                            >
-                              <XCircle className="w-4 h-4 mr-2" />
-                              Reject
-                            </Button>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
+    {loadingMatches ? (
+      <div className="text-center py-4 text-gray-500">Loading matches...</div>
+    ) : suggestedMatches.length === 0 ? (
+      <div className="text-center py-4 text-gray-500">
+        No suggested matches yet
+      </div>
+    ) : (
+      <div className="space-y-3">
+        {suggestedMatches.map((match) => (
+          <div
+            key={match.id}
+            className="p-4 rounded-xl border border-amber-200 bg-amber-50"
+          >
+            <div className="flex items-start justify-between mb-2">
+              <div>
+                <p className="font-medium text-gray-900">
+                  {match.opportunity?.title || 'Unknown opportunity'}
+                </p>
+                <p className="text-xs text-gray-500">
+                  Match score: {match.match_score}/100
+                </p>
               </div>
+
+              <Badge className="bg-amber-500">
+                Suggested
+              </Badge>
+            </div>
+
+            {match.opportunity?.description && (
+              <p className="text-sm text-gray-600 mb-3">
+                {match.opportunity.description}
+              </p>
             )}
+
+            {match.opportunity?.estimated_price !== null &&
+              match.opportunity?.estimated_price !== undefined && (
+                <p className="text-sm text-gray-700 mb-3">
+                  Price: {formatPrice(match.opportunity.estimated_price)}
+                </p>
+              )}
+          </div>
+        ))}
+      </div>
+    )}
+  </div>
+)}
 
             {/* Bottom Padding */}
             <div className="h-20"></div>
