@@ -33,9 +33,53 @@ export const ChatDetail = () => {
       .order('created_at', { ascending: true });
 
     if (!error) {
-      setMessages(data || []);
-    }
+  const enrichedMessages = await Promise.all(
+    (data || []).map(async (msg) => {
+      const { data: profile } = await supabase
+        .from('public_user_profiles')
+        .select('avatar_url, is_premium')
+        .eq('user_id', msg.sender_id)
+        .single();
+
+      return {
+        ...msg,
+        avatar_url: profile?.avatar_url || null,
+        is_premium: profile?.is_premium || false,
+      };
+    })
+  );
+
+  setMessages(enrichedMessages);
+}
   }, [id]);
+
+const formatMessageTime = (dateString) => {
+  if (!dateString) return '';
+
+  return new Date(dateString).toLocaleTimeString('it-IT', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+};
+
+const markConversationAsRead = useCallback(async () => {
+  if (!user?.id || !id) return;
+
+  await supabase
+    .from('conversation_reads')
+    .upsert(
+      {
+        conversation_id: id,
+        user_id: user.id,
+        last_read_at: new Date().toISOString(),
+      },
+      {
+        onConflict: 'conversation_id,user_id',
+      }
+    );
+
+  window.dispatchEvent(new Event('chat-read-updated'));
+}, [id, user?.id]);
 
   const loadOpportunity = useCallback(async () => {
     const { data: conv, error: convError } = await supabase
@@ -65,10 +109,11 @@ export const ChatDetail = () => {
     }
 
     if (user) {
-      loadMessages();
-      loadOpportunity();
-    }
-  }, [authLoading, user, navigate, loadMessages, loadOpportunity]);
+  loadMessages();
+  loadOpportunity();
+  markConversationAsRead();
+}
+  }, [authLoading, user, navigate, loadMessages, loadOpportunity,markConversationAsRead]);
 
   useEffect(() => {
     scrollToBottom();
@@ -120,14 +165,23 @@ export const ChatDetail = () => {
     setNewMessage('');
 
     const tempId = `temp-${Date.now()}`;
-    const optimisticMessage = {
-      id: tempId,
-      conversation_id: id,
-      sender_name: user.name || user.email,
-      sender_email: user.email,
-      message: messageText,
-      created_at: new Date().toISOString(),
-    };
+    const { data: myProfile } = await supabase
+  .from('public_user_profiles')
+  .select('avatar_url, is_premium')
+  .eq('user_id', user.id)
+  .single();
+
+const optimisticMessage = {
+  id: tempId,
+  conversation_id: id,
+  sender_name: user.name || user.email,
+  sender_email: user.email,
+  sender_id: user.id,
+  message: messageText,
+  created_at: new Date().toISOString(),
+  avatar_url: myProfile?.avatar_url || null,
+  is_premium: myProfile?.is_premium || false,
+};
 
     setMessages((prev) => [...prev, optimisticMessage]);
     scrollToBottom();
@@ -139,6 +193,7 @@ export const ChatDetail = () => {
           conversation_id: id,
           sender_name: user.name || user.email,
           sender_email: user.email,
+          sender_id: user.id,
           message: messageText,
         },
       ])
@@ -151,7 +206,15 @@ export const ChatDetail = () => {
       toast.error('Invio messaggio fallito');
     } else if (data) {
       setMessages((prev) =>
-        prev.map((msg) => (msg.id === tempId ? data : msg))
+        prev.map((msg) =>
+  msg.id === tempId
+    ? {
+        ...data,
+        avatar_url: myProfile?.avatar_url || null,
+        is_premium: myProfile?.is_premium || false,
+      }
+    : msg
+)
       );
     }
 
@@ -204,22 +267,69 @@ export const ChatDetail = () => {
 
                 return (
                   <div
-                    key={msg.id}
-                    className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}
-                  >
-                    <div
-                      className={`max-w-[78%] rounded-2xl px-4 py-2 text-sm shadow-sm ${
-                        isMine
-                          ? 'bg-primary text-white'
-                          : 'bg-white text-gray-900 border border-gray-200'
-                      } ${isTemp ? 'opacity-70' : ''}`}
-                    >
-                      <p className="mb-1 text-xs font-semibold opacity-80">
-                        {msg.sender_name}
-                      </p>
-                      <p>{msg.message}</p>
-                    </div>
-                  </div>
+  key={msg.id}
+  className={`flex items-end gap-2 ${
+    isMine ? 'justify-end' : 'justify-start'
+  }`}
+>
+  {!isMine && (
+    <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary/10">
+      {msg.avatar_url ? (
+        <img
+          src={msg.avatar_url}
+          alt={msg.sender_name || 'Avatar'}
+          className="h-full w-full object-cover"
+        />
+      ) : (
+        <span className="text-xs font-bold text-primary">
+          {(msg.sender_name || 'U').charAt(0).toUpperCase()}
+        </span>
+      )}
+    </div>
+  )}
+
+  <div
+    className={`max-w-[78%] rounded-2xl px-4 py-2 text-sm shadow-sm ${
+      isMine
+        ? 'bg-primary text-white'
+        : 'border border-gray-200 bg-white text-gray-900'
+    } ${isTemp ? 'opacity-70' : ''}`}
+  >
+    <div className="mb-1 flex items-center gap-1">
+      <button
+  type="button"
+  onClick={(event) => {
+    event.stopPropagation();
+
+    if (msg?.sender_id) {
+      navigate(`/users/${msg.sender_id}`);
+    }
+  }}
+  className="text-left text-xs font-semibold opacity-80 hover:underline"
+>
+  {msg.sender_name}
+</button>
+
+      {msg.is_premium && (
+        <span
+          title="Premium"
+          className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-blue-600 text-[10px] font-black text-white"
+        >
+          ✓
+        </span>
+      )}
+    </div>
+
+    <p>{msg.message}</p>
+    <p
+  className={`mt-1 text-[10px] ${
+    isMine ? 'text-white/70' : 'text-gray-400'
+  }`}
+>
+  {formatMessageTime(msg.created_at)}
+</p>
+  </div>
+</div>
                 );
               })
             )}

@@ -1,10 +1,15 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = 'https://vwvliyxrlzxkmdbrmtns.supabase.co';
-const supabaseKey =
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ3dmxpeXhybHp4a21kYnJtdG5zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY2MDI4MjMsImV4cCI6MjA5MjE3ODgyM30.Ze_XgTiWTGzaVAgKDZZmftrCdBg4BXTiWC7vY-2l9G8';
+const supabaseUrl = process.env.REACT_APP_SUPABASE_URL;
+const supabaseAnonKey = process.env.REACT_APP_SUPABASE_ANON_KEY;
 
-export const supabase = createClient(supabaseUrl, supabaseKey, {
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error(
+    'Supabase non configurato: controlla il file .env'
+  );
+}
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,

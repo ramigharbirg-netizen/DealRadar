@@ -15,6 +15,7 @@ export const Login = () => {
     email: '',
     password: '',
   });
+
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -44,19 +45,17 @@ export const Login = () => {
       return;
     }
 
-    if (loading || authLoading) {
-      return;
-    }
+    if (loading || authLoading) return;
 
     setLoading(true);
 
     try {
       await login(email, password);
-      toast.success('Welcome back!');
+      toast.success('Bentornato!');
       navigate('/', { replace: true });
     } catch (err) {
       console.error('Login error:', err);
-      toast.error(err?.message || 'Login failed');
+      toast.error(err?.message || 'Accesso non riuscito');
     } finally {
       setLoading(false);
     }
@@ -89,10 +88,11 @@ export const Login = () => {
         <div className="text-center mb-8">
           <div className="w-16 h-16 bg-primary rounded-2xl flex items-center justify-center mx-auto mb-4 relative">
             <Radar className="w-8 h-8 text-white" />
-            <div className="absolute inset-0 rounded-2xl bg-primary animate-ping opacity-20"></div>
+            <div className="absolute inset-0 rounded-2xl bg-primary animate-ping opacity-20" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">Welcome Back</h1>
-          <p className="text-gray-500 mt-1">Login to DealRadar</p>
+
+          <h1 className="text-2xl font-bold text-gray-900">Bentornato</h1>
+          <p className="text-gray-500 mt-1">Accedi a DealRadar</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">
@@ -104,7 +104,7 @@ export const Login = () => {
               type="email"
               value={formData.email}
               onChange={handleChange}
-              placeholder="your@email.com"
+              placeholder="tua@email.com"
               className="mt-1.5 h-12 rounded-xl"
               required
               data-testid="email-input"
@@ -114,6 +114,7 @@ export const Login = () => {
 
           <div>
             <Label htmlFor="password">Password</Label>
+
             <div className="relative mt-1.5">
               <Input
                 id="password"
@@ -121,22 +122,36 @@ export const Login = () => {
                 type={showPassword ? 'text' : 'password'}
                 value={formData.password}
                 onChange={handleChange}
-                placeholder="Enter your password"
+                placeholder="Inserisci la password"
                 className="h-12 rounded-xl pr-12"
                 required
                 data-testid="password-input"
                 autoComplete="current-password"
               />
+
               <button
                 type="button"
                 onClick={() => setShowPassword((prev) => !prev)}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                 aria-label={showPassword ? 'Nascondi password' : 'Mostra password'}
               >
-                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                {showPassword ? (
+                  <EyeOff className="w-5 h-5" />
+                ) : (
+                  <Eye className="w-5 h-5" />
+                )}
               </button>
             </div>
           </div>
+
+          <div className="text-right">
+  <Link
+    to="/forgot-password"
+    className="text-sm font-semibold text-primary hover:underline"
+  >
+    Password dimenticata?
+  </Link>
+</div>
 
           <Button
             type="submit"
@@ -147,18 +162,18 @@ export const Login = () => {
             {loading ? (
               <>
                 <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                Logging in...
+                Accesso in corso...
               </>
             ) : (
-              'Login'
+              'Accedi'
             )}
           </Button>
         </form>
 
         <p className="text-center mt-6 text-gray-600">
-          Don't have an account?{' '}
+          Non hai un account?{' '}
           <Link to="/register" className="text-primary font-semibold hover:underline">
-            Sign up
+            Registrati
           </Link>
         </p>
       </div>

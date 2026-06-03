@@ -2,15 +2,15 @@ import React from 'react';
 import { Store, Package, Wrench, Building2, Gavel, Star, Layers } from 'lucide-react';
 import { Button } from './ui/button';
 
-// Updated categories with new icons and colors
+// Categorie tradotte in italiano
 const categories = [
-  { id: 'all', name: 'All', icon: Layers, color: 'bg-gray-500' },
-  { id: 'store_liquidation', name: 'Liquidation', icon: Store, color: 'bg-green-500' },
+  { id: 'all', name: 'Tutte', icon: Layers, color: 'bg-gray-500' },
+  { id: 'store_liquidation', name: 'Liquidazioni', icon: Store, color: 'bg-green-500' },
   { id: 'product_stock', name: 'Stock', icon: Package, color: 'bg-amber-500' },
-  { id: 'equipment', name: 'Equipment', icon: Wrench, color: 'bg-blue-500' },
-  { id: 'business_sale', name: 'Business', icon: Building2, color: 'bg-purple-500' },
-  { id: 'auctions', name: 'Auctions', icon: Gavel, color: 'bg-red-500' },
-  { id: 'user_reported', name: 'User Tips', icon: Star, color: 'bg-orange-500' },
+  { id: 'equipment', name: 'Attrezzatura', icon: Wrench, color: 'bg-blue-500' },
+  { id: 'business_sale', name: 'Attività', icon: Building2, color: 'bg-purple-500' },
+  { id: 'auctions', name: 'Aste', icon: Gavel, color: 'bg-red-500' },
+  { id: 'user_reported', name: 'Segnalazioni', icon: Star, color: 'bg-orange-500' },
 ];
 
 export const CategoryFilter = ({ selected, onSelect }) => {

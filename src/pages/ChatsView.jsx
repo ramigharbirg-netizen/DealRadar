@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { MessageCircle, ChevronRight, Clock } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Card, CardContent } from '../components/ui/card';
+import { useAuth } from '../contexts/AuthContext';
 
 const STORAGE_KEY = 'dealradar_last_read_map';
 
@@ -14,81 +15,123 @@ const getLastReadMap = () => {
   }
 };
 
-const formatDate = (dateString) => {
+const formatChatTime = (dateString) => {
   if (!dateString) return '';
-  return new Date(dateString).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
+
+  const date = new Date(dateString);
+  const now = new Date();
+
+  const isToday = date.toDateString() === now.toDateString();
+
+  const yesterday = new Date();
+  yesterday.setDate(now.getDate() - 1);
+
+  const isYesterday =
+    date.toDateString() === yesterday.toDateString();
+
+  if (isToday) {
+    return date.toLocaleTimeString('it-IT', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  }
+
+  if (isYesterday) return 'Ieri';
+
+  return date.toLocaleDateString('it-IT', {
+    day: '2-digit',
+    month: '2-digit',
   });
 };
 
 export const ChatsView = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [conversations, setConversations] = useState([]);
-  const [messagesMap, setMessagesMap] = useState({});
   const [opportunitiesMap, setOpportunitiesMap] = useState({});
-  const [unreadMap, setUnreadMap] = useState({});
+  const [unreadCountMap, setUnreadCountMap] = useState({});
 
   const loadAll = async () => {
-    const { data: convs, error: convError } = await supabase
-      .from('conversations')
-      .select('*')
-      .order('created_at', { ascending: false });
+  const { data: convs, error: convError } = await supabase
+    .from('conversations')
+    .select(`
+      *,
+      last_message,
+      last_message_at,
+      last_message_sender_id
+    `)
+    .order('last_message_at', { ascending: false });
 
-    if (convError || !convs) {
-      setConversations([]);
-      return;
+  if (convError || !convs) {
+    setConversations([]);
+    return;
+  }
+
+  setConversations(convs);
+
+  const opportunityIds = [
+    ...new Set(convs.map((c) => c.opportunity_id).filter(Boolean)),
+  ];
+
+  if (opportunityIds.length > 0) {
+    const { data: opps } = await supabase
+      .from('opportunities')
+      .select(`
+        id,
+        title,
+        images,
+        address,
+        user_id,
+        user_name,
+        avatar_url,
+        is_premium
+      `)
+      .in('id', opportunityIds);
+
+    const oppMap = {};
+
+    (opps || []).forEach((opp) => {
+      oppMap[opp.id] = opp;
+    });
+
+    setOpportunitiesMap(oppMap);
+  }
+
+  const { data: reads } = await supabase
+  .from('conversation_reads')
+  .select('conversation_id,last_read_at');
+
+const readMap = {};
+
+(reads || []).forEach((row) => {
+  readMap[row.conversation_id] = row.last_read_at;
+});
+
+const convIds = convs.map((c) => c.id);
+
+if (convIds.length > 0) {
+  const { data: unreadMessages } = await supabase
+    .from('conversation_messages')
+    .select('id,conversation_id,created_at,sender_id')
+    .in('conversation_id', convIds)
+    .neq('sender_id', user?.id);
+
+  const counts = {};
+
+  (unreadMessages || []).forEach((msg) => {
+    const lastRead = readMap[msg.conversation_id];
+
+    if (!lastRead || new Date(msg.created_at) > new Date(lastRead)) {
+      counts[msg.conversation_id] =
+        (counts[msg.conversation_id] || 0) + 1;
     }
+  });
 
-    setConversations(convs);
-
-    const opportunityIds = [...new Set(convs.map((c) => c.opportunity_id).filter(Boolean))];
-
-    if (opportunityIds.length > 0) {
-      const { data: opps } = await supabase
-        .from('opportunities')
-        .select('id,title,images,address')
-        .in('id', opportunityIds);
-
-      const oppMap = {};
-      (opps || []).forEach((opp) => {
-        oppMap[opp.id] = opp;
-      });
-      setOpportunitiesMap(oppMap);
-    }
-
-    const convIds = convs.map((c) => c.id);
-
-    if (convIds.length > 0) {
-      const { data: msgs } = await supabase
-        .from('conversation_messages')
-        .select('*')
-        .in('conversation_id', convIds)
-        .order('created_at', { ascending: false });
-
-      const latestMessageMap = {};
-      (msgs || []).forEach((msg) => {
-        if (!latestMessageMap[msg.conversation_id]) {
-          latestMessageMap[msg.conversation_id] = msg;
-        }
-      });
-      setMessagesMap(latestMessageMap);
-
-      const lastReadMap = getLastReadMap();
-      const unreadState = {};
-
-      Object.entries(latestMessageMap).forEach(([conversationId, msg]) => {
-        const lastRead = lastReadMap[conversationId];
-        unreadState[conversationId] =
-          !lastRead || new Date(msg.created_at) > new Date(lastRead);
-      });
-
-      setUnreadMap(unreadState);
-    } else {
-      setMessagesMap({});
-      setUnreadMap({});
-    }
-  };
+  setUnreadCountMap(counts);
+} else {
+  setUnreadCountMap({});
+}
+};
 
   useEffect(() => {
     loadAll();
@@ -135,9 +178,10 @@ export const ChatsView = () => {
           </div>
         ) : (
           conversations.map((conv) => {
-            const lastMessage = messagesMap[conv.id];
+            const lastMessage = conv.last_message;
             const opp = opportunitiesMap[conv.opportunity_id];
-            const isUnread = unreadMap[conv.id];
+            const unreadCount = unreadCountMap[conv.id] || 0;
+            const isUnread = unreadCount > 0;
 
             return (
               <Card
@@ -160,23 +204,27 @@ export const ChatsView = () => {
                     )}
 
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <p className="font-semibold text-gray-900 truncate">
-                          {opp?.title || 'Chat opportunità'}
-                        </p>
+                      <div className="flex items-start justify-between gap-2">
+  <p className="font-semibold text-gray-900 truncate">
+    {opp?.title || 'Chat opportunità'}
+  </p>
 
-                        {isUnread && (
-                          <span className="w-2.5 h-2.5 rounded-full bg-red-500 flex-shrink-0"></span>
-                        )}
-                      </div>
+  <span className="text-xs text-gray-400 flex-shrink-0">
+    {formatChatTime(conv.last_message_at || conv.created_at)}
+  </span>
+</div>
 
                       <p className="text-sm text-gray-500 truncate mt-1">
-                        {lastMessage?.message || 'Nessun messaggio'}
+                        {lastMessage || 'Nessun messaggio'}
                       </p>
 
+                      {isUnread && (
+  <div className="mt-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[11px] font-bold text-white">
+    {unreadCount}
+  </div>
+)}
                       <div className="flex items-center gap-1 mt-1 text-xs text-gray-400">
-                        <Clock className="w-3 h-3" />
-                        <span>{formatDate(lastMessage?.created_at || conv.created_at)}</span>
+                        
                         {opp?.address && (
                           <>
                             <span>•</span>

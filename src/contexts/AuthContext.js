@@ -1,4 +1,10 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useCallback,
+} from 'react';
 import { supabase } from '../lib/supabase';
 
 const AuthContext = createContext(null);
@@ -22,12 +28,13 @@ const mapSupabaseUser = async (supabaseUser) => {
     id: supabaseUser.id,
     email: supabaseUser.email,
     name: metadata.name || metadata.full_name || supabaseUser.email,
+    created_at: supabaseUser.created_at,
   };
 
   try {
     localStorage.setItem('user', JSON.stringify(mappedUser));
-  } catch (e) {
-    console.error('Error saving mapped user:', e);
+  } catch (err) {
+    console.error('Error saving mapped user:', err);
   }
 
   return mappedUser;
@@ -65,6 +72,8 @@ export const AuthProvider = ({ children }) => {
 
         if (error) throw error;
 
+        if (!mounted) return;
+
         if (session?.user) {
           const mapped = await mapSupabaseUser(session.user);
 
@@ -78,8 +87,6 @@ export const AuthProvider = ({ children }) => {
             localStorage.removeItem('token');
           }
         } else {
-          if (!mounted) return;
-
           setUser(null);
           clearLocalAuth();
         }
@@ -130,15 +137,13 @@ export const AuthProvider = ({ children }) => {
     };
   }, [clearLocalAuth]);
 
-  const login = async (email, password) => {
+  const login = useCallback(async (email, password) => {
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
 
-    if (error) {
-      throw error;
-    }
+    if (error) throw error;
 
     const mapped = await mapSupabaseUser(data.user);
 
@@ -150,22 +155,18 @@ export const AuthProvider = ({ children }) => {
 
     setUser(mapped);
     return mapped;
-  };
+  }, []);
 
-  const register = async (name, email, password) => {
+  const register = useCallback(async (name, email, password) => {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        data: {
-          name,
-        },
+        data: { name },
       },
     });
 
-    if (error) {
-      throw error;
-    }
+    if (error) throw error;
 
     const mapped = await mapSupabaseUser(data.user);
 
@@ -177,25 +178,26 @@ export const AuthProvider = ({ children }) => {
 
     setUser(mapped);
     return mapped;
-  };
+  }, []);
 
-  const updateUser = async (updates) => {
-    if (!user) return null;
+  const updateUser = useCallback(
+    async (updates) => {
+      if (!user) return null;
 
-    const { data, error } = await supabase.auth.updateUser({
-      data: {
-        name: updates.name ?? user.name,
-      },
-    });
+      const { data, error } = await supabase.auth.updateUser({
+        data: {
+          name: updates.name ?? user.name,
+        },
+      });
 
-    if (error) {
-      throw error;
-    }
+      if (error) throw error;
 
-    const mapped = await mapSupabaseUser(data.user);
-    setUser(mapped);
-    return mapped;
-  };
+      const mapped = await mapSupabaseUser(data.user);
+      setUser(mapped);
+      return mapped;
+    },
+    [user]
+  );
 
   return (
     <AuthContext.Provider

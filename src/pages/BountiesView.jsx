@@ -27,94 +27,101 @@ export const BountiesView = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('explore');
 
-useEffect(() => {
-  loadBounties();
-}, [location, radius, category]);
+  useEffect(() => {
+    loadBounties();
+  }, [loadBounties]);
 
-useEffect(() => {
-  if (user && activeTab === 'my-bounties') {
-    loadMyBounties();
-  }
-
-  if (user && activeTab === 'my-submissions') {
-    loadMySubmissions();
-  }
-}, [user, activeTab]);
-
-  const loadBounties = async () => {
-  setLoading(true);
-
-  try {
-    let query = supabase
-      .from('bounties')
-      .select('*')
-      .eq('status', 'active')
-      .order('created_at', { ascending: false });
-
-    if (category !== 'all') {
-      query = query.eq('category', category);
+  useEffect(() => {
+    if (user && activeTab === 'my-bounties') {
+      loadMyBounties();
     }
 
-    const { data, error } = await query;
+    if (user && activeTab === 'my-submissions') {
+      loadMySubmissions();
+    }
+  }, [user, activeTab, loadMyBounties, loadMySubmissions]);
 
-    if (error) throw error;
+  const loadBounties = useCallback(async () => {
+    setLoading(true);
 
-    setBounties(data || []);
-  } catch (err) {
-    console.error('Error loading bounties:', err);
-    toast.error('Failed to load bounties');
-    setBounties([]);
-  } finally {
-    setLoading(false);
-  }
-};
+    try {
+      let query = supabase
+        .from('bounties')
+        .select('*')
+        .eq('status', 'active')
+        .order('created_at', { ascending: false });
 
-const loadMyBounties = async () => {
-  if (!user) return;
+      if (category !== 'all') {
+        query = query.eq('category', category);
+      }
 
-  try {
-    const { data, error } = await supabase
-      .from('bounties')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false });
+      const { data, error } = await query;
 
-    if (error) throw error;
+      if (error) throw error;
 
-    setMyBounties(data || []);
-  } catch (err) {
-    console.error('Error loading my bounties:', err);
-    setMyBounties([]);
-  }
-};
+      setBounties(data || []);
+    } catch (err) {
+      console.error('Error loading bounties:', err);
+      toast.error('Impossibile caricare le richieste');
+      setBounties([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [category]);
 
-const loadMySubmissions = async () => {
-  if (!user) return;
+  const loadMyBounties = useCallback(async () => {
+    if (!user) return;
 
-  try {
-    const { data, error } = await supabase
-      .from('bounty_submissions')
-      .select(`
-        *,
-        bounty:bounties(*)
-      `)
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false });
+    try {
+      const { data, error } = await supabase
+        .from('bounties')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
 
-    if (error) throw error;
+      if (error) throw error;
 
-    setMySubmissions(data || []);
-  } catch (err) {
-    console.error('Error loading my submissions:', err);
-    setMySubmissions([]);
-  }
-};
+      setMyBounties(data || []);
+    } catch (err) {
+      console.error('Error loading my bounties:', err);
+      setMyBounties([]);
+    }
+  }, [user]);
+
+  const loadMySubmissions = useCallback(async () => {
+    if (!user) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('bounty_submissions')
+        .select(`
+          *,
+          bounty:bounties(*)
+        `)
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      setMySubmissions(data || []);
+    } catch (err) {
+      console.error('Error loading my submissions:', err);
+      setMySubmissions([]);
+    }
+  }, [user]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
     await loadBounties();
     setRefreshing(false);
-    toast.success('Bounties refreshed');
+    toast.success('Richieste aggiornate');
+  };
+
+  const getSubmissionStatusLabel = (status) => {
+    if (status === 'approved') return 'Approvata';
+    if (status === 'rejected') return 'Rifiutata';
+    if (status === 'pending') return 'In attesa';
+    return status;
   };
 
   const filteredBounties = bounties.filter(bounty =>
@@ -130,7 +137,7 @@ const loadMySubmissions = async () => {
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <Target className="w-6 h-6 text-white" />
-              <h1 className="text-xl font-bold text-white">Bounties</h1>
+              <h1 className="text-xl font-bold text-white">Richieste</h1>
             </div>
             <div className="flex gap-2">
               <Button
@@ -148,7 +155,7 @@ const loadMySubmissions = async () => {
                 data-testid="create-bounty-nav-btn"
               >
                 <Plus className="w-4 h-4 mr-1" />
-                Post Bounty
+                Pubblica
               </Button>
             </div>
           </div>
@@ -157,7 +164,7 @@ const loadMySubmissions = async () => {
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-amber-300" />
             <Input
-              placeholder="Search bounties..."
+              placeholder="Cerca richieste..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-10 h-11 bg-white/20 border-0 text-white placeholder:text-white/60 rounded-xl"
@@ -174,21 +181,21 @@ const loadMySubmissions = async () => {
             value="explore"
             className="rounded-lg data-[state=active]:bg-white data-[state=active]:text-amber-600"
           >
-            Explore
+            Esplora
           </TabsTrigger>
           <TabsTrigger
             value="my-bounties"
             className="rounded-lg data-[state=active]:bg-white data-[state=active]:text-amber-600"
             disabled={!user}
           >
-            My Bounties
+            Le mie richieste
           </TabsTrigger>
           <TabsTrigger
             value="my-submissions"
             className="rounded-lg data-[state=active]:bg-white data-[state=active]:text-amber-600"
             disabled={!user}
           >
-            My Submissions
+            Invii
           </TabsTrigger>
         </TabsList>
 
@@ -208,15 +215,15 @@ const loadMySubmissions = async () => {
           ) : filteredBounties.length === 0 ? (
             <div className="empty-state py-20">
               <Target className="empty-state-icon text-amber-300" />
-              <h3 className="empty-state-title">No bounties found</h3>
+              <h3 className="empty-state-title">Nessuna richiesta trovata</h3>
               <p className="empty-state-text">
-                Be the first to post a bounty and let hunters find what you need!
+                Pubblica la prima richiesta e lascia che altri utenti trovino quello che cerchi.
               </p>
               <Button
                 onClick={() => navigate('/bounties/create')}
                 className="mt-4 bg-amber-500 hover:bg-amber-600 rounded-xl"
               >
-                Post a Bounty
+                Pubblica una richiesta
               </Button>
             </div>
           ) : (
@@ -239,20 +246,20 @@ const loadMySubmissions = async () => {
         <TabsContent value="my-bounties" className="mt-4">
           {!user ? (
             <div className="text-center py-10 text-gray-500">
-              Please login to see your bounties
+              Accedi per vedere le tue richieste
             </div>
           ) : myBounties.length === 0 ? (
             <div className="empty-state py-20">
               <Target className="empty-state-icon text-amber-300" />
-              <h3 className="empty-state-title">No bounties yet</h3>
+              <h3 className="empty-state-title">Nessuna richiesta pubblicata</h3>
               <p className="empty-state-text">
-                Create a bounty to let hunters find what you need
+                Crea una richiesta e lascia che altri utenti trovino quello che ti serve.
               </p>
               <Button
                 onClick={() => navigate('/bounties/create')}
                 className="mt-4 bg-amber-500 hover:bg-amber-600 rounded-xl"
               >
-                Post Your First Bounty
+                Pubblica la tua prima richiesta
               </Button>
             </div>
           ) : (
@@ -275,14 +282,14 @@ const loadMySubmissions = async () => {
         <TabsContent value="my-submissions" className="mt-4">
           {!user ? (
             <div className="text-center py-10 text-gray-500">
-              Please login to see your submissions
+              Accedi per vedere i tuoi invii
             </div>
           ) : mySubmissions.length === 0 ? (
             <div className="empty-state py-20">
               <Target className="empty-state-icon text-amber-300" />
-              <h3 className="empty-state-title">No submissions yet</h3>
+              <h3 className="empty-state-title">Nessun invio ancora</h3>
               <p className="empty-state-text">
-                Find opportunities matching bounties and earn rewards!
+                Trova opportunità collegate alle richieste e guadagna ricompense.
               </p>
             </div>
           ) : (
@@ -294,19 +301,19 @@ const loadMySubmissions = async () => {
                 >
                   <div className="flex items-center justify-between mb-2">
                     <span className="font-medium text-gray-900">
-                      {sub.bounty?.title || 'Unknown Bounty'}
+                      {sub.bounty?.title || 'Richiesta sconosciuta'}
                     </span>
                     <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                       sub.status === 'approved' ? 'bg-green-100 text-green-700' :
                       sub.status === 'rejected' ? 'bg-red-100 text-red-700' :
                       'bg-amber-100 text-amber-700'
                     }`}>
-                      {sub.status}
+                      {getSubmissionStatusLabel(sub.status)}
                     </span>
                   </div>
                   {sub.bounty && (
                     <p className="text-sm text-gray-500">
-                      Reward: €{sub.bounty.reward_amount}
+                      Ricompensa: €{sub.bounty.reward_amount}
                     </p>
                   )}
                 </div>

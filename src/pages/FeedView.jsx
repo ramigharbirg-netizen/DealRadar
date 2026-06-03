@@ -42,6 +42,34 @@ const distanceKm = (lat1, lon1, lat2, lon2) => {
   return R * c;
 };
 
+const calculateOpportunityScore = (opp) => {
+  let score = 0;
+
+  if (opp.is_verified) {
+    score += 30;
+  }
+
+  if (opp.estimated_resale_value != null && opp.estimated_price != null) {
+    const profit =
+      Number(opp.estimated_resale_value) - Number(opp.estimated_price);
+
+    if (!Number.isNaN(profit)) {
+      score += Math.min(Math.max(profit / 1000, 0), 50);
+    }
+  }
+
+  score -= Number(opp.reports || 0) * 15;
+
+  const createdAt = new Date(opp.created_at || 0).getTime();
+  const ageHours = (Date.now() - createdAt) / (1000 * 60 * 60);
+
+  if (!Number.isNaN(ageHours) && ageHours <= 24) {
+    score += 15;
+  }
+
+  return score;
+};
+
 export const FeedView = () => {
   const { location, radius } = useLocation();
 
@@ -51,7 +79,7 @@ export const FeedView = () => {
   const [selectedOpportunity, setSelectedOpportunity] = useState(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [category, setCategory] = useState('all');
-  const [sortBy, setSortBy] = useState('newest');
+  const [sortBy, setSortBy] = useState('smart');
   const [feedError, setFeedError] = useState('');
   const [debugError, setDebugError] = useState('');
 
@@ -66,15 +94,26 @@ export const FeedView = () => {
     setDebugError('');
 
     try {
-      const { data, error } = await supabase
-        .from('opportunities')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(100);
+      
+        const { data, error } = await supabase
+  .from('opportunities')
+  .select(`
+  *,
+  user_profiles (
+    trust_score,
+    verified_deals,
+    points,
+    approved_submissions,
+    total_opportunities,
+    avatar_url,
+    is_premium
+  )
+`)
+  .eq('is_hidden', false)
+  .order('created_at', { ascending: false })
+  .limit(100);
 
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
 
       const valid = (data || [])
         .filter((opp) => {
@@ -85,11 +124,21 @@ export const FeedView = () => {
 
           return !Number.isNaN(lat) && !Number.isNaN(lng);
         })
-        .map((opp) => ({
-          ...opp,
-          latitude: Number(opp.latitude),
-          longitude: Number(opp.longitude),
-        }));
+    .map((opp) => ({
+  ...opp,
+  latitude: Number(opp.latitude),
+  longitude: Number(opp.longitude),
+
+  trust_score: opp.user_profiles?.trust_score || 0,
+  verified_deals: opp.user_profiles?.verified_deals || 0,
+  avatar_url: opp.user_profiles?.avatar_url || null,
+  is_premium: opp.user_profiles?.is_premium || false,
+  profile_points: opp.user_profiles?.points || 0,
+  approved_submissions:
+    opp.user_profiles?.approved_submissions || 0,
+  total_opportunities_profile:
+    opp.user_profiles?.total_opportunities || 0,
+}));
 
       setAllOpportunities(valid);
     } catch (err) {
@@ -98,21 +147,19 @@ export const FeedView = () => {
       setFeedError('Feed non disponibile');
       setDebugError(err?.message || JSON.stringify(err));
     } finally {
-      if (!silent) {
-        setLoading(false);
-      }
+      if (!silent) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
     if (hasLoadedRef.current) return;
-
     hasLoadedRef.current = true;
     loadOpportunities({ silent: false });
   }, [loadOpportunities]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
+
     try {
       await loadOpportunities({ silent: true });
     } finally {
@@ -135,28 +182,31 @@ export const FeedView = () => {
           : null,
     }));
 
-    if (location?.lat != null && location?.lng != null) {
-      filtered = filtered.filter(
-        (opp) => opp.distance_km == null || opp.distance_km <= radius
-      );
-    }
 
     return filtered;
-  }, [allOpportunities, category, radius, location?.lat, location?.lng]);
+  }, [allOpportunities, category, location?.lat, location?.lng]);
 
   const todayOpportunities = useMemo(() => {
     return opportunities.filter((opp) => {
       if (!opp.created_at) return false;
 
       const created = new Date(opp.created_at);
+
       if (Number.isNaN(created.getTime())) return false;
 
       const today = new Date();
+
       return created.toDateString() === today.toDateString();
     });
   }, [opportunities]);
 
   const displayedOpportunities = useMemo(() => {
+    if (sortBy === 'smart') {
+      return [...opportunities].sort(
+        (a, b) => calculateOpportunityScore(b) - calculateOpportunityScore(a)
+      );
+    }
+
     if (sortBy === 'profit') {
       return [...opportunities]
         .filter(
@@ -168,9 +218,13 @@ export const FeedView = () => {
         )
         .sort((a, b) => {
           const profitA =
-            Number(a.estimated_resale_value || 0) - Number(a.estimated_price || 0);
+            Number(a.estimated_resale_value || 0) -
+            Number(a.estimated_price || 0);
+
           const profitB =
-            Number(b.estimated_resale_value || 0) - Number(b.estimated_price || 0);
+            Number(b.estimated_resale_value || 0) -
+            Number(b.estimated_price || 0);
+
           return profitB - profitA;
         });
     }
@@ -179,13 +233,15 @@ export const FeedView = () => {
       return [...opportunities].sort((a, b) => {
         const aDist = a.distance_km ?? Number.MAX_SAFE_INTEGER;
         const bDist = b.distance_km ?? Number.MAX_SAFE_INTEGER;
+
         return aDist - bDist;
       });
     }
 
     return [...opportunities].sort(
       (a, b) =>
-        new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
+        new Date(b.created_at || 0).getTime() -
+        new Date(a.created_at || 0).getTime()
     );
   }, [opportunities, sortBy]);
 
@@ -195,8 +251,10 @@ export const FeedView = () => {
         <div className="px-4 py-4">
           <div className="mb-4 flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Discover</h1>
-              <p className="text-sm text-gray-500">New opportunities today</p>
+              <h1 className="text-2xl font-bold text-gray-900">Scopri</h1>
+              <p className="text-sm text-gray-500">
+                Nuove opportunità disponibili oggi
+              </p>
             </div>
 
             <Button
@@ -205,9 +263,10 @@ export const FeedView = () => {
               className="h-10 w-10 rounded-full"
               onClick={handleRefresh}
               disabled={refreshing}
-              data-testid="refresh-feed-btn"
             >
-              <RefreshCw className={`h-5 w-5 ${refreshing ? 'animate-spin' : ''}`} />
+              <RefreshCw
+                className={`h-5 w-5 ${refreshing ? 'animate-spin' : ''}`}
+              />
             </Button>
           </div>
 
@@ -217,41 +276,46 @@ export const FeedView = () => {
         </div>
       </div>
 
-      <Tabs value={sortBy} onValueChange={setSortBy} className="mx-auto max-w-4xl px-4 py-4">
-        <TabsList className="grid h-11 w-full grid-cols-3 rounded-xl bg-gray-100 p-1">
-          <TabsTrigger
-            value="newest"
-            className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm"
-          >
+      <Tabs
+        value={sortBy}
+        onValueChange={setSortBy}
+        className="mx-auto max-w-4xl px-4 py-4"
+      >
+        <TabsList className="grid h-11 w-full grid-cols-4 rounded-xl bg-gray-100 p-1">
+          <TabsTrigger value="smart">
+            <Sparkles className="mr-2 h-4 w-4" />
+            Smart
+          </TabsTrigger>
+
+          <TabsTrigger value="newest">
             <Clock className="mr-2 h-4 w-4" />
-            Newest
+            Recenti
           </TabsTrigger>
 
-          <TabsTrigger
-            value="profit"
-            className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm"
-          >
+          <TabsTrigger value="profit">
             <TrendingUp className="mr-2 h-4 w-4" />
-            Top Profit
+            Più profitto
           </TabsTrigger>
 
-          <TabsTrigger
-            value="distance"
-            className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm"
-          >
+          <TabsTrigger value="distance">
             <MapPin className="mr-2 h-4 w-4" />
-            Nearby
+            Vicine
           </TabsTrigger>
         </TabsList>
 
         <TabsContent value={sortBy} className="mt-4">
           {feedError && (
             <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3">
-              <div className="text-sm font-semibold text-red-700">{feedError}</div>
-              <div className="mt-1 break-words text-xs text-red-600">{debugError}</div>
+              <div className="text-sm font-semibold text-red-700">
+                {feedError}
+              </div>
+
+              <div className="mt-1 break-words text-xs text-red-600">
+                {debugError}
+              </div>
+
               <button
-                type="button"
-                onClick={() => loadOpportunities({ silent: false })}
+                onClick={() => loadOpportunities()}
                 className="mt-2 text-sm font-semibold text-primary"
               >
                 Riprova
@@ -268,21 +332,22 @@ export const FeedView = () => {
           ) : displayedOpportunities.length === 0 ? (
             <div className="empty-state py-20">
               <Sparkles className="empty-state-icon" />
-              <h3 className="empty-state-title">No opportunities found</h3>
+
+              <h3 className="empty-state-title">
+                Nessuna opportunità trovata
+              </h3>
+
               <p className="empty-state-text">
-                Try changing filters or expanding your search radius
+                Prova a cambiare i filtri o ad aumentare il raggio di ricerca
               </p>
             </div>
           ) : (
             <div className="mx-auto max-w-4xl space-y-3 pb-20">
               {sortBy === 'newest' && todayOpportunities.length > 0 && (
                 <div className="mb-6">
-                  <div className="mb-3 flex items-center gap-2">
-                    <div className="h-2 w-2 animate-pulse rounded-full bg-primary"></div>
-                    <span className="text-sm font-semibold text-primary">
-                      New Today ({todayOpportunities.length})
-                    </span>
-                  </div>
+                  <span className="text-sm font-semibold text-primary">
+                    Nuove oggi ({todayOpportunities.length})
+                  </span>
                 </div>
               )}
 

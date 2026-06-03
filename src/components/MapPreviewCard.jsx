@@ -3,12 +3,12 @@ import { MapPin, TrendingUp, Navigation, Euro } from 'lucide-react';
 import { Button } from './ui/button';
 
 const categoryConfig = {
-  store_liquidation: { name: 'Store Liquidation', color: 'bg-green-500' },
-  product_stock: { name: 'Product Stock', color: 'bg-amber-500' },
-  equipment: { name: 'Equipment', color: 'bg-blue-500' },
-  business_sale: { name: 'Business Sale', color: 'bg-purple-500' },
-  auctions: { name: 'Auctions', color: 'bg-red-500' },
-  user_reported: { name: 'User Reported', color: 'bg-orange-500' },
+  store_liquidation: { name: 'Liquidazioni', color: 'bg-green-500' },
+  product_stock: { name: 'Stock', color: 'bg-amber-500' },
+  equipment: { name: 'Attrezzature', color: 'bg-blue-500' },
+  business_sale: { name: 'Attività', color: 'bg-purple-500' },
+  auctions: { name: 'Aste', color: 'bg-red-500' },
+  user_reported: { name: 'Utente segnalato', color: 'bg-orange-500' },
 };
 
 const formatPrice = (price) => {
@@ -22,8 +22,8 @@ const formatPrice = (price) => {
 
 const formatDistance = (km) => {
   if (km === null || km === undefined) return null;
-  if (km < 1) return `${Math.round(km * 1000)}m away`;
-  return `${km.toFixed(1)} km away`;
+  if (km < 1) return `${Math.round(km * 1000)}m distanza`;
+  return `${km.toFixed(1)} km distanza`;
 };
 
 export const MapPreviewCard = ({ opportunity, onViewDetails, onClose }) => {
@@ -94,14 +94,14 @@ export const MapPreviewCard = ({ opportunity, onViewDetails, onClose }) => {
         {/* Price Row */}
         <div className="flex items-center justify-between mb-3">
           <div>
-            <p className="text-xs text-gray-500">Price</p>
+            <p className="text-xs text-gray-500">Prezzo</p>
             <p className="text-lg font-bold text-gray-900">
               {formatPrice(opportunity.estimated_price) || 'Contact'}
             </p>
           </div>
           {profit && profit > 0 && (
             <div className="text-right">
-              <p className="text-xs text-gray-500">Est. Profit</p>
+              <p className="text-xs text-gray-500">Profitto</p>
               <p className="text-lg font-bold text-green-600">
                 {formatPrice(profit)}
               </p>
@@ -109,13 +109,13 @@ export const MapPreviewCard = ({ opportunity, onViewDetails, onClose }) => {
           )}
         </div>
 
-        {/* View Details Button */}
+        {/* Dettagli Button */}
         <Button
           onClick={onViewDetails}
           className="w-full h-10 bg-primary hover:bg-primary/90 text-white rounded-lg font-semibold text-sm"
           data-testid="view-details-btn"
         >
-          View Details
+          Dettagli
         </Button>
       </div>
     </div>

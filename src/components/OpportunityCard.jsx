@@ -6,23 +6,26 @@ import {
   AlertTriangle,
   Navigation,
   Star,
+  ShieldCheck,
 } from 'lucide-react';
 import { Badge } from './ui/badge';
 import { Card, CardContent } from './ui/card';
+import { useNavigate } from 'react-router-dom';
 
 const categoryConfig = {
-  store_liquidation: { name: 'Store Liquidation', color: 'bg-green-500' },
-  product_stock: { name: 'Product Stock', color: 'bg-amber-500' },
-  equipment: { name: 'Equipment', color: 'bg-blue-500' },
-  business_sale: { name: 'Business Sale', color: 'bg-purple-500' },
-  auctions: { name: 'Auctions', color: 'bg-red-500' },
-  user_reported: { name: 'User Reported', color: 'bg-orange-500' },
-  free_deals: { name: 'Free Deals', color: 'bg-green-600' },
+  store_liquidation: { name: 'Liquidazione negozio', color: 'bg-green-500' },
+  product_stock: { name: 'Stock prodotti', color: 'bg-amber-500' },
+  equipment: { name: 'Attrezzatura', color: 'bg-blue-500' },
+  business_sale: { name: 'Vendita attività', color: 'bg-purple-500' },
+  auctions: { name: 'Aste', color: 'bg-red-500' },
+  user_reported: { name: 'Segnalazione utente', color: 'bg-orange-500' },
+  free_deals: { name: 'Gratis', color: 'bg-green-600' },
 };
 
 const formatPrice = (price) => {
   if (price === null || price === undefined) return null;
-  return new Intl.NumberFormat('en-US', {
+
+  return new Intl.NumberFormat('it-IT', {
     style: 'currency',
     currency: 'EUR',
     maximumFractionDigits: 0,
@@ -31,7 +34,7 @@ const formatPrice = (price) => {
 
 const formatDistance = (km) => {
   if (km === null || km === undefined) return null;
-  if (km < 1) return `${Math.round(km * 1000)}m`;
+  if (km < 1) return `${Math.round(km * 1000)} m`;
   return `${km.toFixed(1)} km`;
 };
 
@@ -40,16 +43,22 @@ const timeAgo = (dateString) => {
   const now = new Date();
   const seconds = Math.floor((now - date) / 1000);
 
-  if (seconds < 60) return 'now';
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h`;
-  if (seconds < 604800) return `${Math.floor(seconds / 86400)}d`;
-  return date.toLocaleDateString();
+  if (seconds < 60) return 'ora';
+  if (seconds < 3600) return `${Math.floor(seconds / 60)} min`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)} h`;
+  if (seconds < 604800) return `${Math.floor(seconds / 86400)} g`;
+
+  return date.toLocaleDateString('it-IT');
 };
 
-export const OpportunityCard = ({ opportunity, onClick, compact = false }) => {
+export const OpportunityCard = ({ opportunity, onClick, compact = false }) => { 
+  const navigate = useNavigate();
+
   const category =
     categoryConfig[opportunity.category] || categoryConfig.user_reported;
+
+  const verifiedCount = Number(opportunity.verified_count || 0);
+  const isVerified = opportunity.is_verified === true;
 
   const profit =
     opportunity.estimated_resale_value !== null &&
@@ -68,7 +77,7 @@ export const OpportunityCard = ({ opportunity, onClick, compact = false }) => {
     return (
       <div
         onClick={onClick}
-        className="p-2.5 cursor-pointer hover:bg-gray-50 transition-colors"
+        className="cursor-pointer p-2.5 transition-colors hover:bg-gray-50"
         data-testid={`opportunity-card-compact-${opportunity.id}`}
       >
         <div className="flex gap-2.5">
@@ -76,30 +85,45 @@ export const OpportunityCard = ({ opportunity, onClick, compact = false }) => {
             <img
               src={opportunity.images[0]}
               alt={opportunity.title}
-              className="w-14 h-14 rounded-lg object-cover flex-shrink-0"
+              loading="lazy"
+              decoding="async"
+              onError={(e) => {
+  e.currentTarget.style.display = 'none';
+}}
+              className="h-14 w-14 flex-shrink-0 rounded-lg object-cover"
             />
           ) : (
-            <div className="w-14 h-14 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
-              <div className={`w-6 h-6 rounded-full ${category.color} opacity-20`} />
+            <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-lg bg-gray-100">
+              <div className={`h-6 w-6 rounded-full ${category.color} opacity-20`} />
             </div>
           )}
 
-          <div className="flex-1 min-w-0">
-            <h4 className="font-semibold text-sm text-gray-900 truncate">
-              {opportunity.title}
-            </h4>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1">
+              <h4 className="truncate text-sm font-semibold text-gray-900">
+                {opportunity.title}
+              </h4>
 
-            <div className="flex items-center gap-2 mt-1">
-              <span className={`w-2 h-2 rounded-full ${category.color}`} />
-              <span className="text-xs text-gray-500 truncate">
-                {category.name}
-              </span>
+              {isVerified && (
+                <ShieldCheck className="h-3.5 w-3.5 flex-shrink-0 text-emerald-500" />
+              )}
             </div>
+
+            <div className="mt-1 flex items-center gap-2">
+              <span className={`h-2 w-2 rounded-full ${category.color}`} />
+              <span className="truncate text-xs text-gray-500">{category.name}</span>
+            </div>
+
+            {verifiedCount > 0 && (
+              <p className="mt-1 text-[11px] font-medium text-emerald-600">
+                {verifiedCount === 1 ? '1 verifica' : `${verifiedCount} verifiche`}
+              </p>
+            )}
 
             <div className="mt-1">
               {opportunity.estimated_price === 0 ? (
-                <span className="inline-block bg-green-500 text-white text-[11px] font-bold px-2 py-0.5 rounded-md">
-                  FREE
+                <span className="inline-block rounded-md bg-green-500 px-2 py-0.5 text-[11px] font-bold text-white">
+                  GRATIS
                 </span>
               ) : (
                 <p className="text-sm font-bold text-primary">
@@ -115,116 +139,183 @@ export const OpportunityCard = ({ opportunity, onClick, compact = false }) => {
 
   return (
     <Card
-      className="cursor-pointer border border-gray-200 hover:border-primary/30 transition-all shadow-sm rounded-xl"
+      className={`cursor-pointer rounded-xl border transition-all shadow-sm hover:border-primary/30 ${
+        isVerified ? 'border-emerald-300 bg-emerald-50/30' : 'border-gray-200'
+      }`}
       onClick={onClick}
       data-testid={`opportunity-card-${opportunity.id}`}
     >
       <CardContent className="p-3">
-        <div className="flex gap-3 items-start">
+        <div className="flex items-start gap-3">
           {opportunity.images?.[0] ? (
             <img
               src={opportunity.images[0]}
               alt={opportunity.title}
-              className="w-16 h-16 rounded-lg object-cover flex-shrink-0"
+              loading="lazy"
+              decoding="async"
+              onError={(e) => {
+  e.currentTarget.style.display = 'none';
+}}
+              className="h-16 w-16 flex-shrink-0 rounded-lg object-cover"
             />
           ) : (
-            <div className="w-16 h-16 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
-              <div className={`w-7 h-7 rounded-full ${category.color} opacity-20`} />
+            <div className="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-lg bg-gray-100">
+              <div className={`h-7 w-7 rounded-full ${category.color} opacity-20`} />
             </div>
           )}
 
-          <div className="flex-1 min-w-0">
-            <div className="flex items-start justify-between gap-2 mb-1">
+          <div className="min-w-0 flex-1">
+            <div className="mb-1 flex items-start justify-between gap-2">
               <div className="flex flex-wrap gap-1">
-                <Badge className={`${category.color} text-white border-0 text-[10px] px-2 py-0.5`}>
+                <Badge className={`${category.color} border-0 px-2 py-0.5 text-[10px] text-white`}>
                   {category.name}
                 </Badge>
 
+                {isVerified && (
+                  <Badge className="border-0 bg-emerald-500 px-2 py-0.5 text-[10px] text-white">
+                    <ShieldCheck className="mr-1 h-3 w-3" />
+                    Verificata
+                  </Badge>
+                )}
+
+                {!isVerified && verifiedCount > 0 && (
+                  <Badge className="border-0 bg-emerald-50 px-2 py-0.5 text-[10px] text-emerald-700">
+                    <ShieldCheck className="mr-1 h-3 w-3" />
+                    {verifiedCount === 1 ? '1 verifica' : `${verifiedCount} verifiche`}
+                  </Badge>
+                )}
+
                 {opportunity.is_high_value && (
-                  <Badge className="bg-yellow-400 text-yellow-900 border-0 text-[10px] px-2 py-0.5">
-                    <Star className="w-3 h-3 mr-1" />
-                    High Value
+                  <Badge className="border-0 bg-yellow-400 px-2 py-0.5 text-[10px] text-yellow-900">
+                    <Star className="mr-1 h-3 w-3" />
+                    Alto valore
                   </Badge>
                 )}
 
                 {opportunity.estimated_price === 0 && (
-                  <Badge className="bg-green-500 text-white border-0 text-[10px] px-2 py-0.5">
-                    FREE
+                  <Badge className="border-0 bg-green-500 px-2 py-0.5 text-[10px] text-white">
+                    GRATIS
                   </Badge>
                 )}
               </div>
 
               {profitPercent && profitPercent > 0 && (
-                <div className="text-[11px] font-bold text-green-600 flex items-center gap-1 whitespace-nowrap">
-                  <TrendingUp className="w-3 h-3" />
+                <div className="flex items-center gap-1 whitespace-nowrap text-[11px] font-bold text-green-600">
+                  <TrendingUp className="h-3 w-3" />
                   +{profitPercent}%
                 </div>
               )}
             </div>
 
-            <h3 className="font-bold text-sm text-gray-900 leading-snug line-clamp-1 mb-1">
+            <h3 className="mb-1 line-clamp-1 text-sm font-bold leading-snug text-gray-900">
               {opportunity.title}
             </h3>
 
-            <p className="text-xs text-gray-600 line-clamp-2 mb-2 leading-snug">
+            <div className="mb-2 flex items-center gap-2">
+  <button
+    type="button"
+    onClick={(event) => {
+      event.stopPropagation();
+
+      if (opportunity?.user_id) {
+        navigate(`/users/${opportunity.user_id}`);
+      }
+    }}
+    className="flex items-center gap-2 text-xs font-semibold text-gray-700 hover:underline"
+  >
+    {opportunity.avatar_url ? (
+      <img
+        src={opportunity.avatar_url}
+        alt={opportunity.user_name || 'Utente'}
+        className="h-5 w-5 rounded-full object-cover"
+      />
+    ) : (
+      <div className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-[10px] font-black text-primary">
+        {(opportunity.user_name || 'U').charAt(0).toUpperCase()}
+      </div>
+    )}
+
+    <span>
+      {opportunity.user_name || 'Utente'}
+    </span>
+
+    {opportunity.is_premium && (
+      <span
+        title="Premium"
+        className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-blue-600 text-[10px] font-black text-white"
+      >
+        ✓
+      </span>
+    )}
+  </button>
+</div>
+
+            <p className="mb-2 line-clamp-2 text-xs leading-snug text-gray-600">
               {opportunity.description}
             </p>
 
-            <div className="grid grid-cols-3 gap-3 mb-2">
+            <div className="mb-2 grid grid-cols-3 gap-3">
               <div>
-                <p className="text-[10px] text-gray-400">Price</p>
+                <p className="text-[10px] text-gray-400">Prezzo</p>
                 {opportunity.estimated_price === 0 ? (
-                  <span className="inline-block bg-green-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-md">
-                    FREE
+                  <span className="inline-block rounded-md bg-green-500 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                    GRATIS
                   </span>
                 ) : (
-                  <p className="text-sm font-bold text-gray-900 leading-none mt-1">
-                    {formatPrice(opportunity.estimated_price) || 'Contact'}
+                  <p className="mt-1 text-sm font-bold leading-none text-gray-900">
+                    {formatPrice(opportunity.estimated_price) || 'Contatta'}
                   </p>
                 )}
               </div>
 
               <div>
-                <p className="text-[10px] text-gray-400">Resale</p>
-                <p className="text-sm font-bold text-blue-600 leading-none mt-1">
+                <p className="text-[10px] text-gray-400">Rivendita</p>
+                <p className="mt-1 text-sm font-bold leading-none text-blue-600">
                   {formatPrice(opportunity.estimated_resale_value) || '-'}
                 </p>
               </div>
 
               <div>
-                <p className="text-[10px] text-gray-400">Profit</p>
-                <p className="text-sm font-bold text-green-600 leading-none mt-1">
+                <p className="text-[10px] text-gray-400">Profitto</p>
+                <p className="mt-1 text-sm font-bold leading-none text-green-600">
                   {profit && profit > 0 ? formatPrice(profit) : '-'}
                 </p>
               </div>
             </div>
 
             <div className="flex items-center justify-between text-[11px] text-gray-500">
-              <div className="flex items-center gap-3 min-w-0">
+              <div className="flex min-w-0 items-center gap-3">
                 {opportunity.distance_km !== undefined && (
-                  <span className="flex items-center gap-1 text-primary font-medium whitespace-nowrap">
-                    <Navigation className="w-3 h-3" />
+                  <span className="flex items-center gap-1 whitespace-nowrap font-medium text-primary">
+                    <Navigation className="h-3 w-3" />
                     {formatDistance(opportunity.distance_km)}
                   </span>
                 )}
 
                 <span className="flex items-center gap-1 whitespace-nowrap">
-                  <Clock className="w-3 h-3" />
+                  <Clock className="h-3 w-3" />
                   {timeAgo(opportunity.created_at)}
                 </span>
               </div>
 
               <div className="flex items-center gap-2">
+                {verifiedCount > 0 && (
+                  <span className="flex items-center gap-1 text-emerald-600">
+                    <ShieldCheck className="h-3 w-3" />
+                    {verifiedCount}
+                  </span>
+                )}
+
                 {opportunity.confirmations > 0 && (
                   <span className="flex items-center gap-1 text-green-600">
-                    <CheckCircle className="w-3 h-3" />
+                    <CheckCircle className="h-3 w-3" />
                     {opportunity.confirmations}
                   </span>
                 )}
 
                 {opportunity.reports > 0 && (
                   <span className="flex items-center gap-1 text-red-500">
-                    <AlertTriangle className="w-3 h-3" />
+                    <AlertTriangle className="h-3 w-3" />
                     {opportunity.reports}
                   </span>
                 )}
@@ -237,5 +328,4 @@ export const OpportunityCard = ({ opportunity, onClick, compact = false }) => {
   );
 };
 
-export default OpportunityCard;
-
+export default React.memo(OpportunityCard);

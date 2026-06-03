@@ -12,14 +12,15 @@ import { useAuth } from '../contexts/AuthContext';
 import { useLocation } from '../contexts/LocationContext';
 import { supabase } from '../lib/supabase';
 import { toast } from 'sonner';
+import { trackEvent } from '../lib/analytics';
 
 const categories = [
-  { id: 'store_liquidation', name: 'Store Liquidation' },
-  { id: 'product_stock', name: 'Product Stock' },
-  { id: 'equipment', name: 'Equipment & Machinery' },
-  { id: 'business_sale', name: 'Business for Sale' },
-  { id: 'auctions', name: 'Auctions & Bankruptcies' },
-  { id: 'user_reported', name: 'Any / Other' },
+  { id: 'store_liquidation', name: 'Liquidazione negozio' },
+  { id: 'product_stock', name: 'Stock prodotti' },
+  { id: 'equipment', name: 'Attrezzature e macchinari' },
+  { id: 'business_sale', name: 'Attività in vendita' },
+  { id: 'auctions', name: 'Aste e fallimenti' },
+  { id: 'user_reported', name: 'Qualsiasi / Altro' },
 ];
 
 export const CreateBounty = () => {
@@ -49,13 +50,13 @@ export const CreateBounty = () => {
     e.preventDefault();
     
     if (!user) {
-      toast.error('Please login to create a bounty');
+      toast.error('Accedi per creare una richiesta');
       navigate('/login');
       return;
     }
 
     if (!formData.title || !formData.description || !formData.category || !formData.reward_amount) {
-      toast.error('Please fill in all required fields');
+      toast.error('Compila tutti i campi obbligatori');
       return;
     }
 
@@ -69,22 +70,40 @@ export const CreateBounty = () => {
       };
       
       const payload = {
-  ...data,
-  user_id: user.id,
-  user_name: user.name || user.email,
-  status: 'active',
-};
+        ...data,
+        user_id: user.id,
+        user_name: user.name || user.email,
+        status: 'active',
+      };
 
-const { error } = await supabase.from('bounties').insert([payload]);
+      const { data: createdBounty, error } = await supabase
+        .from('bounties')
+        .insert([payload])
+        .select()
+        .single();
 
-if (error) {
-  throw error;
-}
-      toast.success('Bounty created! Hunters will be notified.');
+      if (error) {
+        throw error;
+      }
+
+      await trackEvent({
+        userId: user.id,
+        eventName: 'create_bounty',
+        entityType: 'bounty',
+        entityId: createdBounty.id,
+        category: createdBounty.category,
+        metadata: {
+          title: createdBounty.title,
+          reward_amount: createdBounty.reward_amount,
+          max_price: createdBounty.max_price,
+        },
+      });
+
+      toast.success('Richiesta creata! Gli utenti verranno avvisati.');
       navigate('/bounties');
     } catch (err) {
-     console.error('Create bounty error:', err);
-toast.error(err.message || 'Failed to create bounty');
+      console.error('Create bounty error:', err);
+      toast.error(err.message || 'Impossibile creare la richiesta');
     } finally {
       setLoading(false);
     }
@@ -99,9 +118,9 @@ toast.error(err.message || 'Failed to create bounty');
             latitude: position.coords.latitude,
             longitude: position.coords.longitude,
           }));
-          toast.success('Location updated');
+          toast.success('Posizione aggiornata');
         },
-        () => toast.error('Could not get your location')
+        () => toast.error('Impossibile ottenere la tua posizione')
       );
     }
   };
@@ -113,15 +132,15 @@ toast.error(err.message || 'Failed to create bounty');
           <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <Target className="w-8 h-8 text-amber-500" />
           </div>
-          <h2 className="text-xl font-bold text-gray-900 mb-2">Login Required</h2>
+          <h2 className="text-xl font-bold text-gray-900 mb-2">Accesso richiesto</h2>
           <p className="text-gray-500 mb-6">
-            You need to be logged in to create a bounty
+            Devi accedere per creare una richiesta
           </p>
           <Button 
             onClick={() => navigate('/login')} 
             className="w-full bg-amber-500 hover:bg-amber-600 rounded-xl h-12"
           >
-            Login to Continue
+            Accedi per continuare
           </Button>
         </div>
       </div>
@@ -143,7 +162,7 @@ toast.error(err.message || 'Failed to create bounty');
           </Button>
           <div className="flex items-center gap-2">
             <Target className="w-6 h-6 text-white" />
-            <h1 className="text-lg font-bold text-white">Create Bounty</h1>
+            <h1 className="text-lg font-bold text-white">Crea richiesta</h1>
           </div>
         </div>
       </div>
@@ -152,21 +171,21 @@ toast.error(err.message || 'Failed to create bounty');
         {/* Info Box */}
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
           <p className="text-sm text-amber-800">
-            <strong>How bounties work:</strong> Post what you're looking for and set a reward. 
-            Hunters will find matching opportunities and submit them. 
-            When you approve a submission, the hunter earns the reward!
+            <strong>Come funzionano le richieste:</strong> pubblica cosa stai cercando e imposta una ricompensa.
+            Gli utenti troveranno opportunità compatibili e te le invieranno.
+            Quando approvi un invio, chi l’ha trovata guadagna la ricompensa.
           </p>
         </div>
 
         {/* Title */}
         <div>
-          <Label htmlFor="title">What are you looking for? *</Label>
+          <Label htmlFor="title">Cosa stai cercando? *</Label>
           <Input
             id="title"
             name="title"
             value={formData.title}
             onChange={handleChange}
-            placeholder="e.g., Commercial Espresso Machine"
+            placeholder="Es. macchina da caffè professionale"
             className="mt-1.5 h-12 rounded-xl"
             required
             data-testid="bounty-title-input"
@@ -175,13 +194,13 @@ toast.error(err.message || 'Failed to create bounty');
 
         {/* Description */}
         <div>
-          <Label htmlFor="description">Description *</Label>
+          <Label htmlFor="description">Descrizione *</Label>
           <Textarea
             id="description"
             name="description"
             value={formData.description}
             onChange={handleChange}
-            placeholder="Describe exactly what you need, any specific brands or requirements..."
+            placeholder="Descrivi esattamente cosa ti serve, eventuali marche, caratteristiche o requisiti specifici..."
             className="mt-1.5 min-h-[120px] rounded-xl"
             required
             data-testid="bounty-description-input"
@@ -190,13 +209,13 @@ toast.error(err.message || 'Failed to create bounty');
 
         {/* Category */}
         <div>
-          <Label>Category *</Label>
+          <Label>Categoria *</Label>
           <Select
             value={formData.category}
             onValueChange={(value) => setFormData(prev => ({ ...prev, category: value }))}
           >
             <SelectTrigger className="mt-1.5 h-12 rounded-xl" data-testid="bounty-category-select">
-              <SelectValue placeholder="Select category" />
+              <SelectValue placeholder="Seleziona categoria" />
             </SelectTrigger>
             <SelectContent>
               {categories.map((cat) => (
@@ -213,7 +232,7 @@ toast.error(err.message || 'Failed to create bounty');
           <div>
             <Label htmlFor="reward_amount">
               <Euro className="w-4 h-4 inline mr-1" />
-              Reward Amount *
+              Ricompensa *
             </Label>
             <Input
               id="reward_amount"
@@ -226,12 +245,12 @@ toast.error(err.message || 'Failed to create bounty');
               required
               data-testid="bounty-reward-input"
             />
-            <p className="text-xs text-gray-500 mt-1">Paid to the finder</p>
+            <p className="text-xs text-gray-500 mt-1">Pagata a chi trova l’occasione</p>
           </div>
           <div>
             <Label htmlFor="max_price">
               <Euro className="w-4 h-4 inline mr-1" />
-              Max Budget
+              Budget massimo
             </Label>
             <Input
               id="max_price"
@@ -239,23 +258,23 @@ toast.error(err.message || 'Failed to create bounty');
               type="number"
               value={formData.max_price}
               onChange={handleChange}
-              placeholder="Optional"
+              placeholder="Opzionale"
               className="mt-1.5 h-12 rounded-xl"
               data-testid="bounty-budget-input"
             />
-            <p className="text-xs text-gray-500 mt-1">Your max price</p>
+            <p className="text-xs text-gray-500 mt-1">Il tuo prezzo massimo</p>
           </div>
         </div>
 
         {/* Location */}
         <div>
-          <Label>Search Area</Label>
+          <Label>Area di ricerca</Label>
           <div className="mt-1.5 space-y-2">
             <Input
               name="address"
               value={formData.address}
               onChange={handleChange}
-              placeholder="Area name (optional)"
+              placeholder="Nome zona (opzionale)"
               className="h-12 rounded-xl"
               data-testid="bounty-address-input"
             />
@@ -267,7 +286,7 @@ toast.error(err.message || 'Failed to create bounty');
                 onClick={useCurrentLocation}
               >
                 <MapPin className="w-4 h-4 mr-2" />
-                Use My Location
+                Usa la mia posizione
               </Button>
               <Select
                 value={formData.radius_km}
@@ -297,12 +316,12 @@ toast.error(err.message || 'Failed to create bounty');
           {loading ? (
             <>
               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              Creating...
+              Creazione in corso...
             </>
           ) : (
             <>
               <Target className="w-4 h-4 mr-2" />
-              Create Bounty
+              Crea richiesta
             </>
           )}
         </Button>

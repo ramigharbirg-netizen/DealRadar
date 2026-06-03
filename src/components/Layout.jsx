@@ -106,7 +106,7 @@ export const Layout = ({ children }) => {
             }
           >
             <Map className="w-5 h-5" />
-            <span className="text-xs font-medium">Map</span>
+            <span className="text-xs font-medium">Mappa</span>
           </NavLink>
 
           <NavLink
@@ -118,7 +118,7 @@ export const Layout = ({ children }) => {
             }
           >
             <Newspaper className="w-5 h-5" />
-            <span className="text-xs font-medium">Feed</span>
+            <span className="text-xs font-medium">Esplora</span>
           </NavLink>
 
           <NavLink
@@ -158,7 +158,7 @@ export const Layout = ({ children }) => {
             }
           >
             <User className="w-5 h-5" />
-            <span className="text-xs font-medium">Profile</span>
+            <span className="text-xs font-medium">Profilo</span>
           </NavLink>
         </nav>
       )}

@@ -219,6 +219,56 @@ useEffect(() => {
   }
 };
 
+const handleConvertMatchToSubmission = async (match) => {
+  try {
+    const payload = {
+      bounty_id: bounty.id,
+      opportunity_id: match.opportunity_id,
+      user_id: match.hunter_id,
+      user_name: match.opportunity?.user_name || 'Hunter',
+      note: 'Auto-match converted by bounty creator',
+      status: 'pending',
+    };
+
+    const { error: submissionError } = await supabase
+      .from('bounty_submissions')
+      .insert([payload]);
+
+    if (submissionError) throw submissionError;
+
+    const { error: matchError } = await supabase
+      .from('bounty_matches')
+      .update({ status: 'submitted' })
+      .eq('id', match.id);
+
+    if (matchError) throw matchError;
+
+    toast.success('Match converted to submission');
+    loadSuggestedMatches();
+    loadSubmissions();
+  } catch (err) {
+    console.error('Convert match error:', err);
+    toast.error(err.message || 'Failed to convert match');
+  }
+};
+
+const handleIgnoreMatch = async (matchId) => {
+  try {
+    const { error } = await supabase
+      .from('bounty_matches')
+      .update({ status: 'dismissed' })
+      .eq('id', matchId);
+
+    if (error) throw error;
+
+    toast.success('Match ignored');
+    loadSuggestedMatches();
+  } catch (err) {
+    console.error('Ignore match error:', err);
+    toast.error(err.message || 'Failed to ignore match');
+  }
+};
+
   const handleShare = async () => {
     if (navigator.share) {
       try {
@@ -467,6 +517,24 @@ useEffect(() => {
                   Price: {formatPrice(match.opportunity.estimated_price)}
                 </p>
               )}
+              <div className="flex gap-2 mt-3">
+  <Button
+    type="button"
+    onClick={() => handleConvertMatchToSubmission(match)}
+    className="flex-1 bg-green-500 hover:bg-green-600 text-white rounded-xl"
+  >
+    Convert to Submission
+  </Button>
+
+  <Button
+    type="button"
+    variant="outline"
+    onClick={() => handleIgnoreMatch(match.id)}
+    className="flex-1 border-gray-300 rounded-xl"
+  >
+    Ignore
+  </Button>
+</div>
           </div>
         ))}
       </div>

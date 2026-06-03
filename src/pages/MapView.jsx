@@ -3,9 +3,7 @@ import { MapContainer, TileLayer, Marker, Popup, useMap, Circle } from 'react-le
 import L from 'leaflet';
 import {
   Search,
-  Filter,
   Navigation,
-  ChevronUp,
   MapPin,
   Store,
   Package,
@@ -14,24 +12,27 @@ import {
   Gavel,
   Star,
   MapPinOff,
-  Target,
+  Heart,
+  Clock,
+  SlidersHorizontal,
+X,
+Check,
+Euro,
+TrendingUp,
+ShieldCheck,
+ChevronLeft,
+ChevronRight,
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '../components/ui/sheet';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { useLocation } from '../contexts/LocationContext';
 import { supabase } from '../lib/supabase';
-import { OpportunityCard } from '../components/OpportunityCard';
 import { OpportunityDetail } from '../components/OpportunityDetail';
-import { CategoryFilter } from '../components/CategoryFilter';
-import { DistanceFilter } from '../components/DistanceFilter';
 import { MapPreviewCard } from '../components/MapPreviewCard';
 import { LocationPermissionModal } from '../components/LocationPermissionModal';
 import { toast } from 'sonner';
 import 'leaflet/dist/leaflet.css';
 
-// Fix marker Leaflet
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
@@ -39,15 +40,15 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
 });
 
-const DEFAULT_MAP_CENTER = [41.9028, 12.4964]; // Rome
+const DEFAULT_MAP_CENTER = [41.9028, 12.4964];
 
 const categoryIcons = {
-  store_liquidation: { icon: Store, color: '#00C853', name: 'Store Liquidation' },
-  product_stock: { icon: Package, color: '#F59E0B', name: 'Product Stock' },
-  equipment: { icon: Wrench, color: '#3B82F6', name: 'Equipment' },
-  business_sale: { icon: Building2, color: '#8B5CF6', name: 'Business Sale' },
-  auctions: { icon: Gavel, color: '#EF4444', name: 'Auctions' },
-  user_reported: { icon: Star, color: '#F97316', name: 'User Reported' },
+  store_liquidation: { icon: Store, color: '#00C853', name: 'Liquidazione' },
+  product_stock: { icon: Package, color: '#F59E0B', name: 'Stock' },
+  equipment: { icon: Wrench, color: '#3B82F6', name: 'Attrezzatura' },
+  business_sale: { icon: Building2, color: '#8B5CF6', name: 'Attività' },
+  auctions: { icon: Gavel, color: '#EF4444', name: 'Aste' },
+  user_reported: { icon: Star, color: '#F97316', name: 'Segnalate' },
 };
 
 const toRadians = (deg) => (deg * Math.PI) / 180;
@@ -80,22 +81,21 @@ const distanceKm = (lat1, lon1, lat2, lon2) => {
       Math.sin(dLon / 2) *
       Math.sin(dLon / 2);
 
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 };
 
 const getIconSvg = (category) => {
   const paths = {
     store_liquidation:
-      '<path d="m2 7 4.41-4.41A2 2 0 0 1 7.83 2h8.34a2 2 0 0 1 1.42.59L22 7"/><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><path d="M15 22v-4a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2v4"/><path d="M2 7h20"/><path d="M22 7v3a2 2 0 0 1-2 2a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 16 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 12 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 8 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 4 12a2 2 0 0 1-2-2V7"/>',
+      '<path d="m2 7 4.41-4.41A2 2 0 0 1 7.83 2h8.34a2 2 0 0 1 1.42.59L22 7"/><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><path d="M15 22v-4a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2v4"/><path d="M2 7h20"/>',
     product_stock:
-      '<path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z"/><path d="M12 22V12"/><path d="m3.3 7 7.703 4.734a2 2 0 0 0 1.994 0L20.7 7"/><path d="m7.5 4.27 9 5.15"/>',
+      '<path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z"/><path d="M12 22V12"/><path d="m3.3 7 7.703 4.734a2 2 0 0 0 1.994 0L20.7 7"/>',
     equipment:
       '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>',
     business_sale:
-      '<path d="M6 22V2a1 1 0 0 1 1-1h9a1 1 0 0 1 1 1v1"/><path d="M18 11h4v11h-9"/><path d="M6 12H2v10h4"/><path d="M10 6h4"/><path d="M10 10h4"/><path d="M10 14h4"/><path d="M10 18h4"/>',
+      '<path d="M6 22V2a1 1 0 0 1 1-1h9a1 1 0 0 1 1 1v1"/><path d="M18 11h4v11h-9"/><path d="M6 12H2v10h4"/><path d="M10 6h4"/><path d="M10 10h4"/><path d="M10 14h4"/>',
     auctions:
-      '<path d="m14.5 12.5-8 8a2.119 2.119 0 1 1-3-3l8-8"/><path d="m16 16 6-6"/><path d="m8 8 6-6"/><path d="m9 7 8 8"/><path d="m21 11-11 11"/>',
+      '<path d="m14.5 12.5-8 8a2.119 2.119 0 1 1-3-3l8-8"/><path d="m16 16 6-6"/><path d="m8 8 6-6"/><path d="m9 7 8 8"/>',
     user_reported:
       '<path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>',
   };
@@ -134,6 +134,30 @@ const MapController = ({ center, zoom, shouldRecenter, onRecenterDone }) => {
   return null;
 };
 
+const MapInteractionController = ({ enabled }) => {
+  const map = useMap();
+
+  useEffect(() => {
+    if (enabled) {
+      map.dragging.enable();
+      map.scrollWheelZoom.enable();
+      map.doubleClickZoom.enable();
+      map.touchZoom.enable();
+      map.boxZoom.enable();
+      map.keyboard.enable();
+    } else {
+      map.dragging.disable();
+      map.scrollWheelZoom.disable();
+      map.doubleClickZoom.disable();
+      map.touchZoom.disable();
+      map.boxZoom.disable();
+      map.keyboard.disable();
+    }
+  }, [enabled, map]);
+
+  return null;
+};
+
 const UserLocationMarker = ({ position }) => {
   const userIcon = L.divIcon({
     className: 'user-location-icon',
@@ -150,11 +174,111 @@ const UserLocationMarker = ({ position }) => {
   return <Marker position={position} icon={userIcon} />;
 };
 
+const HomeOpportunityCard = ({ opportunity, onClick }) => {
+  const firstImage =
+    Array.isArray(opportunity.images) && opportunity.images.length > 0
+      ? opportunity.images[0]
+      : null;
+
+  const price = Number(opportunity.estimated_price || 0);
+  const resale = Number(opportunity.estimated_resale_value || 0);
+  const profit = resale > price ? resale - price : null;
+  const categoryConfig = categoryIcons[opportunity.category] || categoryIcons.user_reported;
+  const CategoryIcon = categoryConfig.icon;
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="group flex h-[390px] w-[270px] flex-col overflow-hidden rounded-[28px] bg-white text-left shadow-[0_14px_40px_rgba(78,40,10,0.14)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_22px_60px_rgba(78,40,10,0.20)]"
+    >
+      <div className="relative h-40 overflow-hidden bg-orange-100">
+        {firstImage ? (
+          <img
+            src={firstImage}
+            alt={opportunity.title || 'Opportunità'}
+            className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+          />
+        ) : (
+          <div
+            className="flex h-full w-full items-center justify-center"
+            style={{ backgroundColor: `${categoryConfig.color}22` }}
+          >
+            <CategoryIcon className="h-12 w-12" style={{ color: categoryConfig.color }} />
+          </div>
+        )}
+
+        <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-black/5 to-transparent" />
+
+        <div
+          className="absolute left-4 top-4 rounded-full px-3 py-1 text-xs font-black text-white shadow-lg"
+          style={{ backgroundColor: categoryConfig.color }}
+        >
+          {categoryConfig.name}
+        </div>
+
+        <div className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full bg-white/90 shadow">
+          <Heart className="h-4 w-4 text-orange-500" />
+        </div>
+      </div>
+
+      <div className="p-5">
+        <h3 className="line-clamp-2 min-h-[48px] text-lg font-black leading-tight text-gray-950">
+          {opportunity.title || 'Opportunità senza titolo'}
+        </h3>
+
+        <div className="mt-3 flex items-center gap-2 text-sm font-medium text-gray-500">
+          <MapPin className="h-4 w-4 text-orange-500" />
+          <span className="line-clamp-1">
+            {opportunity.address || 'Zona non specificata'}
+          </span>
+        </div>
+
+        <div className="mt-4 flex items-end justify-between gap-3">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wide text-gray-400">
+              Prezzo
+            </p>
+            <p className="text-2xl font-black text-emerald-700">
+              € {price.toLocaleString('it-IT')}
+            </p>
+          </div>
+
+          {profit != null && (
+            <div className="rounded-2xl bg-emerald-50 px-3 py-2 text-right">
+              <p className="text-[10px] font-bold uppercase text-emerald-500">
+                Profitto
+              </p>
+              <p className="text-sm font-black text-emerald-700">
+                +€ {profit.toLocaleString('it-IT')}
+              </p>
+            </div>
+          )}
+        </div>
+
+        <div className="mt-5 flex items-center justify-between border-t border-gray-100 pt-4 text-xs font-semibold text-gray-500">
+          <span className="flex items-center gap-1">
+            <MapPin className="h-3.5 w-3.5" />
+            {opportunity.distance_km
+              ? `${opportunity.distance_km.toFixed(1)} km`
+              : 'Vicino'}
+          </span>
+
+          <span className="flex items-center gap-1">
+            <Clock className="h-3.5 w-3.5" />
+            {opportunity.created_at
+              ? new Date(opportunity.created_at).toLocaleDateString('it-IT')
+              : 'Nuova'}
+          </span>
+        </div>
+      </div>
+    </button>
+  );
+};
 export const MapView = () => {
   const {
     location,
     radius,
-    updateRadius,
     permissionState,
     isUsingUserLocation,
     requestLocation,
@@ -165,10 +289,7 @@ export const MapView = () => {
   const [selectedOpportunity, setSelectedOpportunity] = useState(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [category, setCategory] = useState('all');
-  const [sortBy, setSortBy] = useState('newest');
-  const [listOpen, setListOpen] = useState(false);
   const [showLocationModal, setShowLocationModal] = useState(false);
-  const [legendOpen, setLegendOpen] = useState(false);
   const [placeQuery, setPlaceQuery] = useState('');
   const [placeResults, setPlaceResults] = useState([]);
   const [searchingPlaces, setSearchingPlaces] = useState(false);
@@ -178,8 +299,15 @@ export const MapView = () => {
   const [loading, setLoading] = useState(true);
   const [opportunitiesError, setOpportunitiesError] = useState('');
   const [debugError, setDebugError] = useState('');
+  const [mapInteractive, setMapInteractive] = useState(false);
+const [filtersOpen, setFiltersOpen] = useState(false);
+const [homeSort, setHomeSort] = useState('recent');
+const [onlyVerified, setOnlyVerified] = useState(false);
+const [onlyHighValue, setOnlyHighValue] = useState(false);
+const [maxPrice, setMaxPrice] = useState('');
 
   const mapRef = useRef(null);
+  const opportunitiesScrollRef = useRef(null);
   const hasLoadedOpportunitiesRef = useRef(false);
 
   useEffect(() => {
@@ -216,9 +344,7 @@ export const MapView = () => {
           `https://nominatim.openstreetmap.org/search?${params.toString()}`,
           {
             method: 'GET',
-            headers: {
-              Accept: 'application/json',
-            },
+            headers: { Accept: 'application/json' },
           }
         );
 
@@ -234,7 +360,6 @@ export const MapView = () => {
           parsedResults = JSON.parse(rawText);
         } catch (parseErr) {
           console.error('Nominatim JSON parse error:', parseErr);
-          console.error('Nominatim raw response:', rawText);
           parsedResults = [];
         }
 
@@ -243,19 +368,13 @@ export const MapView = () => {
         }
       } catch (err) {
         console.error('Place search error:', err);
-        if (!isCancelled) {
-          setPlaceResults([]);
-        }
+        if (!isCancelled) setPlaceResults([]);
       } finally {
-        if (!isCancelled) {
-          setSearchingPlaces(false);
-        }
+        if (!isCancelled) setSearchingPlaces(false);
       }
     };
 
-    const timer = setTimeout(() => {
-      runPlaceSearch();
-    }, 350);
+    const timer = setTimeout(runPlaceSearch, 350);
 
     return () => {
       isCancelled = true;
@@ -270,14 +389,24 @@ export const MapView = () => {
 
     try {
       const { data, error } = await supabase
-        .from('opportunities')
-        .select('*')
+  .from('opportunities')
+  .select(`
+    *,
+    user_profiles (
+      trust_score,
+      verified_deals,
+      points,
+      approved_submissions,
+      total_opportunities,
+      avatar_url,
+      is_premium
+    )
+  `)
+        .eq('is_hidden', false)
         .order('created_at', { ascending: false })
         .limit(100);
 
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
 
       const validOpportunities = (data || [])
         .filter(
@@ -294,6 +423,15 @@ export const MapView = () => {
           ...opp,
           latitude: Number(opp.latitude),
           longitude: Number(opp.longitude),
+          trust_score: opp.user_profiles?.trust_score || 0,
+verified_deals: opp.user_profiles?.verified_deals || 0,
+profile_points: opp.user_profiles?.points || 0,
+avatar_url: opp.user_profiles?.avatar_url || null,
+is_premium: opp.user_profiles?.is_premium || false,
+approved_submissions:
+  opp.user_profiles?.approved_submissions || 0,
+total_opportunities_profile:
+  opp.user_profiles?.total_opportunities || 0,
         }));
 
       setAllOpportunities(validOpportunities);
@@ -309,7 +447,6 @@ export const MapView = () => {
 
   useEffect(() => {
     if (hasLoadedOpportunitiesRef.current) return;
-
     hasLoadedOpportunitiesRef.current = true;
     loadOpportunities();
   }, [loadOpportunities]);
@@ -335,26 +472,124 @@ export const MapView = () => {
       );
     }
 
-    if (sortBy === 'profit') {
-      filtered.sort(
-        (a, b) =>
-          Number(b.estimated_resale_value || 0) - Number(a.estimated_resale_value || 0)
-      );
-    } else if (sortBy === 'distance') {
-      filtered.sort((a, b) => {
-        const aDist = a.distance_km ?? Number.MAX_SAFE_INTEGER;
-        const bDist = b.distance_km ?? Number.MAX_SAFE_INTEGER;
-        return aDist - bDist;
-      });
-    } else {
-      filtered.sort(
-        (a, b) =>
-          new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
-      );
-    }
+    filtered.sort(
+      (a, b) =>
+        new Date(b.created_at || 0).getTime() -
+        new Date(a.created_at || 0).getTime()
+    );
 
     return filtered;
-  }, [allOpportunities, category, sortBy, radius, location?.lat, location?.lng]);
+  }, [allOpportunities, category, radius, location?.lat, location?.lng]);
+
+  const categoryStats = useMemo(() => {
+    const stats = Object.entries(categoryIcons).map(([key, config]) => {
+      const items = filteredOpportunities.filter((opp) => opp.category === key);
+
+      return {
+        key,
+        name: config.name,
+        Icon: config.icon,
+        color: config.color,
+        count: items.length,
+      };
+    });
+
+    return stats.filter((item) => item.count > 0);
+  }, [filteredOpportunities]);
+const latestOpportunities = useMemo(() => {
+  let items = [...allOpportunities];
+
+  if (category !== 'all') {
+    items = items.filter((opp) => opp.category === category);
+  }
+
+  if (onlyVerified) {
+    items = items.filter((opp) => opp.is_verified === true);
+  }
+
+  if (onlyHighValue) {
+    items = items.filter((opp) => opp.is_high_value === true);
+  }
+
+  if (maxPrice !== '') {
+    items = items.filter((opp) => {
+      const price = Number(opp.estimated_price);
+      return !Number.isNaN(price) && price <= Number(maxPrice);
+    });
+  }
+
+  items = items.map((opp) => ({
+    ...opp,
+    distance_km:
+      location?.lat != null && location?.lng != null
+        ? distanceKm(location.lat, location.lng, opp.latitude, opp.longitude)
+        : null,
+  }));
+
+  if (homeSort === 'distance') {
+    items.sort((a, b) => {
+      const aDist = a.distance_km ?? Number.MAX_SAFE_INTEGER;
+      const bDist = b.distance_km ?? Number.MAX_SAFE_INTEGER;
+      return aDist - bDist;
+    });
+  } else if (homeSort === 'profit') {
+    items.sort((a, b) => {
+      const profitA =
+        Number(a.estimated_resale_value || 0) - Number(a.estimated_price || 0);
+      const profitB =
+        Number(b.estimated_resale_value || 0) - Number(b.estimated_price || 0);
+      return profitB - profitA;
+    });
+  } else if (homeSort === 'price_low') {
+    items.sort(
+      (a, b) =>
+        Number(a.estimated_price || 0) - Number(b.estimated_price || 0)
+    );
+  } else {
+    items.sort(
+      (a, b) =>
+        new Date(b.created_at || 0).getTime() -
+        new Date(a.created_at || 0).getTime()
+    );
+  }
+
+  return items;
+}, [
+  allOpportunities,
+  category,
+  location?.lat,
+  location?.lng,
+  homeSort,
+  onlyVerified,
+  onlyHighValue,
+  maxPrice,
+]);
+
+const featuredOpportunities = useMemo(() => {
+  return latestOpportunities.slice(0, 5);
+}, [latestOpportunities]);
+
+  const searchResults = useMemo(() => {
+    const q = placeQuery.trim().toLowerCase();
+
+    if (q.length < 2) return [];
+
+    return allOpportunities
+      .filter((opp) => {
+        const title = String(opp.title || '').toLowerCase();
+        const description = String(opp.description || '').toLowerCase();
+        const categoryValue = String(opp.category || '').toLowerCase();
+
+        return title.includes(q) || description.includes(q) || categoryValue.includes(q);
+      })
+      .slice(0, 5);
+  }, [placeQuery, allOpportunities]);
+
+  const isSearchActive =
+    placeQuery.trim().length >= 2 ||
+    searchingPlaces ||
+    placeResults.length > 0 ||
+    searchResults.length > 0;
 
   const handleMarkerClick = (opp) => {
     setSelectedOpportunity(opp);
@@ -409,6 +644,17 @@ export const MapView = () => {
     }
   };
 
+  const scrollOpportunities = (direction) => {
+  if (!opportunitiesScrollRef.current) return;
+
+  const scrollAmount = 320;
+
+  opportunitiesScrollRef.current.scrollBy({
+    left: direction === 'left' ? -scrollAmount : scrollAmount,
+    behavior: 'smooth',
+  });
+};
+
   const handleLocationPermission = async () => {
     try {
       const position = await requestLocation();
@@ -416,6 +662,7 @@ export const MapView = () => {
       if (position) {
         const lat = position.coords.latitude;
         const lng = position.coords.longitude;
+
         setSelectedPlace(null);
         setManualCenter([lat, lng]);
         setShouldRecenter(true);
@@ -433,342 +680,522 @@ export const MapView = () => {
     }
   };
 
-  const handleCloseLocationModal = () => {
-    setShowLocationModal(false);
-  };
-
   const mapCenter =
     manualCenter ||
-    (location?.lat && location?.lng
-      ? [location.lat, location.lng]
-      : DEFAULT_MAP_CENTER);
+    (location?.lat && location?.lng ? [location.lat, location.lng] : DEFAULT_MAP_CENTER);
 
   return (
-    <div className="relative h-screen" data-testid="map-view">
-      <MapContainer
-        center={mapCenter}
-        zoom={12}
-        className="map-container z-0"
-        whenCreated={(mapInstance) => {
-          mapRef.current = mapInstance;
-        }}
-        zoomControl={false}
-      >
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
+    <div
+  className="min-h-screen pb-24"
+  data-testid="map-view"
+  style={{
+    background: '#FFE6C7',
+  }}
+    >
+      <div
+  className="relative overflow-hidden pb-16"
+  style={{
+    background: '#FFE6C7',
+  }}
+>
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,rgba(255,255,255,0.45),transparent_35%)]" />
 
-        <MapController
-          center={mapCenter}
-          shouldRecenter={shouldRecenter}
-          onRecenterDone={() => setShouldRecenter(false)}
-        />
+        <div className="relative z-20 mx-auto max-w-7xl px-6 pt-8">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full border-4 border-orange-300 bg-black/85 shadow-xl backdrop-blur-md">
+                <span className="text-xl font-black tracking-tight text-white">DR</span>
+              </div>
 
-        {isUsingUserLocation && location?.lat && location?.lng && (
-          <UserLocationMarker position={[location.lat, location.lng]} />
-        )}
+              <h1 className="text-3xl font-black tracking-tight">
+                <span className="text-blue-600">DEAL</span>
+                <span className="text-orange-600"> RADAR</span>
+              </h1>
+            </div>
 
-        {selectedPlace && (
-          <Marker position={[Number(selectedPlace.lat), Number(selectedPlace.lon)]}>
-            <Popup>{selectedPlace.display_name}</Popup>
-          </Marker>
-        )}
+          </div>
 
-        {isUsingUserLocation && location?.lat && location?.lng && (
-          <Circle
-            center={[location.lat, location.lng]}
-            radius={radius * 1000}
-            pathOptions={{
-              color: '#00C853',
-              fillColor: '#00C853',
-              fillOpacity: 0.05,
-              weight: 2,
-              dashArray: '5, 10',
+          <div className="mt-12 grid items-center gap-8 lg:grid-cols-[0.9fr_1.1fr]">
+            <div>
+              {!isSearchActive && (
+                <>
+                  <h2 className="max-w-xl text-5xl font-black leading-tight text-gray-950 md:text-6xl">
+                    Trova occasioni reali vicino a te.
+                  </h2>
+
+                  <p className="mt-5 max-w-lg text-xl font-semibold leading-relaxed text-gray-800/80">
+                    Stock, liquidazioni, aste e opportunità business scoperte dalla community.
+                  </p>
+                </>
+              )}
+
+              <div className="relative mt-8 max-w-xl">
+                <Search className="absolute left-5 top-1/2 z-10 h-7 w-7 -translate-y-1/2 text-gray-400" />
+
+                <Input
+                  placeholder="Cerca città, zona o opportunità..."
+                  value={placeQuery}
+                  onChange={(e) => setPlaceQuery(e.target.value)}
+                  className="h-20 rounded-[28px] border-0 bg-white/95 pl-16 pr-5 text-xl shadow-2xl"
+                  data-testid="place-search-input"
+                />
+
+                {(searchingPlaces || searchResults.length > 0 || placeResults.length > 0) && (
+                  <div className="absolute left-0 right-0 top-[110%] z-[9999] max-h-[320px] overflow-y-auto rounded-3xl border border-gray-200 bg-white shadow-2xl">
+                    {searchingPlaces && (
+                      <div className="px-4 py-3 text-sm text-gray-500">
+                        Sto cercando il luogo...
+                      </div>
+                    )}
+
+                    {searchResults.length > 0 && (
+                      <div className="border-b border-gray-100">
+                        <div className="px-4 py-2 text-xs font-bold uppercase text-gray-400">
+                          Opportunità trovate
+                        </div>
+
+                        {searchResults.map((opp) => (
+                          <button
+                            key={opp.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedOpportunity(opp);
+                              setDetailOpen(true);
+                              setPlaceQuery('');
+                              setPlaceResults([]);
+                            }}
+                            className="w-full border-t border-gray-100 px-4 py-3 text-left hover:bg-gray-50"
+                          >
+                            <div className="line-clamp-1 text-sm font-bold text-gray-900">
+                              {opp.title}
+                            </div>
+                            <div className="mt-1 line-clamp-1 text-xs text-gray-500">
+                              {opp.description}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {!searchingPlaces &&
+                      placeResults.map((place) => (
+                        <button
+                          key={place.place_id}
+                          type="button"
+                          onClick={() => handlePlaceSelect(place)}
+                          className="w-full border-b border-gray-100 px-4 py-3 text-left last:border-b-0 hover:bg-gray-50"
+                        >
+                          <div className="line-clamp-1 text-sm font-medium text-gray-900">
+                            {place.display_name}
+                          </div>
+                          <div className="mt-1 text-xs text-gray-500">{place.type}</div>
+                        </button>
+                      ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-[36px] bg-white/45 p-3 shadow-[0_30px_90px_rgba(91,45,12,0.22)] backdrop-blur-md">
+              <div className="relative h-[430px] overflow-hidden rounded-[28px] bg-white">
+                <MapContainer
+                  center={mapCenter}
+                  zoom={12}
+                  className="map-container z-0"
+                  whenCreated={(mapInstance) => {
+                    mapRef.current = mapInstance;
+                  }}
+                  zoomControl={false}
+                  scrollWheelZoom={mapInteractive}
+                  dragging={mapInteractive}
+                  doubleClickZoom={mapInteractive}
+                  touchZoom={mapInteractive}
+                  boxZoom={mapInteractive}
+                  keyboard={mapInteractive}
+                >
+                  <TileLayer
+                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                  />
+
+                  <MapController
+                    center={mapCenter}
+                    shouldRecenter={shouldRecenter}
+                    onRecenterDone={() => setShouldRecenter(false)}
+                  />
+
+                  <MapInteractionController enabled={mapInteractive} />
+
+                  {isUsingUserLocation && location?.lat && location?.lng && (
+                    <UserLocationMarker position={[location.lat, location.lng]} />
+                  )}
+
+                  {selectedPlace && (
+                    <Marker position={[Number(selectedPlace.lat), Number(selectedPlace.lon)]}>
+                      <Popup>{selectedPlace.display_name}</Popup>
+                    </Marker>
+                  )}
+
+                  {isUsingUserLocation && location?.lat && location?.lng && (
+                    <Circle
+                      center={[location.lat, location.lng]}
+                      radius={radius * 1000}
+                      pathOptions={{
+                        color: '#00C853',
+                        fillColor: '#00C853',
+                        fillOpacity: 0.05,
+                        weight: 2,
+                        dashArray: '5, 10',
+                      }}
+                    />
+                  )}
+
+                  {filteredOpportunities.map((opp) => (
+                    <Marker
+                      key={opp.id}
+                      position={[opp.latitude, opp.longitude]}
+                      icon={createCustomIcon(opp.category)}
+                      eventHandlers={{ click: () => handleMarkerClick(opp) }}
+                    >
+                      <Popup closeButton={false} className="map-preview-popup">
+                        <MapPreviewCard
+                          opportunity={opp}
+                          onViewDetails={() => {
+                            setSelectedOpportunity(opp);
+                            setDetailOpen(true);
+                          }}
+                        />
+                      </Popup>
+                    </Marker>
+                  ))}
+                </MapContainer>
+
+                {!isUsingUserLocation && (
+                  <button
+                    type="button"
+                    onClick={() => setShowLocationModal(true)}
+                    className="absolute left-5 top-5 z-10 flex h-14 w-14 flex-col items-center justify-center rounded-2xl border border-white/10 bg-black/85 shadow-lg backdrop-blur-md"
+                    data-testid="location-banner"
+                  >
+                    <MapPinOff className="h-5 w-5 text-orange-400" />
+                    <span className="mt-1 text-[10px] text-white">GPS</span>
+                  </button>
+                )}
+
+                <Button
+                  size="icon"
+                  variant="secondary"
+                  className={`absolute right-5 top-5 z-10 h-12 w-12 rounded-2xl shadow-lg ${
+                    isUsingUserLocation ? 'bg-primary text-white' : 'bg-white'
+                  }`}
+                  onClick={handleLocateMe}
+                  data-testid="locate-me-btn"
+                >
+                  <Navigation
+                    className={`h-5 w-5 ${
+                      isUsingUserLocation ? 'text-white' : 'text-primary'
+                    }`}
+                  />
+                </Button>
+
+                {!mapInteractive ? (
+                  <button
+                    type="button"
+                    onClick={() => setMapInteractive(true)}
+                    className="absolute bottom-6 right-5 z-10 flex h-12 items-center gap-2 rounded-full bg-green-600 px-5 font-bold text-white shadow-xl"
+                  >
+                    <MapPin className="h-5 w-5" />
+                    Attiva mappa
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setMapInteractive(false)}
+                    className="absolute bottom-6 right-5 z-10 flex h-12 items-center gap-2 rounded-full bg-white px-5 font-bold text-gray-800 shadow-xl"
+                  >
+                    Blocca
+                  </button>
+                )}
+
+                {opportunitiesError && (
+                  <div className="absolute left-1/2 top-24 z-20 w-[90%] max-w-md -translate-x-1/2">
+                    <div className="rounded-xl border border-red-200 bg-white px-4 py-3 shadow-lg">
+                      <div className="text-sm font-semibold text-red-700">
+                        {opportunitiesError}
+                      </div>
+                      <div className="mt-1 break-words text-xs text-red-600">
+                        {debugError}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={loadOpportunities}
+                        className="mt-2 text-sm font-semibold text-primary"
+                      >
+                        Riprova
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="mx-auto max-w-7xl px-6 pt-10 pb-10">
+        <div className="mb-6 flex items-center justify-between gap-4">
+          <div>
+            <h2 className="text-2xl font-black text-gray-950">
+              Opportunità vicino a te
+            </h2>
+            <p className="mt-1 text-sm font-semibold text-gray-800/80">
+              {latestOpportunities.length} opportunità pubblicate nella community
+            </p>
+          </div>
+          <Button
+  type="button"
+  onClick={() => setFiltersOpen(true)}
+  className="flex items-center gap-2 rounded-full bg-black/80 px-5 py-2 text-sm font-bold text-white shadow-lg backdrop-blur-md transition hover:scale-[1.03] hover:bg-black"
+>
+  <SlidersHorizontal className="h-4 w-4" />
+  Filtri
+</Button>
+        </div>
+
+        {loading ? (
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="h-80 rounded-[28px] bg-white/70 shadow-sm" />
+            ))}
+          </div>
+        ) : featuredOpportunities.length === 0 ? (
+          <div className="rounded-3xl bg-white/80 p-10 text-center shadow-sm">
+            <MapPin className="mx-auto mb-3 h-8 w-8 text-orange-300" />
+            <h3 className="font-bold text-gray-900">Nessuna opportunità ancora</h3>
+            <p className="mt-1 text-sm text-gray-500">
+              Prova a cambiare categoria o raggio di ricerca.
+            </p>
+          </div>
+        ) : (
+          <div className="relative">
+  <button
+    type="button"
+    onClick={() => scrollOpportunities('left')}
+    className="absolute left-0 top-1/2 z-20 hidden h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-gray-900 shadow-lg backdrop-blur transition hover:scale-105 hover:bg-white md:flex"
+  >
+    <ChevronLeft className="h-6 w-6" />
+  </button>
+
+  <div
+    ref={opportunitiesScrollRef}
+    className="-mx-6 overflow-x-auto px-6 pb-2 horizontal-scroll"
+  >
+    <div className="flex gap-6">
+      {latestOpportunities.map((opp) => (
+        <div key={opp.id} className="w-[270px] flex-shrink-0">
+          <HomeOpportunityCard
+            opportunity={opp}
+            onClick={() => {
+              setSelectedOpportunity(opp);
+              setDetailOpen(true);
             }}
           />
+        </div>
+      ))}
+    </div>
+  </div>
+
+  <button
+    type="button"
+    onClick={() => scrollOpportunities('right')}
+    className="absolute right-0 top-1/2 z-20 hidden h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-gray-900 shadow-lg backdrop-blur transition hover:scale-105 hover:bg-white md:flex"
+  >
+    <ChevronRight className="h-6 w-6" />
+  </button>
+</div>
         )}
 
-        {filteredOpportunities.map((opp) => (
-          <Marker
-            key={opp.id}
-            position={[opp.latitude, opp.longitude]}
-            icon={createCustomIcon(opp.category)}
-            eventHandlers={{ click: () => handleMarkerClick(opp) }}
-          >
-            <Popup closeButton={false} className="map-preview-popup">
-              <MapPreviewCard
-                opportunity={opp}
-                onViewDetails={() => {
-                  setSelectedOpportunity(opp);
-                  setDetailOpen(true);
-                }}
-              />
-            </Popup>
-          </Marker>
-        ))}
-      </MapContainer>
+        {categoryStats.length > 0 && (
+          <div className="mt-10 rounded-[32px] bg-white/55 p-5 shadow-[0_18px_50px_rgba(78,40,10,0.14)] backdrop-blur-md">
+            <h2 className="mb-4 text-xl font-black text-gray-950">
+              Sfoglia per categoria
+            </h2>
 
-      <div className="absolute top-4 left-4 right-4 z-10 space-y-3">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 z-10" />
-          <Input
-            placeholder="Cerca un luogo o indirizzo..."
-            value={placeQuery}
-            onChange={(e) => setPlaceQuery(e.target.value)}
-            className="pl-10 pr-4 h-12 bg-white/95 backdrop-blur-md border-0 shadow-lg rounded-xl"
-            data-testid="place-search-input"
-          />
-
-          {(searchingPlaces || placeResults.length > 0) && (
-            <div className="absolute top-14 left-0 right-0 bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden z-20">
-              {searchingPlaces && (
-                <div className="px-4 py-3 text-sm text-gray-500">
-                  Sto cercando il luogo...
-                </div>
-              )}
-
-              {!searchingPlaces &&
-                placeResults.map((place) => (
-                  <button
-                    key={place.place_id}
-                    type="button"
-                    onClick={() => handlePlaceSelect(place)}
-                    className="w-full text-left px-4 py-3 hover:bg-gray-50 border-b border-gray-100 last:border-b-0"
-                  >
-                    <div className="text-sm font-medium text-gray-900 line-clamp-1">
-                      {place.display_name}
-                    </div>
-                    <div className="text-xs text-gray-500 mt-1">{place.type}</div>
-                  </button>
-                ))}
-            </div>
-          )}
-        </div>
-
-        <CategoryFilter selected={category} onSelect={setCategory} />
-
-        <div className="flex justify-center">
-          <DistanceFilter selected={radius} onSelect={updateRadius} />
-        </div>
-      </div>
-
-      {!isUsingUserLocation && (
-        <div
-          className="absolute top-44 left-4 right-4 z-10 bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-center justify-between cursor-pointer"
-          onClick={() => setShowLocationModal(true)}
-          data-testid="location-banner"
-        >
-          <div className="flex items-center gap-2">
-            <MapPinOff className="w-5 h-5 text-amber-600" />
-            <span className="text-sm text-amber-800">Using default location (Rome)</span>
-          </div>
-          <Button
-            size="sm"
-            variant="ghost"
-            className="text-amber-700 hover:bg-amber-100 h-8"
-          >
-            Enable GPS
-          </Button>
-        </div>
-      )}
-
-      {opportunitiesError && (
-        <div className="absolute left-1/2 top-56 z-20 -translate-x-1/2 w-[90%] max-w-md">
-          <div className="rounded-xl bg-white px-4 py-3 shadow-lg border border-red-200">
-            <div className="text-sm font-semibold text-red-700">{opportunitiesError}</div>
-            <div className="text-xs text-red-600 mt-1 break-words">{debugError}</div>
-            <button
-              type="button"
-              onClick={loadOpportunities}
-              className="mt-2 text-sm font-semibold text-primary"
-            >
-              Riprova
-            </button>
-          </div>
-        </div>
-      )}
-
-      <div className="absolute right-4 top-56 z-10 flex flex-col gap-2">
-        <Button
-          size="icon"
-          variant="secondary"
-          className={`h-11 w-11 rounded-full shadow-lg ${
-            isUsingUserLocation ? 'bg-primary text-white' : 'bg-white'
-          }`}
-          onClick={handleLocateMe}
-          data-testid="locate-me-btn"
-        >
-          <Navigation
-            className={`w-5 h-5 ${isUsingUserLocation ? 'text-white' : 'text-primary'}`}
-          />
-        </Button>
-
-        <Sheet>
-          <SheetTrigger asChild>
-            <Button
-              size="icon"
-              variant="secondary"
-              className="h-11 w-11 rounded-full bg-white shadow-lg"
-              data-testid="filter-btn"
-            >
-              <Filter className="w-5 h-5 text-gray-600" />
-            </Button>
-          </SheetTrigger>
-
-          <SheetContent side="right" className="w-80">
-            <SheetHeader>
-              <SheetTitle>Filters</SheetTitle>
-            </SheetHeader>
-
-            <div className="space-y-6 mt-6">
-              <div>
-                <label className="text-sm font-medium text-gray-700 mb-2 block">
-                  Search Radius
-                </label>
-
-                <Select value={String(radius)} onValueChange={(v) => updateRadius(Number(v))}>
-                  <SelectTrigger data-testid="radius-select">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="5">5 km</SelectItem>
-                    <SelectItem value="10">10 km</SelectItem>
-                    <SelectItem value="20">20 km</SelectItem>
-                    <SelectItem value="50">50 km</SelectItem>
-                    <SelectItem value="100">100 km</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <label className="text-sm font-medium text-gray-700 mb-2 block">
-                  Sort By
-                </label>
-
-                <Select value={sortBy} onValueChange={setSortBy}>
-                  <SelectTrigger data-testid="sort-select">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="newest">Newest First</SelectItem>
-                    <SelectItem value="profit">Highest Profit</SelectItem>
-                    <SelectItem value="distance">Closest First</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </SheetContent>
-        </Sheet>
-      </div>
-
-      <div className="absolute left-4 bottom-24 z-10">
-        {!legendOpen ? (
-          <Button
-            size="sm"
-            variant="secondary"
-            className="rounded-full bg-white/95 text-gray-800 backdrop-blur-md shadow-lg px-4 h-10 border border-gray-200"
-            onClick={() => setLegendOpen(true)}
-            data-testid="open-legend-btn"
-          >
-            Legend
-          </Button>
-        ) : (
-          <div className="bg-white/95 backdrop-blur-md rounded-xl shadow-lg p-3 w-48">
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-xs font-semibold text-gray-700">Legend</p>
-              <button
-                type="button"
-                onClick={() => setLegendOpen(false)}
-                className="text-xs text-gray-500 hover:text-gray-700"
-              >
-                Close
-              </button>
-            </div>
-
-            <div className="space-y-1.5">
-              {Object.entries(categoryIcons).map(([key, val]) => (
-                <div key={key} className="flex items-center gap-2">
-                  <div
-                    className="w-4 h-4 rounded-full flex items-center justify-center"
-                    style={{ backgroundColor: val.color }}
-                  >
-                    <val.icon className="w-2.5 h-2.5 text-white" />
-                  </div>
-                  <span className="text-xs text-gray-600">{val.name}</span>
-                </div>
-              ))}
-
-              <div className="flex items-center gap-2 pt-1 border-t border-gray-200 mt-1">
-                <div
-                  className="w-4 h-4 rounded-full flex items-center justify-center"
-                  style={{ background: 'linear-gradient(135deg, #F59E0B 0%, #EA580C 100%)' }}
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
+              {categoryStats.map((cat) => (
+                <button
+                  key={cat.key}
+                  type="button"
+                  onClick={() => setCategory(cat.key)}
+                  className={`rounded-2xl border p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
+                    category === cat.key
+                      ? 'border-orange-400 bg-orange-50'
+                      : 'border-white/60 bg-white/80'
+                  }`}
                 >
-                  <Target className="w-2.5 h-2.5 text-white" />
-                </div>
-                <span className="text-xs text-amber-600 font-medium">Bounty</span>
-              </div>
+                  <div
+                    className="mb-3 flex h-11 w-11 items-center justify-center rounded-2xl"
+                    style={{ backgroundColor: cat.color }}
+                  >
+                    <cat.Icon className="h-5 w-5 text-white" />
+                  </div>
+
+                  <h3 className="line-clamp-1 text-sm font-black text-gray-900">
+                    {cat.name}
+                  </h3>
+                  <p className="mt-1 text-xs font-semibold text-gray-500">
+                    {cat.count} offerte
+                  </p>
+                </button>
+              ))}
             </div>
           </div>
         )}
       </div>
 
-      <div className="absolute bottom-20 left-0 right-0 z-10">
-        <Sheet open={listOpen} onOpenChange={setListOpen}>
-          <SheetTrigger asChild>
-            <div className="flex justify-center">
-              <Button
-                variant="secondary"
-                className="rounded-full bg-white text-gray-800 border border-gray-200 shadow-lg px-6 h-11 gap-2"
-                data-testid="show-list-btn"
-              >
-                <ChevronUp
-                  className={`w-5 h-5 transition-transform ${listOpen ? 'rotate-180' : ''}`}
-                />
-                <span className="font-semibold">
-                  {filteredOpportunities.length} Deals within {radius} km
-                </span>
-              </Button>
-            </div>
-          </SheetTrigger>
+      {filtersOpen && (
+  <div className="fixed inset-0 z-[9999] bg-black/40 backdrop-blur-sm">
+    <div className="absolute right-0 top-0 h-full w-full max-w-md overflow-y-auto bg-white p-6 shadow-2xl">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-black text-gray-950">Filtri</h2>
+          <p className="text-sm text-gray-500">
+            Personalizza le opportunità mostrate
+          </p>
+        </div>
 
-          <SheetContent side="bottom" className="h-[60vh] rounded-t-3xl">
-            <SheetHeader className="pb-4">
-              <SheetTitle>Deals Near You</SheetTitle>
-            </SheetHeader>
-
-            <div className="overflow-y-auto h-[calc(60vh-80px)] space-y-4 pb-8">
-              {loading ? (
-                <div className="empty-state">
-                  <MapPin className="empty-state-icon" />
-                  <h3 className="empty-state-title">Loading deals...</h3>
-                  <p className="empty-state-text">Please wait a moment</p>
-                </div>
-              ) : filteredOpportunities.length === 0 ? (
-                <div className="empty-state">
-                  <MapPin className="empty-state-icon" />
-                  <h3 className="empty-state-title">No deals found</h3>
-                  <p className="empty-state-text">
-                    Try expanding your search radius or changing filters
-                  </p>
-                </div>
-              ) : (
-                filteredOpportunities.map((opp) => (
-                  <OpportunityCard
-                    key={opp.id}
-                    opportunity={opp}
-                    onClick={() => {
-                      setSelectedOpportunity(opp);
-                      setDetailOpen(true);
-                      setListOpen(false);
-                    }}
-                  />
-                ))
-              )}
-            </div>
-          </SheetContent>
-        </Sheet>
+        <button
+          type="button"
+          onClick={() => setFiltersOpen(false)}
+          className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100"
+        >
+          <X className="h-5 w-5" />
+        </button>
       </div>
+
+      <div className="mt-8 space-y-8">
+        <div>
+          <h3 className="mb-3 text-sm font-black uppercase tracking-wide text-gray-500">
+            Ordina per
+          </h3>
+
+          <div className="grid grid-cols-2 gap-3">
+            <FilterButton active={homeSort === 'recent'} onClick={() => setHomeSort('recent')}>
+              <Clock className="h-4 w-4" />
+              Recenti
+            </FilterButton>
+
+            <FilterButton active={homeSort === 'distance'} onClick={() => setHomeSort('distance')}>
+              <MapPin className="h-4 w-4" />
+              Vicine
+            </FilterButton>
+
+            <FilterButton active={homeSort === 'profit'} onClick={() => setHomeSort('profit')}>
+              <TrendingUp className="h-4 w-4" />
+              Profitto
+            </FilterButton>
+
+            <FilterButton active={homeSort === 'price_low'} onClick={() => setHomeSort('price_low')}>
+              <Euro className="h-4 w-4" />
+              Prezzo basso
+            </FilterButton>
+          </div>
+        </div>
+
+        <div>
+          <h3 className="mb-3 text-sm font-black uppercase tracking-wide text-gray-500">
+            Categoria
+          </h3>
+
+          <div className="grid grid-cols-2 gap-3">
+            <FilterButton active={category === 'all'} onClick={() => setCategory('all')}>
+              Tutte
+            </FilterButton>
+
+            {Object.entries(categoryIcons).map(([key, config]) => {
+              const Icon = config.icon;
+
+              return (
+                <FilterButton
+                  key={key}
+                  active={category === key}
+                  onClick={() => setCategory(key)}
+                >
+                  <Icon className="h-4 w-4" />
+                  {config.name}
+                </FilterButton>
+              );
+            })}
+          </div>
+        </div>
+
+        <div>
+          <h3 className="mb-3 text-sm font-black uppercase tracking-wide text-gray-500">
+            Prezzo massimo
+          </h3>
+
+          <input
+            type="number"
+            min="0"
+            value={maxPrice}
+            onChange={(e) => setMaxPrice(e.target.value)}
+            placeholder="Es. 500"
+            className="h-12 w-full rounded-2xl border border-gray-200 px-4 font-semibold outline-none focus:border-orange-400"
+          />
+        </div>
+
+        <div>
+          <h3 className="mb-3 text-sm font-black uppercase tracking-wide text-gray-500">
+            Solo opportunità speciali
+          </h3>
+
+          <div className="space-y-3">
+            <ToggleRow
+              active={onlyVerified}
+              onClick={() => setOnlyVerified((prev) => !prev)}
+              icon={<ShieldCheck className="h-4 w-4" />}
+              title="Solo verificate"
+              subtitle="Mostra opportunità confermate dalla community"
+            />
+
+            <ToggleRow
+              active={onlyHighValue}
+              onClick={() => setOnlyHighValue((prev) => !prev)}
+              icon={<Star className="h-4 w-4" />}
+              title="Solo alto valore"
+              subtitle="Mostra opportunità con profitto potenziale alto"
+            />
+          </div>
+        </div>
+
+        <div className="flex gap-3 pt-4">
+          <Button
+            type="button"
+            variant="outline"
+            className="h-12 flex-1 rounded-2xl"
+            onClick={() => {
+              setHomeSort('recent');
+              setCategory('all');
+              setOnlyVerified(false);
+              setOnlyHighValue(false);
+              setMaxPrice('');
+            }}
+          >
+            Reset
+          </Button>
+
+          <Button
+            type="button"
+            className="h-12 flex-1 rounded-2xl bg-orange-600 font-bold hover:bg-orange-700"
+            onClick={() => setFiltersOpen(false)}
+          >
+            Applica filtri
+          </Button>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
 
       <OpportunityDetail
         opportunity={selectedOpportunity}
@@ -778,7 +1205,7 @@ export const MapView = () => {
 
       <LocationPermissionModal
         open={showLocationModal}
-        onClose={handleCloseLocationModal}
+        onClose={() => setShowLocationModal(false)}
         onRequestPermission={handleLocationPermission}
         permissionState={permissionState}
         error={locationError}
@@ -786,5 +1213,48 @@ export const MapView = () => {
     </div>
   );
 };
+
+const FilterButton = ({ active, onClick, children }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className={`flex min-h-[48px] items-center justify-center gap-2 rounded-2xl border px-3 text-sm font-bold transition ${
+      active
+        ? 'border-orange-500 bg-orange-50 text-orange-700'
+        : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+    }`}
+  >
+    {children}
+  </button>
+);
+
+const ToggleRow = ({ active, onClick, icon, title, subtitle }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className={`flex w-full items-center justify-between rounded-2xl border p-4 text-left transition ${
+      active
+        ? 'border-orange-500 bg-orange-50'
+        : 'border-gray-200 bg-white hover:bg-gray-50'
+    }`}
+  >
+    <div className="flex items-center gap-3">
+      <div
+        className={`flex h-10 w-10 items-center justify-center rounded-xl ${
+          active ? 'bg-orange-600 text-white' : 'bg-gray-100 text-gray-500'
+        }`}
+      >
+        {icon}
+      </div>
+
+      <div>
+        <p className="font-bold text-gray-900">{title}</p>
+        <p className="text-xs text-gray-500">{subtitle}</p>
+      </div>
+    </div>
+
+    {active && <Check className="h-5 w-5 text-orange-600" />}
+  </button>
+);
 
 export default MapView;
