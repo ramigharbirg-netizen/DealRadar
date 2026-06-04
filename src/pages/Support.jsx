@@ -7,7 +7,7 @@ import { Button } from '../components/ui/button';
 const Support = () => {
   const navigate = useNavigate();
 
-  const email = 'dealradarapp@gmail.com';
+  const email = 'support@dealradarapp.it';
 
   const openEmail = (subject) => {
     window.location.href = `mailto:${email}?subject=${encodeURIComponent(subject)}`;

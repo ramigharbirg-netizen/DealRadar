@@ -18,7 +18,7 @@ export const PrivacyPolicy = () => {
 
         <p>
           Il titolare del trattamento è Rami Gharbi. Email di contatto
-          privacy: dealradarapp@gmail.com
+          privacy: privacy@dealradarapp.it
         </p>
 
         <h2 className="text-xl font-bold">2. Dati trattati</h2>
@@ -109,7 +109,7 @@ export const PrivacyPolicy = () => {
         </p>
 
         <p className="font-semibold">
-          dealradarapp@gmail.com
+          privacy@dealradarapp.it
         </p>
 
         <h2 className="text-xl font-bold">10. Minori</h2>
@@ -138,7 +138,7 @@ export const PrivacyPolicy = () => {
           </p>
 
           <p className="font-semibold">
-            dealradarapp@gmail.com
+            privacy@dealradarapp.it
           </p>
         </section>
 

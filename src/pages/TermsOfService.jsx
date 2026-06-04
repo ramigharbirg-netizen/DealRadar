@@ -176,7 +176,7 @@ const TermsOfService = () => {
           </p>
 
           <p className="mt-2 font-semibold text-primary">
-            dealradarapp@gmail.com
+            support@dealradarapp.it
           </p>
         </section>
 

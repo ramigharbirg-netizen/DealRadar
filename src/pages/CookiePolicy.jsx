@@ -44,7 +44,7 @@ export const CookiePolicy = () => {
           </p>
 
           <p className="font-semibold">
-            dealradarapp@gmail.com
+            privacy@dealradarapp.it
           </p>
         </section>
 

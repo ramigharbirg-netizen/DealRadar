@@ -60,7 +60,7 @@ const ContentGuidelines = () => {
       </h2>
 
       <p>
-        dealradar.app@gmail.com
+        support@dealradarapp.it
       </p>
     </div>
   );
