@@ -12,11 +12,19 @@ export const DEFAULT_CONSENT = {
   geolocation: false,
 };
 
+const createSafeId = () => {
+  if (typeof window !== 'undefined' && window.crypto?.randomUUID) {
+    return window.crypto.randomUUID();
+  }
+
+  return `session-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
+};
+
 export const getSessionId = () => {
   let sessionId = localStorage.getItem('dealradar_session_id');
 
   if (!sessionId) {
-    sessionId = crypto.randomUUID();
+    sessionId = createSafeId();
     localStorage.setItem('dealradar_session_id', sessionId);
   }
 

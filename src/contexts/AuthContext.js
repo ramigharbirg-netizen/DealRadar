@@ -23,12 +23,20 @@ const mapSupabaseUser = async (supabaseUser) => {
   if (!supabaseUser) return null;
 
   const metadata = supabaseUser.user_metadata || {};
+  const appMetadata = supabaseUser.app_metadata || {};
 
   const mappedUser = {
     id: supabaseUser.id,
     email: supabaseUser.email,
-    name: metadata.name || metadata.full_name || supabaseUser.email,
+    name:
+      metadata.name ||
+      metadata.full_name ||
+      metadata.display_name ||
+      supabaseUser.email,
+    avatar_url: metadata.avatar_url || metadata.picture || null,
+    provider: appMetadata.provider || null,
     created_at: supabaseUser.created_at,
+    email_confirmed_at: supabaseUser.email_confirmed_at || null,
   };
 
   try {
@@ -42,6 +50,7 @@ const mapSupabaseUser = async (supabaseUser) => {
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
+  const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
 
   const clearLocalAuth = useCallback(() => {
@@ -49,24 +58,73 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('token');
   }, []);
 
+  const applySession = useCallback(
+    async (nextSession) => {
+      if (nextSession?.user) {
+        const mapped = await mapSupabaseUser(nextSession.user);
+
+        setSession(nextSession);
+        setUser(mapped);
+
+        if (nextSession.access_token) {
+          localStorage.setItem('token', nextSession.access_token);
+        } else {
+          localStorage.removeItem('token');
+        }
+
+        return mapped;
+      }
+
+      setSession(null);
+      setUser(null);
+      clearLocalAuth();
+
+      return null;
+    },
+    [clearLocalAuth]
+  );
+
+  const refreshSession = useCallback(async () => {
+    setLoading(true);
+
+    try {
+      const {
+        data: { session: currentSession },
+        error,
+      } = await supabase.auth.getSession();
+
+      if (error) throw error;
+
+      return await applySession(currentSession);
+    } catch (err) {
+      console.error('Refresh session error:', err);
+      await applySession(null);
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  }, [applySession]);
+
   const logout = useCallback(async () => {
     try {
       await supabase.auth.signOut();
     } catch (err) {
       console.error('Logout error:', err);
     } finally {
-      clearLocalAuth();
-      setUser(null);
+      await applySession(null);
+      setLoading(false);
     }
-  }, [clearLocalAuth]);
+  }, [applySession]);
 
   useEffect(() => {
     let mounted = true;
 
     const bootstrapAuth = async () => {
+      setLoading(true);
+
       try {
         const {
-          data: { session },
+          data: { session: currentSession },
           error,
         } = await supabase.auth.getSession();
 
@@ -74,29 +132,13 @@ export const AuthProvider = ({ children }) => {
 
         if (!mounted) return;
 
-        if (session?.user) {
-          const mapped = await mapSupabaseUser(session.user);
-
-          if (!mounted) return;
-
-          setUser(mapped);
-
-          if (session.access_token) {
-            localStorage.setItem('token', session.access_token);
-          } else {
-            localStorage.removeItem('token');
-          }
-        } else {
-          setUser(null);
-          clearLocalAuth();
-        }
+        await applySession(currentSession);
       } catch (err) {
         console.error('Auth bootstrap error:', err);
 
         if (!mounted) return;
 
-        setUser(null);
-        clearLocalAuth();
+        await applySession(null);
       } finally {
         if (mounted) {
           setLoading(false);
@@ -108,106 +150,124 @@ export const AuthProvider = ({ children }) => {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    } = supabase.auth.onAuthStateChange(async (event, nextSession) => {
       if (!mounted) return;
 
-      if (session?.user) {
-        const mapped = await mapSupabaseUser(session.user);
-
-        if (!mounted) return;
-
-        setUser(mapped);
-
-        if (session.access_token) {
-          localStorage.setItem('token', session.access_token);
-        } else {
-          localStorage.removeItem('token');
-        }
-      } else {
-        setUser(null);
-        clearLocalAuth();
+      if (
+        event === 'SIGNED_IN' ||
+        event === 'TOKEN_REFRESHED' ||
+        event === 'USER_UPDATED' ||
+        event === 'INITIAL_SESSION'
+      ) {
+        await applySession(nextSession);
       }
 
-      setLoading(false);
+      if (event === 'SIGNED_OUT') {
+        await applySession(null);
+      }
+
+      if (mounted) {
+        setLoading(false);
+      }
     });
 
     return () => {
       mounted = false;
       subscription.unsubscribe();
     };
-  }, [clearLocalAuth]);
+  }, [applySession]);
 
-  const login = useCallback(async (email, password) => {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+  const login = useCallback(
+    async (email, password) => {
+      setLoading(true);
 
-    if (error) throw error;
+      try {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
 
-    const mapped = await mapSupabaseUser(data.user);
+        if (error) throw error;
 
-    if (data.session?.access_token) {
-      localStorage.setItem('token', data.session.access_token);
-    } else {
-      localStorage.removeItem('token');
-    }
+        const mapped = await applySession(data.session);
 
-    setUser(mapped);
-    return mapped;
-  }, []);
+        return mapped;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [applySession]
+  );
 
-  const register = useCallback(async (name, email, password) => {
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: { name },
-      },
-    });
+  const register = useCallback(
+    async (name, email, password) => {
+      setLoading(true);
 
-    if (error) throw error;
+      try {
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: { name },
+          },
+        });
 
-    const mapped = await mapSupabaseUser(data.user);
+        if (error) throw error;
 
-    if (data.session?.access_token) {
-      localStorage.setItem('token', data.session.access_token);
-    } else {
-      localStorage.removeItem('token');
-    }
+        const mapped = await applySession(data.session);
 
-    setUser(mapped);
-    return mapped;
-  }, []);
+        return mapped;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [applySession]
+  );
 
   const updateUser = useCallback(
     async (updates) => {
       if (!user) return null;
 
-      const { data, error } = await supabase.auth.updateUser({
-        data: {
-          name: updates.name ?? user.name,
-        },
-      });
+      setLoading(true);
 
-      if (error) throw error;
+      try {
+        const { data, error } = await supabase.auth.updateUser({
+          data: {
+            name: updates.name ?? user.name,
+          },
+        });
 
-      const mapped = await mapSupabaseUser(data.user);
-      setUser(mapped);
-      return mapped;
+        if (error) throw error;
+
+        const {
+          data: { session: currentSession },
+        } = await supabase.auth.getSession();
+
+        if (currentSession?.user) {
+          return await applySession(currentSession);
+        }
+
+        const mapped = await mapSupabaseUser(data.user);
+        setUser(mapped);
+        return mapped;
+      } finally {
+        setLoading(false);
+      }
     },
-    [user]
+    [user, applySession]
   );
 
   return (
     <AuthContext.Provider
       value={{
         user,
+        session,
         loading,
         login,
         register,
         logout,
         updateUser,
+        refreshSession,
         isAuthenticated: !!user,
       }}
     >

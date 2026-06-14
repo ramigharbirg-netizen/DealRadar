@@ -1,16 +1,5 @@
 import { supabase } from './supabase';
-import { hasAnalyticsConsent } from './privacy';
-
-const getSessionId = () => {
-  let sessionId = localStorage.getItem('dealradar_session_id');
-
-  if (!sessionId) {
-    sessionId = crypto.randomUUID();
-    localStorage.setItem('dealradar_session_id', sessionId);
-  }
-
-  return sessionId;
-};
+import { hasAnalyticsConsent, getSessionId } from './privacy';
 
 export const trackEvent = async ({
   userId = null,
@@ -24,7 +13,6 @@ export const trackEvent = async ({
 }) => {
   try {
     if (!eventName) return;
-
     if (!hasAnalyticsConsent()) return;
 
     await supabase.from('app_events').insert([

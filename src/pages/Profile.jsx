@@ -72,7 +72,7 @@ const createPasswordCheckClient = () => {
 };
 
 export const Profile = () => {
-  const { user, logout } = useAuth();
+  const { user, logout, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
 
@@ -266,7 +266,17 @@ export const Profile = () => {
 
       if (error) throw error;
 
-      setLeaderboard(data || []);
+      const cleanLeaderboard = (data || []).filter((profile) => {
+  const name = String(profile.display_name || '').trim().toLowerCase();
+
+  return (
+    name &&
+    name !== 'utente eliminato' &&
+    profile.total_opportunities !== null
+  );
+});
+
+setLeaderboard(cleanLeaderboard);
     } catch (err) {
       console.error('Error loading leaderboard:', err);
       setLeaderboard([]);
@@ -274,13 +284,15 @@ export const Profile = () => {
   }, [leaderboardLimit]);
 
   useEffect(() => {
-    if (user) {
-      loadUserData();
-      loadLeaderboard();
-    } else {
-      setLoading(false);
-    }
-  }, [user, loadUserData, loadLeaderboard]);
+  if (authLoading) return;
+
+  if (user) {
+    loadUserData();
+    loadLeaderboard();
+  } else {
+    setLoading(false);
+  }
+}, [authLoading, user, loadUserData, loadLeaderboard]);
 
   const handleAvatarUpload = async (event) => {
     try {
@@ -443,6 +455,14 @@ export const Profile = () => {
         : [...prev, categoryId]
     );
   };
+
+  if (authLoading) {
+  return (
+    <div className="min-h-screen bg-background flex items-center justify-center">
+      <Loader2 className="w-6 h-6 animate-spin text-primary" />
+    </div>
+  );
+}
 
   if (!user) {
     return (
@@ -712,7 +732,52 @@ export const Profile = () => {
         </Card>
       </div>
 
-      <div className="max-w-6xl mx-auto px-4 mt-6">
+      <div className="max-w-6xl mx-auto px-4 mt-8">
+        <h3 className="text-lg font-bold text-gray-900 mb-4">
+          Le mie opportunità
+        </h3>
+
+        {loading ? (
+          <div className="space-y-4">
+            {[1, 2].map((i) => (
+              <div key={i} className="skeleton h-32 rounded-xl" />
+            ))}
+          </div>
+        ) : myOpportunities.length === 0 ? (
+          <Card className="border-dashed">
+            <CardContent className="p-6 text-center">
+              <MapPin className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+
+              <p className="text-gray-500 mb-4">
+                Non hai ancora pubblicato opportunità
+              </p>
+
+              <Button
+                onClick={() => navigate('/submit')}
+                variant="outline"
+                className="rounded-xl"
+              >
+                Invia la tua prima opportunità
+              </Button>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-4">
+            {myOpportunities.map((opp) => (
+              <OpportunityCard
+                key={opp.id}
+                opportunity={opp}
+                onClick={() => {
+                  setSelectedOpportunity(opp);
+                  setDetailOpen(true);
+                }}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+<div className="max-w-6xl mx-auto px-4 mt-6">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
@@ -814,16 +879,16 @@ export const Profile = () => {
       </div>
 
       <div className="max-w-6xl mx-auto px-4 mt-6">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="space-y-4">
           <Card className="border-0 shadow-sm rounded-2xl">
             <CardHeader className="pb-3">
               <CardTitle className="text-base">Azioni principali</CardTitle>
             </CardHeader>
 
-            <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <CardContent className="flex flex-wrap gap-2">
               <Button
                 onClick={() => navigate('/submit')}
-                className="h-12 bg-primary rounded-xl justify-between"
+                className="h-10 rounded-xl px-4 bg-primary"
                 data-testid="submit-opportunity-btn"
               >
                 <span className="flex items-center gap-2 text-sm">
@@ -837,7 +902,7 @@ export const Profile = () => {
               <Button
                 onClick={() => navigate('/favorites')}
                 variant="outline"
-                className="h-12 rounded-xl justify-between"
+                className="h-10 rounded-xl px-4"
                 data-testid="view-favorites-btn"
               >
                 <span className="flex items-center gap-2 text-sm">
@@ -851,7 +916,7 @@ export const Profile = () => {
               <Button
                 onClick={() => navigate('/privacy-settings')}
                 variant="outline"
-                className="h-12 rounded-xl justify-between"
+                className="h-10 rounded-xl px-4"
               >
                 <span className="flex items-center gap-2 text-sm">
                   <ShieldCheck className="w-4 h-4" />
@@ -865,7 +930,7 @@ export const Profile = () => {
                 onClick={handleDeleteAccount}
                 variant="outline"
                 disabled={deletingAccount}
-                className="h-12 rounded-xl justify-between border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
+                className="h-10 rounded-xl border-red-200 bg-red-50 px-4 text-sm font-medium text-red-700 hover:bg-red-100"
               >
                 <span className="flex items-center gap-2 text-sm">
                   {deletingAccount ? (
@@ -883,7 +948,7 @@ export const Profile = () => {
                 <Button
                   onClick={() => navigate('/admin/moderation')}
                   variant="outline"
-                  className="h-12 rounded-xl justify-between border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
+                  className="h-10 rounded-xl border-red-200 bg-red-50 px-4 text-sm font-medium text-red-700 hover:bg-red-100"
                 >
                   <span className="flex items-center gap-2 text-sm">
                     <Shield className="w-4 h-4" />
@@ -896,100 +961,54 @@ export const Profile = () => {
             </CardContent>
           </Card>
 
-          <Card className="border-0 shadow-sm rounded-2xl">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">Documenti e regolamenti</CardTitle>
-            </CardHeader>
+<div className="border-t pt-6">
+  <h3 className="text-sm font-semibold text-gray-900 mb-4">
+    Documenti e regolamenti
+  </h3>
 
-            <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <a
-                href="/privacy-policy"
-                className="flex h-12 items-center justify-between rounded-xl border border-gray-200 bg-white px-4 hover:bg-gray-50 transition"
-              >
-                <span className="text-sm font-medium">Privacy Policy</span>
-                <ChevronRight className="w-4 h-4 text-gray-400" />
-              </a>
+  <div className="grid grid-cols-2 md:grid-cols-4 gap-y-3 gap-x-8 text-sm">
 
-              <a
-                href="/terms-of-service"
-                className="flex h-12 items-center justify-between rounded-xl border border-gray-200 bg-white px-4 hover:bg-gray-50 transition"
-              >
-                <span className="text-sm font-medium">Termini</span>
-                <ChevronRight className="w-4 h-4 text-gray-400" />
-              </a>
+    <button
+  onClick={() => navigate('/privacy-policy')}
+  className="text-left text-gray-600 hover:text-primary"
+>
+  Privacy Policy
+</button>
 
-              <a
-                href="/support"
-                className="flex h-12 items-center justify-between rounded-xl border border-gray-200 bg-white px-4 hover:bg-gray-50 transition"
-              >
-                <span className="text-sm font-medium">Supporto</span>
-                <ChevronRight className="w-4 h-4 text-gray-400" />
-              </a>
+<button
+  onClick={() => navigate('/terms-of-service')}
+  className="text-left text-gray-600 hover:text-primary"
+>
+  Termini
+</button>
 
-              <a
-                href="/cookie-policy"
-                className="flex h-12 items-center justify-between rounded-xl border border-gray-200 bg-white px-4 hover:bg-gray-50 transition"
-              >
-                <span className="text-sm font-medium">Cookie</span>
-                <ChevronRight className="w-4 h-4 text-gray-400" />
-              </a>
+<button
+  onClick={() => navigate('/support')}
+  className="text-left text-gray-600 hover:text-primary"
+>
+  Supporto
+</button>
 
-              <a
-                href="/content-guidelines"
-                className="flex h-12 items-center justify-between rounded-xl border border-gray-200 bg-white px-4 hover:bg-gray-50 transition"
-              >
-                <span className="text-sm font-medium">Linee guida</span>
-                <ChevronRight className="w-4 h-4 text-gray-400" />
-              </a>
-            </CardContent>
-          </Card>
+<button
+  onClick={() => navigate('/cookie-policy')}
+  className="text-left text-gray-600 hover:text-primary"
+>
+  Cookie
+</button>
+
+<button
+  onClick={() => navigate('/content-guidelines')}
+  className="text-left text-gray-600 hover:text-primary"
+>
+  Linee guida
+</button>
+
+  </div>
+</div>
+          
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-4 mt-8">
-        <h3 className="text-lg font-bold text-gray-900 mb-4">
-          Le mie opportunità
-        </h3>
-
-        {loading ? (
-          <div className="space-y-4">
-            {[1, 2].map((i) => (
-              <div key={i} className="skeleton h-32 rounded-xl" />
-            ))}
-          </div>
-        ) : myOpportunities.length === 0 ? (
-          <Card className="border-dashed">
-            <CardContent className="p-6 text-center">
-              <MapPin className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-
-              <p className="text-gray-500 mb-4">
-                Non hai ancora pubblicato opportunità
-              </p>
-
-              <Button
-                onClick={() => navigate('/submit')}
-                variant="outline"
-                className="rounded-xl"
-              >
-                Invia la tua prima opportunità
-              </Button>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="space-y-4">
-            {myOpportunities.map((opp) => (
-              <OpportunityCard
-                key={opp.id}
-                opportunity={opp}
-                onClick={() => {
-                  setSelectedOpportunity(opp);
-                  setDetailOpen(true);
-                }}
-              />
-            ))}
-          </div>
-        )}
-      </div>
 
       <OpportunityDetail
         opportunity={selectedOpportunity}

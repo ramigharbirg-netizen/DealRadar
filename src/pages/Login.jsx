@@ -5,6 +5,7 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { useAuth } from '../contexts/AuthContext';
+import { supabase } from '../lib/supabase';
 import { toast } from 'sonner';
 
 export const Login = () => {
@@ -18,6 +19,7 @@ export const Login = () => {
 
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   useEffect(() => {
     if (!authLoading && user) {
@@ -34,6 +36,29 @@ export const Login = () => {
     }));
   };
 
+  const handleGoogleLogin = async () => {
+  if (googleLoading || loading || authLoading) return;
+
+  setGoogleLoading(true);
+
+  const redirectUrl = `${window.location.origin}/`;
+
+  try {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: redirectUrl,
+      },
+    });
+
+    if (error) throw error;
+  } catch (err) {
+    console.error('Google login error:', err);
+    toast.error(err?.message || 'Accesso con Google non riuscito');
+    setGoogleLoading(false);
+  }
+};
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -45,7 +70,7 @@ export const Login = () => {
       return;
     }
 
-    if (loading || authLoading) return;
+    if (loading || googleLoading || authLoading) return;
 
     setLoading(true);
 
@@ -54,9 +79,23 @@ export const Login = () => {
       toast.success('Bentornato!');
       navigate('/', { replace: true });
     } catch (err) {
-      console.error('Login error:', err);
-      toast.error(err?.message || 'Accesso non riuscito');
-    } finally {
+  console.error('Login error:', err);
+
+  const errorMessage = String(err?.message || '').toLowerCase();
+
+  if (
+    errorMessage.includes('invalid login credentials') ||
+    errorMessage.includes('invalid credentials')
+  ) {
+    toast.error(
+      'Credenziali non valide. Se hai creato l’account con Google, accedi con “Continua con Google” oppure usa “Password dimenticata?” per impostare una password.'
+    );
+  } else if (errorMessage.includes('email not confirmed')) {
+    toast.error('Devi confermare la tua email prima di accedere.');
+  } else {
+    toast.error(err?.message || 'Accesso non riuscito');
+  }
+} finally {
       setLoading(false);
     }
   };
@@ -93,6 +132,34 @@ export const Login = () => {
 
           <h1 className="text-2xl font-bold text-gray-900">Bentornato</h1>
           <p className="text-gray-500 mt-1">Accedi a DealRadar</p>
+        </div>
+
+        <div className="space-y-3 mb-5">
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full h-12 rounded-xl text-base font-semibold bg-white border-gray-200 hover:bg-gray-50"
+            onClick={handleGoogleLogin}
+            disabled={googleLoading || loading || authLoading}
+          >
+            {googleLoading ? (
+              <>
+                <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                Connessione a Google...
+              </>
+            ) : (
+              <>
+                <span className="mr-2 text-lg font-bold text-[#4285F4]">G</span>
+                Continua con Google
+              </>
+            )}
+          </Button>
+
+          <div className="flex items-center gap-3">
+            <div className="h-px flex-1 bg-gray-200" />
+            <span className="text-xs font-medium text-gray-400">oppure</span>
+            <div className="h-px flex-1 bg-gray-200" />
+          </div>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">
@@ -145,18 +212,18 @@ export const Login = () => {
           </div>
 
           <div className="text-right">
-  <Link
-    to="/forgot-password"
-    className="text-sm font-semibold text-primary hover:underline"
-  >
-    Password dimenticata?
-  </Link>
-</div>
+            <Link
+              to="/forgot-password"
+              className="text-sm font-semibold text-primary hover:underline"
+            >
+              Password dimenticata?
+            </Link>
+          </div>
 
           <Button
             type="submit"
             className="w-full h-12 bg-primary rounded-xl text-base font-semibold"
-            disabled={loading || authLoading}
+            disabled={loading || googleLoading || authLoading}
             data-testid="login-submit-btn"
           >
             {loading ? (

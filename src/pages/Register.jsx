@@ -6,6 +6,7 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Checkbox } from '../components/ui/checkbox';
 import { useAuth } from '../contexts/AuthContext';
+import { supabase } from '../lib/supabase';
 import { toast } from 'sonner';
 import { saveConsent, PRIVACY_VERSION, TERMS_VERSION } from '../lib/privacy';
 
@@ -31,6 +32,7 @@ export const Register = () => {
 
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   const [acceptedPrivacy, setAcceptedPrivacy] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
@@ -42,11 +44,12 @@ export const Register = () => {
   const turnstileSiteKey = process.env.REACT_APP_TURNSTILE_SITE_KEY;
 
   const canSubmit =
-  acceptedPrivacy &&
-  acceptedTerms &&
-  !!turnstileToken &&
-  !loading &&
-  !authLoading;
+    acceptedPrivacy &&
+    acceptedTerms &&
+    !!turnstileToken &&
+    !loading &&
+    !googleLoading &&
+    !authLoading;
 
   useEffect(() => {
     if (!authLoading && user) {
@@ -55,49 +58,45 @@ export const Register = () => {
   }, [authLoading, user, navigate]);
 
   useEffect(() => {
-  if (!turnstileSiteKey) return;
+    if (!turnstileSiteKey) return;
 
-  const renderTurnstile = () => {
-    if (!window.turnstile || !turnstileRef.current) return;
-    if (turnstileWidgetIdRef.current !== null) return;
+    const renderTurnstile = () => {
+      if (!window.turnstile || !turnstileRef.current) return;
+      if (turnstileWidgetIdRef.current !== null) return;
 
-    turnstileWidgetIdRef.current = window.turnstile.render(
-      turnstileRef.current,
-      {
+      turnstileWidgetIdRef.current = window.turnstile.render(turnstileRef.current, {
         sitekey: turnstileSiteKey,
         callback: (token) => setTurnstileToken(token),
         'expired-callback': () => setTurnstileToken(''),
         'error-callback': () => setTurnstileToken(''),
-      }
+      });
+    };
+
+    const existingScript = document.querySelector(
+      'script[src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"]'
     );
-  };
 
-  const existingScript = document.querySelector(
-    'script[src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"]'
-  );
+    if (existingScript) {
+      existingScript.addEventListener('load', renderTurnstile);
+      renderTurnstile();
 
-  if (existingScript) {
-    existingScript.addEventListener('load', renderTurnstile);
-    renderTurnstile();
+      return () => {
+        existingScript.removeEventListener('load', renderTurnstile);
+      };
+    }
+
+    const script = document.createElement('script');
+    script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+    script.async = true;
+    script.defer = true;
+    script.addEventListener('load', renderTurnstile);
+
+    document.body.appendChild(script);
 
     return () => {
-      existingScript.removeEventListener('load', renderTurnstile);
+      script.removeEventListener('load', renderTurnstile);
     };
-  }
-
-  const script = document.createElement('script');
-  script.src =
-    'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
-  script.async = true;
-  script.defer = true;
-  script.addEventListener('load', renderTurnstile);
-
-  document.body.appendChild(script);
-
-  return () => {
-    script.removeEventListener('load', renderTurnstile);
-  };
-}, [turnstileSiteKey]);
+  }, [turnstileSiteKey]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -107,6 +106,29 @@ export const Register = () => {
       [name]: value,
     }));
   };
+
+  const handleGoogleLogin = async () => {
+  if (googleLoading || loading || authLoading) return;
+
+  setGoogleLoading(true);
+
+  const redirectUrl = `${window.location.origin}/`;
+
+  try {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: redirectUrl,
+      },
+    });
+
+    if (error) throw error;
+  } catch (err) {
+    console.error('Google login error:', err);
+    toast.error(err?.message || 'Accesso con Google non riuscito');
+    setGoogleLoading(false);
+  }
+};
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -135,12 +157,12 @@ export const Register = () => {
       return;
     }
 
-if (!turnstileToken) {
-  toast.error('Completa la verifica di sicurezza');
-  return;
-}
+    if (!turnstileToken) {
+      toast.error('Completa la verifica di sicurezza');
+      return;
+    }
 
-    if (loading || authLoading) return;
+    if (loading || googleLoading || authLoading) return;
 
     setLoading(true);
 
@@ -211,10 +233,39 @@ if (!turnstileToken) {
         <div className="text-center mb-8">
           <div className="w-16 h-16 bg-primary rounded-2xl flex items-center justify-center mx-auto mb-4 relative">
             <Radar className="w-8 h-8 text-white" />
-            <div className="absolute inset-0 rounded-2xl bg-primary animate-ping opacity-20"></div>
+            <div className="absolute inset-0 rounded-2xl bg-primary animate-ping opacity-20" />
           </div>
+
           <h1 className="text-2xl font-bold text-gray-900">Entra in DealRadar</h1>
           <p className="text-gray-500 mt-1">Scopri opportunità vicino a te</p>
+        </div>
+
+        <div className="space-y-3 mb-5">
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full h-12 rounded-xl text-base font-semibold bg-white border-gray-200 hover:bg-gray-50"
+            onClick={handleGoogleLogin}
+            disabled={googleLoading || loading || authLoading}
+          >
+            {googleLoading ? (
+              <>
+                <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                Connessione a Google...
+              </>
+            ) : (
+              <>
+                <span className="mr-2 text-lg font-bold text-[#4285F4]">G</span>
+                Continua con Google
+              </>
+            )}
+          </Button>
+
+          <div className="flex items-center gap-3">
+            <div className="h-px flex-1 bg-gray-200" />
+            <span className="text-xs font-medium text-gray-400">oppure</span>
+            <div className="h-px flex-1 bg-gray-200" />
+          </div>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">
@@ -251,6 +302,7 @@ if (!turnstileToken) {
 
           <div>
             <Label htmlFor="password">Password</Label>
+
             <div className="relative mt-1.5">
               <Input
                 id="password"
@@ -264,6 +316,7 @@ if (!turnstileToken) {
                 data-testid="password-input"
                 autoComplete="new-password"
               />
+
               <button
                 type="button"
                 onClick={() => setShowPassword((prev) => !prev)}
@@ -324,9 +377,9 @@ if (!turnstileToken) {
             </label>
           </div>
 
-<div className="flex justify-center">
-  <div ref={turnstileRef} />
-</div>
+          <div className="flex justify-center">
+            <div ref={turnstileRef} />
+          </div>
 
           <Button
             type="submit"

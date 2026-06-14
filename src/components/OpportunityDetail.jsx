@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   MapPin,
   Phone,
@@ -202,6 +202,12 @@ export const OpportunityDetail = ({ opportunity, open, onClose }) => {
   const [reportDetails, setReportDetails] = useState('');
   const [sendingReport, setSendingReport] = useState(false);
 
+  const thumbnailScrollerRef = useRef(null);
+  const touchStartXRef = useRef(null);
+  const touchStartYRef = useRef(null);
+  const galleryTouchStartXRef = useRef(null);
+  const galleryTouchStartYRef = useRef(null);
+
   const cleanedComment = useMemo(() => cleanCommentText(newComment), [newComment]);
 
   const commentTooShort =
@@ -214,6 +220,12 @@ export const OpportunityDetail = ({ opportunity, open, onClose }) => {
     !sendingComment &&
     cleanedComment.length >= COMMENT_MIN_LENGTH &&
     cleanedComment.length <= COMMENT_MAX_LENGTH;
+
+  const images = useMemo(() => {
+    return Array.isArray(opportunity?.images)
+      ? opportunity.images.filter(Boolean)
+      : [];
+  }, [opportunity?.images]);
 
   const category = useMemo(() => {
     return categoryConfig[opportunity?.category] || categoryConfig.user_reported;
@@ -236,6 +248,89 @@ export const OpportunityDetail = ({ opportunity, open, onClose }) => {
 
     return resale - price;
   }, [opportunity?.estimated_resale_value, opportunity?.estimated_price]);
+
+  const goToPreviousImage = useCallback(() => {
+    if (images.length <= 1) return;
+
+    setSelectedImageIndex((prev) =>
+      prev === 0 ? images.length - 1 : prev - 1
+    );
+  }, [images.length]);
+
+  const goToNextImage = useCallback(() => {
+    if (images.length <= 1) return;
+
+    setSelectedImageIndex((prev) =>
+      prev === images.length - 1 ? 0 : prev + 1
+    );
+  }, [images.length]);
+
+  const handleThumbnailTouchStart = (event) => {
+    const touch = event.touches?.[0];
+    if (!touch) return;
+
+    touchStartXRef.current = touch.clientX;
+    touchStartYRef.current = touch.clientY;
+  };
+
+  const handleThumbnailTouchEnd = (event) => {
+    const touch = event.changedTouches?.[0];
+
+    if (
+      !touch ||
+      touchStartXRef.current === null ||
+      touchStartYRef.current === null
+    ) {
+      return;
+    }
+
+    const diffX = touchStartXRef.current - touch.clientX;
+    const diffY = touchStartYRef.current - touch.clientY;
+
+    touchStartXRef.current = null;
+    touchStartYRef.current = null;
+
+    if (Math.abs(diffX) < 45 || Math.abs(diffX) < Math.abs(diffY)) return;
+
+    thumbnailScrollerRef.current?.scrollBy({
+      left: diffX > 0 ? 190 : -190,
+      behavior: 'smooth',
+    });
+  };
+
+  const handleGalleryTouchStart = (event) => {
+    const touch = event.touches?.[0];
+    if (!touch) return;
+
+    galleryTouchStartXRef.current = touch.clientX;
+    galleryTouchStartYRef.current = touch.clientY;
+  };
+
+  const handleGalleryTouchEnd = (event) => {
+    const touch = event.changedTouches?.[0];
+
+    if (
+      !touch ||
+      galleryTouchStartXRef.current === null ||
+      galleryTouchStartYRef.current === null
+    ) {
+      return;
+    }
+
+    const diffX = galleryTouchStartXRef.current - touch.clientX;
+    const diffY = galleryTouchStartYRef.current - touch.clientY;
+
+    galleryTouchStartXRef.current = null;
+    galleryTouchStartYRef.current = null;
+
+    if (Math.abs(diffX) < 45 || Math.abs(diffX) < Math.abs(diffY)) return;
+
+    if (diffX > 0) {
+      goToNextImage();
+    } else {
+      goToPreviousImage();
+    }
+  };
 
   const checkIfVerified = useCallback(async () => {
     if (!user?.id || !opportunity?.id) {
@@ -816,10 +911,10 @@ if (existingConversation) {
     <Sheet open={open} onOpenChange={onClose}>
       <SheetContent
         side="bottom"
-        className="h-[84vh] w-full p-0 rounded-t-3xl sm:top-4 sm:bottom-4 sm:left-1/2 sm:right-auto sm:h-auto sm:max-h-[calc(100vh-2rem)] sm:w-[680px] sm:-translate-x-1/2 sm:translate-y-0 sm:rounded-2xl"
+        className="h-[84vh] w-[calc(100vw-24px)] max-w-[calc(100vw-24px)] overflow-hidden p-0 rounded-t-3xl sm:top-4 sm:bottom-4 sm:left-1/2 sm:right-auto sm:h-auto sm:max-h-[calc(100vh-2rem)] sm:w-[680px] sm:max-w-[680px] sm:-translate-x-1/2 sm:translate-y-0 sm:rounded-2xl"
         data-testid="opportunity-detail-sheet"
       >
-        <div className="flex h-full max-h-[calc(100vh-2rem)] flex-col bg-white">
+        <div className="flex h-full max-h-[calc(100vh-2rem)] w-full max-w-full flex-col overflow-x-hidden bg-white">
           <div className="sticky top-0 z-10 border-b border-gray-100 bg-white px-4 py-3">
             <div className="mb-3 flex items-start justify-between gap-3">
               <Button
@@ -889,7 +984,7 @@ if (existingConversation) {
             </div>
 
             <div className="space-y-2">
-              <div className="flex flex-wrap gap-2">
+              <div className="flex w-full max-w-full gap-2 overflow-x-auto pb-2 whitespace-nowrap">
                 <Badge className={`${category.color} border-0 text-white`}>
                   {category.name}
                 </Badge>
@@ -960,9 +1055,9 @@ if (existingConversation) {
           </div>
 
           <ScrollArea className="min-h-0 flex-1">
-            <div className="space-y-3 p-4">
+            <div className="mx-auto w-full max-w-[calc(100vw-48px)] space-y-3 p-3 sm:max-w-[600px] sm:p-4">
               <div className="rounded-xl border border-gray-200 bg-gradient-to-br from-gray-50 to-gray-100 p-3">
-                <div className="mb-2 grid grid-cols-2 gap-4">
+                <div className="mb-2 grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
                   <div>
                     <p className="mb-1 flex items-center gap-1 text-xs text-gray-500">
                       <Euro className="h-3 w-3" />
@@ -1009,16 +1104,23 @@ if (existingConversation) {
                 )}
               </div>
 
-              {Array.isArray(opportunity.images) && opportunity.images.length > 0 && (
-                <div className="flex gap-2 overflow-x-auto pb-1">
-                  {opportunity.images.map((img, index) => (
-                    <div
+              {images.length > 0 && (
+                <div
+                  ref={thumbnailScrollerRef}
+                  className="flex snap-x gap-2 overflow-x-auto pb-2"
+                  style={{ WebkitOverflowScrolling: 'touch' }}
+                  onTouchStart={handleThumbnailTouchStart}
+                  onTouchEnd={handleThumbnailTouchEnd}
+                >
+                  {images.map((img, index) => (
+                    <button
+                      type="button"
                       key={index}
                       onClick={() => {
                         setSelectedImageIndex(index);
                         setGalleryOpen(true);
                       }}
-                      className="flex h-28 min-w-[170px] flex-shrink-0 cursor-zoom-in items-center justify-center rounded-xl bg-gray-100 p-2"
+                      className="flex h-28 min-w-[170px] flex-shrink-0 snap-start cursor-zoom-in items-center justify-center rounded-xl bg-gray-100 p-2"
                     >
                       <img
                         src={img}
@@ -1028,14 +1130,16 @@ if (existingConversation) {
                         }}
                         className="pointer-events-none max-h-full max-w-full rounded-lg object-contain"
                       />
-                    </div>
+                    </button>
                   ))}
                 </div>
               )}
 
-              <p className="text-sm leading-relaxed text-gray-600">{opportunity.description}</p>
+              <p className="w-full whitespace-normal break-words text-sm leading-relaxed text-gray-600">
+                {opportunity.description}
+              </p>
 
-              <div className="flex flex-wrap gap-2">
+              <div className="flex w-full max-w-full flex-wrap items-center gap-2 overflow-hidden">
                 {opportunity.user_id !== user?.id && (
   <button
     type="button"
@@ -1055,8 +1159,7 @@ if (existingConversation) {
                 {opportunity.contact_phone && (
                   <a
                     href={`tel:${opportunity.contact_phone}`}
-                    className="inline-flex h-8 items-center justify-center gap-2 rounded-lg border border-green-200 bg-green-50 px-3 text-sm font-medium text-green-700 hover:bg-green-100"
-                    data-testid="contact-phone-btn"
+                    className="inline-flex h-8 items-center justify-center gap-2 rounded-lg border border-green-200 bg-green-50 px-3 text-sm font-medium text-green-700 hover:bg-green-100"                    data-testid="contact-phone-btn"
                   >
                     <Phone className="h-4 w-4" />
                     Chiama
@@ -1095,24 +1198,24 @@ if (existingConversation) {
       onClose(false);
       navigate(`/opportunities/${opportunity.id}/edit`);
     }}
-    className="h-8 rounded-lg border-blue-200 bg-blue-50 px-3 text-sm font-semibold text-blue-700 hover:bg-blue-100"
+    className="inline-flex h-8 items-center justify-center gap-2 rounded-lg border-blue-200 bg-blue-50 px-3 text-sm font-semibold text-blue-700 hover:bg-blue-100"
   >
-    <Edit className="mr-1 h-4 w-4" />
+    <Edit className="h-4 w-4" />
     Modifica
   </Button>
 )}
 
               {String(opportunity.user_id) === String(user?.id) && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={handleDeleteOpportunity}
-                    className="h-8 rounded-lg border-red-200 bg-red-50 px-3 text-sm font-semibold text-red-700 hover:bg-red-100"
-                  >
-                    <Trash2 className="mr-1 h-4 w-4" />
-                    Elimina
-                  </Button>
-                )}
+  <Button
+    type="button"
+    variant="outline"
+    onClick={handleDeleteOpportunity}
+    className="inline-flex h-8 items-center justify-center gap-2 rounded-lg border-red-200 bg-red-50 px-3 text-sm font-semibold text-red-700 hover:bg-red-100"
+  >
+    <Trash2 className="h-4 w-4" />
+    Elimina
+  </Button>
+)}
               </div>
 
 {(() => {
@@ -1165,7 +1268,7 @@ if (existingConversation) {
 
   return (
     <div
-      className={`relative overflow-hidden rounded-2xl border bg-white p-4 shadow-sm ${
+      className={`relative w-full overflow-hidden rounded-2xl border bg-white p-3 shadow-sm ${
         isPremium
           ? 'border-blue-200 shadow-[0_14px_45px_rgba(37,99,235,0.14)]'
           : 'border-gray-200'
@@ -1179,10 +1282,9 @@ if (existingConversation) {
         </div>
       )}
 
-      <div className="flex items-start gap-3">
+      <div className="flex items-start gap-2">
         <div
-  className={`flex h-14 w-14 items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-br from-orange-100 to-orange-50 ring-4 ${hunter.ring}`}
->
+        className={`flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-br from-orange-100 to-orange-50 ring-2 ${hunter.ring}`}>
   {opportunity.avatar_url ? (
     <img
       src={opportunity.avatar_url}
@@ -1194,7 +1296,7 @@ if (existingConversation) {
   )}
 </div>
 
-        <div className="min-w-0 flex-1 pr-16">
+        <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <button
   type="button"
@@ -1250,7 +1352,7 @@ if (existingConversation) {
             </div>
           </div>
 
-          <div className="mt-3 grid grid-cols-3 gap-2">
+          <div className="mt-3 grid grid-cols-3 gap-1">
             <div className="rounded-xl bg-gray-50 p-2 text-center">
               <p className="text-[10px] font-medium text-gray-400">Trust</p>
               <p className="text-sm font-black text-gray-900">
@@ -1294,7 +1396,7 @@ if (existingConversation) {
                   Commenti ({comments.length})
                 </h4>
 
-                <form onSubmit={handleComment} className="mb-1 flex items-center gap-2">
+                <form onSubmit={handleComment} className="mb-1 flex w-full items-center gap-2">
                   <Input
                     placeholder={user ? 'Lascia un commento...' : 'Fai login per commentare'}
                     value={newComment}
@@ -1304,7 +1406,7 @@ if (existingConversation) {
                       }
                     }}
                     disabled={!user || sendingComment}
-                    className="h-8 flex-1 rounded-lg text-sm"
+                    className="h-8 min-w-0 flex-1 rounded-lg text-sm"
                     data-testid="comment-input"
                   />
                   <button
@@ -1349,11 +1451,11 @@ if (existingConversation) {
 
                 <div className="space-y-2">
                   {loadingComments ? (
-                    <p className="py-3 text-center text-sm text-gray-500">
-                      Caricamento commenti...
-                    </p>
+                    <p className="w-full py-3 text-left text-sm text-gray-500">
+                     Nessun commento ancora
+                     </p>
                   ) : comments.length === 0 ? (
-                    <p className="py-3 text-center text-sm text-gray-500">
+                    <p className="w-full py-3 text-left text-sm text-gray-500">
                       Nessun commento ancora
                     </p>
                   ) : (
@@ -1425,7 +1527,7 @@ if (existingConversation) {
           </ScrollArea>
         </div>
 
-        {galleryOpen && Array.isArray(opportunity.images) && opportunity.images.length > 0 && (
+        {galleryOpen && images.length > 0 && (
           <div
             className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/95"
             onClick={() => setGalleryOpen(false)}
@@ -1436,21 +1538,19 @@ if (existingConversation) {
                 e.stopPropagation();
                 setGalleryOpen(false);
               }}
-              className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white"
+              className="absolute right-4 top-4 z-50 flex h-11 w-11 items-center justify-center rounded-full border border-white/20 bg-black/60 text-white shadow-xl backdrop-blur-md"
             >
               <X className="h-5 w-5" />
             </button>
 
-            {opportunity.images.length > 1 && (
+            {images.length > 1 && (
               <button
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
-                  setSelectedImageIndex((prev) =>
-                    prev === 0 ? opportunity.images.length - 1 : prev - 1
-                  );
+                  goToPreviousImage();
                 }}
-                className="absolute left-4 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 text-white"
+                className="absolute left-3 top-1/2 z-50 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-black/60 text-white shadow-xl backdrop-blur-md"
               >
                 <ChevronLeft className="h-5 w-5" />
               </button>
@@ -1459,32 +1559,32 @@ if (existingConversation) {
             <div
               className="flex h-full w-full items-center justify-center p-6"
               onClick={(e) => e.stopPropagation()}
+              onTouchStart={handleGalleryTouchStart}
+              onTouchEnd={handleGalleryTouchEnd}
             >
               <img
-                src={opportunity.images[selectedImageIndex]}
+                src={images[selectedImageIndex]}
                 alt={`${opportunity.title}-${selectedImageIndex + 1}`}
                 className="max-h-full max-w-full rounded-xl object-contain"
               />
             </div>
 
-            {opportunity.images.length > 1 && (
+            {images.length > 1 && (
               <button
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
-                  setSelectedImageIndex((prev) =>
-                    prev === opportunity.images.length - 1 ? 0 : prev + 1
-                  );
+                  goToNextImage();
                 }}
-                className="absolute right-4 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 text-white"
+                className="absolute right-3 top-1/2 z-50 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-black/60 text-white shadow-xl backdrop-blur-md"
               >
                 <ChevronRight className="h-5 w-5" />
               </button>
             )}
 
-            {opportunity.images.length > 1 && (
+            {images.length > 1 && (
               <div className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-white/10 px-3 py-1 text-sm text-white">
-                {selectedImageIndex + 1} / {opportunity.images.length}
+                {selectedImageIndex + 1} / {images.length}
               </div>
             )}
           </div>
