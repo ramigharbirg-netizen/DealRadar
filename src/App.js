@@ -31,6 +31,7 @@ import PublicProfile from './pages/PublicProfile';
 import Support from './pages/Support';
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
+import DeleteAccount from "./pages/DeleteAccount";
 
 function AppRoutesWithBackHandler() {
   const navigate = useNavigate();
@@ -96,6 +97,7 @@ function AppRoutesWithBackHandler() {
           <Route path="/admin/moderation" element={<AdminModeration />} />
           <Route path="/users/:userId" element={<PublicProfile />} />
           <Route path="/support" element={<Support />} />
+          <Route path="/delete-account" element={<DeleteAccount />} />
         </Routes>
       </Layout>
 
