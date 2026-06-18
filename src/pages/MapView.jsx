@@ -9,19 +9,21 @@ import {
   Package,
   Wrench,
   Building2,
+  Box,
+  Gift,
   Gavel,
   Star,
   MapPinOff,
   Heart,
   Clock,
   SlidersHorizontal,
-X,
-Check,
-Euro,
-TrendingUp,
-ShieldCheck,
-ChevronLeft,
-ChevronRight,
+  X,
+  Check,
+  Euro,
+  TrendingUp,
+  ShieldCheck,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -47,6 +49,8 @@ const categoryIcons = {
   product_stock: { icon: Package, color: '#F59E0B', name: 'Stock' },
   equipment: { icon: Wrench, color: '#3B82F6', name: 'Attrezzatura' },
   business_sale: { icon: Building2, color: '#8B5CF6', name: 'Attività' },
+  objects: { icon: Box, color: '#06B6D4', name: 'Oggetti' },
+  free_deals: { icon: Gift, color: '#16A34A', name: 'Gratis' },
   auctions: { icon: Gavel, color: '#EF4444', name: 'Aste' },
   user_reported: { icon: Star, color: '#F97316', name: 'Segnalate' },
 };
@@ -94,6 +98,10 @@ const getIconSvg = (category) => {
       '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>',
     business_sale:
       '<path d="M6 22V2a1 1 0 0 1 1-1h9a1 1 0 0 1 1 1v1"/><path d="M18 11h4v11h-9"/><path d="M6 12H2v10h4"/><path d="M10 6h4"/><path d="M10 10h4"/><path d="M10 14h4"/>',
+      objects:
+  '<path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/>',
+    free_deals:
+  '<path d="M20 12v10H4V12"/><path d="M2 7h20v5H2z"/><path d="M12 22V7"/><path d="M12 7H7.5a2.5 2.5 0 1 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 1 0 0-5C13 2 12 7 12 7z"/>',
     auctions:
       '<path d="m14.5 12.5-8 8a2.119 2.119 0 1 1-3-3l8-8"/><path d="m16 16 6-6"/><path d="m8 8 6-6"/><path d="m9 7 8 8"/>',
     user_reported:

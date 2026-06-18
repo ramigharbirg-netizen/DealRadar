@@ -49,8 +49,10 @@ const categories = [
   { id: 'product_stock', name: 'Stock prodotti' },
   { id: 'equipment', name: 'Attrezzature' },
   { id: 'business_sale', name: 'Attività in vendita' },
+  { id: 'objects', name: 'Oggetti' },
   { id: 'auctions', name: 'Aste' },
   { id: 'user_reported', name: 'Segnalate dagli utenti' },
+  { id: 'free_deals', name: 'Occasioni gratis' },
 ];
 
 const createPasswordCheckClient = () => {

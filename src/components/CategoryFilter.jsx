@@ -1,5 +1,5 @@
 import React from 'react';
-import { Store, Package, Wrench, Building2, Gavel, Star, Layers } from 'lucide-react';
+import { Store, Package, Wrench, Building2, Gavel, Star, Layers, Box, Gift } from 'lucide-react';
 import { Button } from './ui/button';
 
 // Categorie tradotte in italiano
@@ -9,8 +9,10 @@ const categories = [
   { id: 'product_stock', name: 'Stock', icon: Package, color: 'bg-amber-500' },
   { id: 'equipment', name: 'Attrezzatura', icon: Wrench, color: 'bg-blue-500' },
   { id: 'business_sale', name: 'Attività', icon: Building2, color: 'bg-purple-500' },
+  { id: 'objects', name: 'Oggetti', icon: Box, color: 'bg-cyan-500' },
   { id: 'auctions', name: 'Aste', icon: Gavel, color: 'bg-red-500' },
   { id: 'user_reported', name: 'Segnalazioni', icon: Star, color: 'bg-orange-500' },
+  { id: 'free_deals', name: 'Gratis', icon: Gift, color: 'bg-green-600' },
 ];
 
 export const CategoryFilter = ({ selected, onSelect }) => {

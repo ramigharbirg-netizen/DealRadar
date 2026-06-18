@@ -35,6 +35,8 @@
         --real-estate: 187 86% 53%;
         --auctions: 38 92% 50%;
         --misc: 160 84% 39%;
+        --objects: 187 86% 53%;
+        --free-deals: 160 84% 39%;
     }
 }
 
@@ -118,6 +120,8 @@
 .marker-business_sale { background-color: #8B5CF6; } /* Purple - Building */
 .marker-auctions { background-color: #EF4444; } /* Red - Gavel */
 .marker-user_reported { background-color: #F97316; } /* Orange - Star */
+.marker-objects { background-color: #06B6D4; } /* Cyan - Box */
+.marker-free_deals { background-color: #16A34A; } /* Green - Gift */
 
 /* Bounty marker styles */
 .bounty-marker {

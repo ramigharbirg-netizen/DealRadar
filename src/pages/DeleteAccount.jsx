@@ -80,10 +80,10 @@ export default function DeleteAccount() {
           </p>
 
           <a
-            href="mailto:dealradar.app@gmail.com"
+            href="mailto:support@dealradarapp.it"
             className="mt-3 inline-flex font-semibold text-orange-600 hover:text-orange-700"
           >
-            dealradar.app@gmail.com
+            support@dealradarapp.it
           </a>
         </section>
       </div>

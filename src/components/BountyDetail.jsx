@@ -18,6 +18,7 @@ const categoryConfig = {
   product_stock: { name: 'Product Stock', color: 'bg-amber-500' },
   equipment: { name: 'Equipment', color: 'bg-blue-500' },
   business_sale: { name: 'Business Sale', color: 'bg-purple-500' },
+  objects: { name: 'Objects', color: 'bg-cyan-500' },
   auctions: { name: 'Auctions', color: 'bg-red-500' },
   user_reported: { name: 'User Reported', color: 'bg-orange-500' },
 };

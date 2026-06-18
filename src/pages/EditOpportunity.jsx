@@ -21,6 +21,7 @@ const categories = [
   { id: 'product_stock', name: 'Stock prodotti' },
   { id: 'equipment', name: 'Attrezzature e macchinari' },
   { id: 'business_sale', name: 'Attività in vendita' },
+  { id: 'objects', name: 'Oggetti' },
   { id: 'auctions', name: 'Aste e fallimenti' },
   { id: 'user_reported', name: 'Segnalata dagli utenti' },
   { id: 'free_deals', name: 'Occasioni gratis' },
