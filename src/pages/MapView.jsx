@@ -710,16 +710,18 @@ const featuredOpportunities = useMemo(() => {
 
         <div className="relative z-20 mx-auto max-w-7xl px-6 pt-8">
           <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-16 w-16 items-center justify-center rounded-full border-4 border-orange-300 bg-black/85 shadow-xl backdrop-blur-md">
-                <span className="text-xl font-black tracking-tight text-white">DR</span>
-              </div>
+            <div className="flex items-center gap-4">
+  <img
+    src="/brand/dealradar-pin.png"
+    alt="DealRadar"
+    className="h-20 w-auto object-contain"
+  />
 
-              <h1 className="text-3xl font-black tracking-tight">
-                <span className="text-blue-600">DEAL</span>
-                <span className="text-orange-600"> RADAR</span>
-              </h1>
-            </div>
+  <h1 className="text-5xl font-black tracking-tight leading-none">
+    <span className="text-gray-950">Deal</span>
+    <span className="text-orange-600">Radar</span>
+  </h1>
+</div>
 
           </div>
 
