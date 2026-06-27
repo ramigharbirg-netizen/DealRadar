@@ -30,11 +30,15 @@ import { toast } from 'sonner';
 import { trackEvent } from '../lib/analytics';
 
 const MAX_IMAGES = 5;
-const MAX_IMAGE_SIZE_MB = 2;
-const MAX_IMAGE_SIZE_BYTES = MAX_IMAGE_SIZE_MB * 1024 * 1024;
-const COMPRESSED_IMAGE_MAX_WIDTH = 1600;
-const COMPRESSED_IMAGE_MAX_HEIGHT = 1600;
-const COMPRESSED_IMAGE_QUALITY = 0.82;
+const MAX_UPLOAD_IMAGE_SIZE_MB = 15;
+const MAX_UPLOAD_IMAGE_SIZE_BYTES = MAX_UPLOAD_IMAGE_SIZE_MB * 1024 * 1024;
+
+const MAX_STORED_IMAGE_SIZE_MB = 2;
+const MAX_STORED_IMAGE_SIZE_BYTES = MAX_STORED_IMAGE_SIZE_MB * 1024 * 1024;
+
+const COMPRESSED_IMAGE_MAX_WIDTH = 1400;
+const COMPRESSED_IMAGE_MAX_HEIGHT = 1400;
+const COMPRESSED_IMAGE_QUALITY = 0.78;
 const MAX_IMAGE_WIDTH = 4000;
 const MAX_IMAGE_HEIGHT = 4000;
 const DEFAULT_MAX_OPPORTUNITIES_PER_24H = 5;
@@ -258,10 +262,10 @@ export const SubmitOpportunity = () => {
   const validateImageBeforeUpload = async (file) => {
     if (!file) return null;
 
-    if (file.size > MAX_IMAGE_SIZE_BYTES) {
-      toast.error(`${file.name} è troppo grande. Massimo ${MAX_IMAGE_SIZE_MB} MB per foto.`);
-      return null;
-    }
+    if (file.size > MAX_UPLOAD_IMAGE_SIZE_BYTES) {
+  toast.error(`${file.name} è troppo grande. Massimo ${MAX_UPLOAD_IMAGE_SIZE_MB} MB per foto.`);
+  return null;
+}
 
     if (file.size <= 0) {
       toast.error(`${file.name} non è un file valido.`);
@@ -374,6 +378,13 @@ if (!validDimensions) {
         } catch (compressionError) {
           console.error('Compression error:', compressionError);
         }
+
+        if (file.size > MAX_STORED_IMAGE_SIZE_BYTES) {
+  toast.error(
+    `${file.name} resta troppo grande anche dopo la compressione. Prova con un'altra foto.`
+  );
+  continue;
+}
 
         const safeFileName = `${Date.now()}-${Math.random()
           .toString(36)
@@ -903,8 +914,7 @@ if ((recentOpportunitiesCount || 0) >= maxAllowedOpportunities) {
               </div>
 
               <p className="mt-2 text-xs text-gray-500">
-                Puoi caricare fino a {MAX_IMAGES} immagini. Formati: JPG, PNG, WEBP. Max{' '}
-                {MAX_IMAGE_SIZE_MB} MB per foto.
+                Puoi caricare fino a {MAX_IMAGES} immagini. Formati: JPG, PNG, WEBP. Max {MAX_UPLOAD_IMAGE_SIZE_MB} MB per foto. Le immagini vengono compresse automaticamente.
               </p>
             </div>
 

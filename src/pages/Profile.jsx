@@ -297,60 +297,72 @@ setLeaderboard(cleanLeaderboard);
 }, [authLoading, user, loadUserData, loadLeaderboard]);
 
   const handleAvatarUpload = async (event) => {
-    try {
-      const file = event.target.files?.[0];
+  try {
+    const file = event.target.files?.[0];
 
-      if (!file || !user?.id) return;
+    if (!file || !user?.id) return;
 
-      if (!file.type.startsWith('image/')) {
-        toast.error('Puoi caricare solo immagini');
-        return;
-      }
+    if (!file.type.startsWith('image/')) {
+      toast.error('Puoi caricare solo immagini');
+      return;
+    }
 
-      const maxSizeMb = 5;
-      if (file.size > maxSizeMb * 1024 * 1024) {
-        toast.error(`Immagine troppo grande. Massimo ${maxSizeMb} MB`);
-        return;
-      }
+    const maxSizeMb = 5;
+    if (file.size > maxSizeMb * 1024 * 1024) {
+      toast.error(`Immagine troppo grande. Massimo ${maxSizeMb} MB`);
+      return;
+    }
 
-      setUploadingAvatar(true);
+    setUploadingAvatar(true);
 
-      const fileExt = file.name.split('.').pop()?.toLowerCase() || 'jpg';
-      const fileName = `${user.id}-${Date.now()}.${fileExt}`;
+    const oldAvatarUrl = avatarUrl;
 
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(fileName, file, {
-          upsert: true,
-          contentType: file.type,
-        });
+    const fileExt = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+    const fileName = `${user.id}-${Date.now()}.${fileExt}`;
 
-      if (uploadError) throw uploadError;
+    const { error: uploadError } = await supabase.storage
+      .from('avatars')
+      .upload(fileName, file, {
+        upsert: false,
+        contentType: file.type,
+      });
 
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from('avatars').getPublicUrl(fileName);
+    if (uploadError) throw uploadError;
 
-      const { error: updateError } = await supabase
-        .from('user_profiles')
-        .update({ avatar_url: publicUrl })
-        .eq('user_id', user.id);
+    const {
+      data: { publicUrl },
+    } = supabase.storage.from('avatars').getPublicUrl(fileName);
 
-      if (updateError) throw updateError;
+    const { error: updateError } = await supabase
+      .from('user_profiles')
+      .update({ avatar_url: publicUrl })
+      .eq('user_id', user.id);
 
-      setAvatarUrl(publicUrl);
-      toast.success('Foto profilo aggiornata');
-    } catch (err) {
-      console.error('Avatar upload error:', err);
-      toast.error('Errore caricamento avatar');
-    } finally {
-      setUploadingAvatar(false);
+    if (updateError) throw updateError;
 
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
+    if (oldAvatarUrl && oldAvatarUrl !== publicUrl) {
+      const oldFileName = oldAvatarUrl.split('/avatars/')[1];
+
+      if (oldFileName && oldFileName.startsWith(user.id)) {
+        await supabase.storage
+          .from('avatars')
+          .remove([oldFileName]);
       }
     }
-  };
+
+    setAvatarUrl(publicUrl);
+    toast.success('Foto profilo aggiornata');
+  } catch (err) {
+    console.error('Avatar upload error:', err);
+    toast.error('Errore caricamento avatar');
+  } finally {
+    setUploadingAvatar(false);
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  }
+};
 
   const handleLogout = async () => {
     await logout();

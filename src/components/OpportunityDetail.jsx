@@ -379,31 +379,53 @@ export const OpportunityDetail = ({ opportunity, open, onClose }) => {
   }, [opportunity?.user_id]);
 
     const handleDeleteOpportunity = async () => {
-    if (!user?.id || !opportunity?.id) return;
+  if (!user?.id || !opportunity?.id) return;
 
-    const confirmed = window.confirm(
-      'Vuoi davvero eliminare questa opportunità? Questa azione non può essere annullata.'
-    );
+  const confirmed = window.confirm(
+    'Vuoi davvero eliminare questa opportunità? Questa azione non può essere annullata.'
+  );
 
-    if (!confirmed) return;
+  if (!confirmed) return;
 
-    try {
-      const { error } = await supabase
-        .from('opportunities')
-        .delete()
-        .eq('id', opportunity.id)
-        .eq('user_id', user.id);
+  try {
+    // Elimina tutte le immagini dello storage
+    if (Array.isArray(opportunity.images) && opportunity.images.length > 0) {
+      const paths = opportunity.images
+        .map((url) => {
+          const parts = url.split('/opportunity-images/');
+          return parts.length > 1 ? decodeURIComponent(parts[1]) : null;
+        })
+        .filter(Boolean);
 
-      if (error) throw error;
+      if (paths.length > 0) {
+        const { error: storageError } = await supabase.storage
+          .from('opportunity-images')
+          .remove(paths);
 
-      toast.success('Opportunità eliminata');
-      onClose(false);
-      window.location.reload();
-    } catch (err) {
-      console.error('Delete opportunity error:', err);
-      toast.error('Impossibile eliminare questa opportunità');
+        if (storageError) {
+          console.error('Storage delete error:', storageError);
+        }
+      }
     }
-  };
+
+    // Elimina il record dal database
+    const { error } = await supabase
+      .from('opportunities')
+      .delete()
+      .eq('id', opportunity.id)
+      .eq('user_id', user.id);
+
+    if (error) throw error;
+
+    toast.success('Opportunità eliminata');
+
+    onClose(false);
+    window.location.reload();
+  } catch (err) {
+    console.error('Delete opportunity error:', err);
+    toast.error('Impossibile eliminare questa opportunità');
+  }
+};
 
   useEffect(() => {
     if (!opportunity?.id || !open) return;
