@@ -46,11 +46,21 @@ function AppRoutesWithBackHandler() {
         const currentPath = location.pathname;
         const now = Date.now();
 
-        // Se NON sei nella home, torna indietro
-        if (currentPath !== "/") {
-          navigate(-1);
-          return;
-        }
+        const backEvent = new CustomEvent("dealradar:hardware-back", {
+  detail: { handled: false },
+});
+
+window.dispatchEvent(backEvent);
+
+if (backEvent.detail.handled) {
+  return;
+}
+
+// Se NON sei nella home, torna indietro
+if (currentPath !== "/") {
+  navigate(-1);
+  return;
+}
 
         // Se sei nella home: doppio click per uscire
         if (now - lastBackPressRef.current < 2000) {

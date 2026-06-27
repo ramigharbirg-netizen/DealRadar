@@ -17,6 +17,22 @@ export const Favorites = () => {
   const [selectedOpportunity, setSelectedOpportunity] = useState(null);
   const [detailOpen, setDetailOpen] = useState(false);
 
+  useEffect(() => {
+  const handleHardwareBack = (event) => {
+    if (detailOpen) {
+      setDetailOpen(false);
+      setSelectedOpportunity(null);
+      event.detail.handled = true;
+    }
+  };
+
+  window.addEventListener('dealradar:hardware-back', handleHardwareBack);
+
+  return () => {
+    window.removeEventListener('dealradar:hardware-back', handleHardwareBack);
+  };
+}, [detailOpen]);
+
   const loadFavorites = useCallback(async () => {
     if (!user?.id) {
       setLoading(false);

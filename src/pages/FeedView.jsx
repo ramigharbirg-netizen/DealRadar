@@ -83,6 +83,22 @@ export const FeedView = () => {
   const [feedError, setFeedError] = useState('');
   const [debugError, setDebugError] = useState('');
 
+  useEffect(() => {
+  const handleHardwareBack = (event) => {
+    if (detailOpen) {
+      setDetailOpen(false);
+      setSelectedOpportunity(null);
+      event.detail.handled = true;
+    }
+  };
+
+  window.addEventListener('dealradar:hardware-back', handleHardwareBack);
+
+  return () => {
+    window.removeEventListener('dealradar:hardware-back', handleHardwareBack);
+  };
+}, [detailOpen]);
+
   const hasLoadedRef = useRef(false);
 
   const loadOpportunities = useCallback(async ({ silent = false } = {}) => {

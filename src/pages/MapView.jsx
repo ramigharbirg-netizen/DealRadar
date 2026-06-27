@@ -314,6 +314,34 @@ const [onlyVerified, setOnlyVerified] = useState(false);
 const [onlyHighValue, setOnlyHighValue] = useState(false);
 const [maxPrice, setMaxPrice] = useState('');
 
+useEffect(() => {
+  const handleHardwareBack = (event) => {
+    if (filtersOpen) {
+      setFiltersOpen(false);
+      event.detail.handled = true;
+      return;
+    }
+
+    if (detailOpen) {
+      setDetailOpen(false);
+      setSelectedOpportunity(null);
+      event.detail.handled = true;
+      return;
+    }
+
+    if (showLocationModal) {
+      setShowLocationModal(false);
+      event.detail.handled = true;
+    }
+  };
+
+  window.addEventListener('dealradar:hardware-back', handleHardwareBack);
+
+  return () => {
+    window.removeEventListener('dealradar:hardware-back', handleHardwareBack);
+  };
+}, [filtersOpen, detailOpen, showLocationModal]);
+
   const mapRef = useRef(null);
   const opportunitiesScrollRef = useRef(null);
   const hasLoadedOpportunitiesRef = useRef(false);

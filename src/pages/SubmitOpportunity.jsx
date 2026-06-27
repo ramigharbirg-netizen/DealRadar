@@ -626,16 +626,17 @@ if (!validDimensions) {
     const description = formData.description.trim();
     const category = formData.category;
     const address = formData.address.trim();
+    const isObjectCategory = category === 'objects';
 
     if (!title || !description || !category) {
       toast.error('Compila tutti i campi obbligatori');
       return;
     }
 
-    if (!address && !positionConfirmed) {
-      toast.error('Inserisci un indirizzo o clicca su “Usa posizione attuale”.');
-      return;
-    }
+    if (!isObjectCategory && !address && !positionConfirmed) {
+  toast.error('Inserisci un indirizzo o clicca su “Usa posizione attuale”.');
+  return;
+}
 
     if (!validateImagesBeforeSubmit()) {
       return;
@@ -699,15 +700,18 @@ if ((recentOpportunitiesCount || 0) >= maxAllowedOpportunities) {
       }
 
       if (
-        finalLatitude === null ||
-        finalLongitude === null ||
-        Number.isNaN(finalLatitude) ||
-        Number.isNaN(finalLongitude)
-      ) {
-        toast.error('Mancano le coordinate. Inserisci un indirizzo o usa la posizione attuale.');
-        setLoading(false);
-        return;
-      }
+  !isObjectCategory &&
+  (
+    finalLatitude === null ||
+    finalLongitude === null ||
+    Number.isNaN(finalLatitude) ||
+    Number.isNaN(finalLongitude)
+  )
+) {
+  toast.error('Mancano le coordinate. Inserisci un indirizzo o usa la posizione attuale.');
+  setLoading(false);
+  return;
+}
 
       const estimatedPrice =
         formData.estimated_price !== '' ? Number(formData.estimated_price) : null;
@@ -987,7 +991,9 @@ if ((recentOpportunitiesCount || 0) >= maxAllowedOpportunities) {
         {step === 2 && (
           <>
             <div>
-              <Label>Posizione *</Label>
+              <Label>
+                Posizione {formData.category === 'objects' ? '(facoltativa)' : '*'}
+              </Label>
               <div className="mt-1.5 space-y-2">
                 <Input
                   name="address"
@@ -1010,7 +1016,9 @@ if ((recentOpportunitiesCount || 0) >= maxAllowedOpportunities) {
                 </Button>
 
                 <p className="text-xs text-gray-500">
-                  Devi inserire un indirizzo oppure usare la posizione attuale.
+                  {formData.category === 'objects'
+  ? 'Per gli oggetti la posizione è facoltativa. Se la inserisci, l’annuncio potrà comparire anche sulla mappa.'
+  : 'Devi inserire un indirizzo oppure usare la posizione attuale.'}
                 </p>
               </div>
             </div>
