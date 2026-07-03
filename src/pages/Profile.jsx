@@ -524,7 +524,7 @@ setLeaderboard(cleanLeaderboard);
 
   return (
     <div className="min-h-screen bg-background pb-20" data-testid="profile-page">
-      <div className="bg-gradient-to-br from-primary to-emerald-400 pt-8 pb-16 px-4">
+      <div className="pt-8 pb-16 px-4" style={{ backgroundColor: '#FF7A00' }}>
         <div className="flex items-start justify-between mb-6">
           <h1 className="text-xl font-bold text-white">Profilo</h1>
 
@@ -722,10 +722,10 @@ setLeaderboard(cleanLeaderboard);
       </div>
 
       <div className="max-w-6xl mx-auto px-4 mt-6">
-        <Card className="bg-gradient-to-r from-primary/5 to-emerald-50 border-primary/20">
+        <Card className="bg-orange-50/70 border-orange-200">
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
-              <Star className="w-5 h-5 text-primary" />
+              <Star className="w-5 h-5 text-orange-500" />
               Guadagna punti
             </CardTitle>
           </CardHeader>

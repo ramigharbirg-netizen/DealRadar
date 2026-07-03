@@ -6,6 +6,7 @@ import React, {
   useCallback,
 } from 'react';
 import { supabase } from '../lib/supabase';
+import { registerPushNotifications } from '../lib/pushNotifications';
 
 const AuthContext = createContext(null);
 
@@ -65,6 +66,8 @@ export const AuthProvider = ({ children }) => {
 
         setSession(nextSession);
         setUser(mapped);
+
+        registerPushNotifications(mapped.id);
 
         if (nextSession.access_token) {
           localStorage.setItem('token', nextSession.access_token);

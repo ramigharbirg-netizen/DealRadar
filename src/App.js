@@ -6,6 +6,8 @@ import { App as CapacitorApp } from "@capacitor/app";
 import { AuthProvider } from "./contexts/AuthContext";
 import { LocationProvider } from "./contexts/LocationContext";
 import { Layout } from "./components/Layout";
+import { Browser } from "@capacitor/browser";
+import { supabase } from "./lib/supabase";
 import ConsentBanner from "./components/ConsentBanner";
 
 // Pages
@@ -32,11 +34,53 @@ import Support from './pages/Support';
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import DeleteAccount from "./pages/DeleteAccount";
+import AppSplash from "./components/AppSplash";
 
 function AppRoutesWithBackHandler() {
   const navigate = useNavigate();
   const location = useLocation();
   const lastBackPressRef = useRef(0);
+
+  useEffect(() => {
+  let listenerHandle;
+
+  const setupDeepLink = async () => {
+    listenerHandle = await CapacitorApp.addListener("appUrlOpen", async (event) => {
+      const url = event?.url;
+
+      if (!url || !url.startsWith("com.dealradar.app://login-callback")) {
+        return;
+      }
+
+      try {
+        await Browser.close();
+
+        const parsedUrl = new URL(url);
+        const code = parsedUrl.searchParams.get("code");
+
+        if (code) {
+          const { error } = await supabase.auth.exchangeCodeForSession(code);
+
+          if (error) throw error;
+
+          toast.success("Accesso Google effettuato");
+          navigate("/", { replace: true });
+        }
+      } catch (err) {
+        console.error("Google deep link error:", err);
+        toast.error("Accesso Google non completato");
+      }
+    });
+  };
+
+  setupDeepLink();
+
+  return () => {
+    if (listenerHandle) {
+      listenerHandle.remove();
+    }
+  };
+}, [navigate]);
 
   useEffect(() => {
     let listenerHandle;
@@ -117,10 +161,21 @@ if (currentPath !== "/") {
 }
 
 function App() {
+  const [showSplash, setShowSplash] = React.useState(true);
+
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowSplash(false);
+    }, 2000);
+
+    return () => clearTimeout(timer);
+  }, []);
+
   return (
     <AuthProvider>
       <LocationProvider>
         <BrowserRouter>
+          {showSplash && <AppSplash />}
           <AppRoutesWithBackHandler />
           <ConsentBanner />
         </BrowserRouter>

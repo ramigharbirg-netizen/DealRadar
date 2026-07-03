@@ -3,54 +3,59 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { Map, Newspaper, MessageCircle, User, Plus } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
-const STORAGE_KEY = 'dealradar_last_read_map';
-
-const getLastReadMap = () => {
-  try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
-  } catch {
-    return {};
-  }
-};
-
 export const Layout = ({ children }) => {
   const location = useLocation();
   const [chatCount, setChatCount] = useState(0);
 
   const refreshUnreadCount = async () => {
-    const { data: convs } = await supabase.from('conversations').select('id');
-    const conversationIds = (convs || []).map((c) => c.id);
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-    if (conversationIds.length === 0) {
-      setChatCount(0);
-      return;
+  if (!user?.id) {
+    setChatCount(0);
+    return;
+  }
+
+  const { data: convs } = await supabase
+    .from('conversations')
+    .select('id');
+
+  const conversationIds = (convs || []).map((c) => c.id);
+
+  if (conversationIds.length === 0) {
+    setChatCount(0);
+    return;
+  }
+
+  const { data: reads } = await supabase
+    .from('conversation_reads')
+    .select('conversation_id,last_read_at');
+
+  const readMap = {};
+
+  (reads || []).forEach((row) => {
+    readMap[row.conversation_id] = row.last_read_at;
+  });
+
+  const { data: unreadMessages } = await supabase
+    .from('conversation_messages')
+    .select('id,conversation_id,created_at,sender_id')
+    .in('conversation_id', conversationIds)
+    .neq('sender_id', user.id);
+
+  let unread = 0;
+
+  (unreadMessages || []).forEach((msg) => {
+    const lastRead = readMap[msg.conversation_id];
+
+    if (!lastRead || new Date(msg.created_at) > new Date(lastRead)) {
+      unread += 1;
     }
+  });
 
-    const { data: msgs } = await supabase
-      .from('conversation_messages')
-      .select('id,conversation_id,created_at')
-      .in('conversation_id', conversationIds)
-      .order('created_at', { ascending: false });
-
-    const latestByConversation = {};
-    (msgs || []).forEach((msg) => {
-      if (!latestByConversation[msg.conversation_id]) {
-        latestByConversation[msg.conversation_id] = msg.created_at;
-      }
-    });
-
-    const lastReadMap = getLastReadMap();
-
-    let unread = 0;
-    Object.entries(latestByConversation).forEach(([conversationId, latestCreatedAt]) => {
-      const lastRead = lastReadMap[conversationId];
-      if (!lastRead || new Date(latestCreatedAt) > new Date(lastRead)) {
-        unread += 1;
-      }
-    });
-
-    setChatCount(unread);
-  };
+  setChatCount(unread);
+};
 
   useEffect(() => {
     refreshUnreadCount();

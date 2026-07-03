@@ -7,6 +7,8 @@ import { Label } from '../components/ui/label';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { toast } from 'sonner';
+import { Capacitor } from '@capacitor/core';
+import { Browser } from '@capacitor/browser';
 
 export const Login = () => {
   const { login, user, loading: authLoading } = useAuth();
@@ -41,17 +43,26 @@ export const Login = () => {
 
   setGoogleLoading(true);
 
-  const redirectUrl = `${window.location.origin}/`;
+  const isNative = Capacitor.isNativePlatform();
+
+  const redirectUrl = isNative
+    ? 'com.dealradar.app://login-callback'
+    : `${window.location.origin}/`;
 
   try {
-    const { error } = await supabase.auth.signInWithOAuth({
+    const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
         redirectTo: redirectUrl,
+        skipBrowserRedirect: isNative,
       },
     });
 
     if (error) throw error;
+
+    if (isNative && data?.url) {
+      await Browser.open({ url: data.url });
+    }
   } catch (err) {
     console.error('Google login error:', err);
     toast.error(err?.message || 'Accesso con Google non riuscito');

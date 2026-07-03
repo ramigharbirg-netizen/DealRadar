@@ -1,19 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MessageCircle, ChevronRight, Clock } from 'lucide-react';
+import { MessageCircle, ChevronRight } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Card, CardContent } from '../components/ui/card';
 import { useAuth } from '../contexts/AuthContext';
 
-const STORAGE_KEY = 'dealradar_last_read_map';
-
-const getLastReadMap = () => {
-  try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
-  } catch {
-    return {};
-  }
-};
 
 const formatChatTime = (dateString) => {
   if (!dateString) return '';
@@ -52,6 +43,7 @@ export const ChatsView = () => {
   const [unreadCountMap, setUnreadCountMap] = useState({});
 
   const loadAll = async () => {
+    if (!user?.id) return;
   const { data: convs, error: convError } = await supabase
     .from('conversations')
     .select(`
@@ -73,21 +65,16 @@ export const ChatsView = () => {
     ...new Set(convs.map((c) => c.opportunity_id).filter(Boolean)),
   ];
 
-  if (opportunityIds.length > 0) {
-    const { data: opps } = await supabase
-      .from('opportunities')
-      .select(`
-        id,
-        title,
-        images,
-        address,
-        user_id,
-        user_name,
-        avatar_url,
-        is_premium
-      `)
-      .in('id', opportunityIds);
+ if (opportunityIds.length > 0) {
+  const { data: opps, error: oppsError } = await supabase
+    .from('opportunities')
+    .select('id,title,images,address,category,user_id,user_name')
+    .in('id', opportunityIds);
 
+  if (oppsError) {
+    console.error('Load chat opportunities error:', oppsError);
+    setOpportunitiesMap({});
+  } else {
     const oppMap = {};
 
     (opps || []).forEach((opp) => {
@@ -96,6 +83,7 @@ export const ChatsView = () => {
 
     setOpportunitiesMap(oppMap);
   }
+}
 
   const { data: reads } = await supabase
   .from('conversation_reads')
@@ -114,7 +102,7 @@ if (convIds.length > 0) {
     .from('conversation_messages')
     .select('id,conversation_id,created_at,sender_id')
     .in('conversation_id', convIds)
-    .neq('sender_id', user?.id);
+    .neq('sender_id', user.id);
 
   const counts = {};
 
@@ -134,42 +122,49 @@ if (convIds.length > 0) {
 };
 
   useEffect(() => {
+  if (user?.id) {
     loadAll();
-  }, []);
+  }
+}, [user?.id]);
 
   useEffect(() => {
-    const channel = supabase
-      .channel('chats-view-realtime')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'conversation_messages',
-        },
-        () => {
-          loadAll();
-        }
-      )
-      .subscribe();
+  if (!user?.id) return;
 
-    const handleReadUpdate = () => loadAll();
-    window.addEventListener('chat-read-updated', handleReadUpdate);
+  const channel = supabase
+    .channel('chats-view-realtime')
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'conversation_messages',
+      },
+      () => {
+        loadAll();
+      }
+    )
+    .subscribe();
 
-    return () => {
-      supabase.removeChannel(channel);
-      window.removeEventListener('chat-read-updated', handleReadUpdate);
-    };
-  }, []);
+  const handleReadUpdate = () => loadAll();
+  window.addEventListener('chat-read-updated', handleReadUpdate);
+
+  return () => {
+    supabase.removeChannel(channel);
+    window.removeEventListener('chat-read-updated', handleReadUpdate);
+  };
+}, [user?.id]);
 
   return (
     <div className="min-h-screen bg-background pb-20">
-      <div className="sticky top-0 z-20 bg-white border-b border-gray-100">
-        <div className="px-4 py-4 max-w-3xl mx-auto">
-          <h1 className="text-xl font-bold text-gray-900">Chat</h1>
-          <p className="text-sm text-gray-500">Le tue conversazioni</p>
-        </div>
-      </div>
+      <div
+  className="sticky top-0 z-20 shadow-sm"
+  style={{ backgroundColor: '#FF7A00' }}
+>
+  <div className="px-4 py-5 max-w-3xl mx-auto">
+    <h1 className="text-xl font-black text-white">Chat</h1>
+    <p className="text-sm text-white/90">Le tue conversazioni</p>
+  </div>
+</div>
 
       <div className="p-4 max-w-3xl mx-auto space-y-3">
         {conversations.length === 0 ? (

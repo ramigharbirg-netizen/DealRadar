@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "864760124965",
+    "project_id": "dealradar-7f17f",
+    "storage_bucket": "dealradar-7f17f.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:864760124965:android:31bffbadbb3400b21291cc",
+        "android_client_info": {
+          "package_name": "com.dealradar.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBZq1M98F8AxeDeLWVf-ZwejyH51j5rCak"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

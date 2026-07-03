@@ -262,13 +262,20 @@ export const FeedView = () => {
   }, [opportunities, sortBy]);
 
   return (
-    <div className="min-h-screen bg-background pb-20" data-testid="feed-view">
-      <div className="sticky top-0 z-20 border-b border-gray-100 bg-white/95 backdrop-blur-md">
-        <div className="px-4 py-4">
-          <div className="mb-4 flex items-center justify-between">
+  <div className="min-h-screen bg-background pb-20" data-testid="feed-view">
+    <div
+      className="sticky top-0 z-20 backdrop-blur-md shadow-md"
+      style={{
+        background: "#FF7A00",
+        boxShadow: "0 4px 18px rgba(255, 122, 0, 0.12)",
+        borderBottom: "1px solid rgba(255,122,0,0.15)",
+      }}
+    >
+      <div className="px-4 py-3">
+          <div className="mb-3 flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Scopri</h1>
-              <p className="text-sm text-gray-500">
+              <h1 className="text-xl font-black text-black-900">Scopri</h1>
+              <p className="text-xs text-black-500">
                 Nuove opportunità disponibili oggi
               </p>
             </div>
@@ -292,34 +299,9 @@ export const FeedView = () => {
         </div>
       </div>
 
-      <Tabs
-        value={sortBy}
-        onValueChange={setSortBy}
-        className="mx-auto max-w-4xl px-4 py-4"
-      >
-        <TabsList className="grid h-11 w-full grid-cols-4 rounded-xl bg-gray-100 p-1">
-          <TabsTrigger value="smart">
-            <Sparkles className="mr-2 h-4 w-4" />
-            Smart
-          </TabsTrigger>
+      <div className="mx-auto max-w-4xl px-0 py-0">
 
-          <TabsTrigger value="newest">
-            <Clock className="mr-2 h-4 w-4" />
-            Recenti
-          </TabsTrigger>
-
-          <TabsTrigger value="profit">
-            <TrendingUp className="mr-2 h-4 w-4" />
-            Più profitto
-          </TabsTrigger>
-
-          <TabsTrigger value="distance">
-            <MapPin className="mr-2 h-4 w-4" />
-            Vicine
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value={sortBy} className="mt-4">
+        <div className="mt-4">
           {feedError && (
             <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3">
               <div className="text-sm font-semibold text-red-700">
@@ -358,7 +340,7 @@ export const FeedView = () => {
               </p>
             </div>
           ) : (
-            <div className="mx-auto max-w-4xl space-y-3 pb-20">
+            <div className="mx-auto max-w-4xl pb-20">
               {sortBy === 'newest' && todayOpportunities.length > 0 && (
                 <div className="mb-6">
                   <span className="text-sm font-semibold text-primary">
@@ -379,8 +361,8 @@ export const FeedView = () => {
               ))}
             </div>
           )}
-        </TabsContent>
-      </Tabs>
+        </div>
+</div>
 
       <OpportunityDetail
         opportunity={selectedOpportunity}

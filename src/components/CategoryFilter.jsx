@@ -27,7 +27,7 @@ export const CategoryFilter = ({ selected, onSelect }) => {
             key={cat.id}
             variant={isSelected ? 'default' : 'outline'}
             size="sm"
-            className={`flex-shrink-0 rounded-full h-9 px-4 gap-2 transition-all ${
+            className={`flex-shrink-0 rounded-full h-8 px-3 gap-2 transition-all ${
               isSelected 
                 ? `${cat.color} text-white border-0 shadow-md` 
                 : 'bg-white border-gray-200 text-gray-700 hover:border-gray-300'
@@ -35,8 +35,8 @@ export const CategoryFilter = ({ selected, onSelect }) => {
             onClick={() => onSelect(cat.id)}
             data-testid={`category-${cat.id}`}
           >
-            <Icon className="w-4 h-4" />
-            <span className="font-medium">{cat.name}</span>
+            <Icon className="w-3.5 h-3.5" />
+            <span className="text-xs font-semibold">{cat.name}</span>
           </Button>
         );
       })}

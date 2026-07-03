@@ -198,86 +198,63 @@ const HomeOpportunityCard = ({ opportunity, onClick }) => {
     <button
       type="button"
       onClick={onClick}
-      className="group flex h-[390px] w-[270px] flex-col overflow-hidden rounded-[28px] bg-white text-left shadow-[0_14px_40px_rgba(78,40,10,0.14)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_22px_60px_rgba(78,40,10,0.20)]"
+      className="group flex h-[215px] w-[142px] flex-col overflow-hidden rounded-[18px] bg-white text-left shadow-[0_8px_22px_rgba(78,40,10,0.12)] transition duration-300 hover:-translate-y-0.5"
     >
-      <div className="relative h-40 overflow-hidden bg-orange-100">
+      <div className="relative h-[92px] overflow-hidden bg-orange-100">
         {firstImage ? (
           <img
             src={firstImage}
             alt={opportunity.title || 'Opportunità'}
             className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+            loading="lazy"
           />
         ) : (
           <div
             className="flex h-full w-full items-center justify-center"
             style={{ backgroundColor: `${categoryConfig.color}22` }}
           >
-            <CategoryIcon className="h-12 w-12" style={{ color: categoryConfig.color }} />
+            <CategoryIcon className="h-8 w-8" style={{ color: categoryConfig.color }} />
           </div>
         )}
 
-        <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-black/5 to-transparent" />
-
         <div
-          className="absolute left-4 top-4 rounded-full px-3 py-1 text-xs font-black text-white shadow-lg"
+          className="absolute left-2 top-2 rounded-full px-2 py-0.5 text-[10px] font-black text-white shadow"
           style={{ backgroundColor: categoryConfig.color }}
         >
           {categoryConfig.name}
         </div>
-
-        <div className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full bg-white/90 shadow">
-          <Heart className="h-4 w-4 text-orange-500" />
-        </div>
       </div>
 
-      <div className="p-5">
-        <h3 className="line-clamp-2 min-h-[48px] text-lg font-black leading-tight text-gray-950">
-          {opportunity.title || 'Opportunità senza titolo'}
-        </h3>
+      <div className="flex flex-1 flex-col justify-between p-2.5">
+        <div>
+          <h3 className="line-clamp-2 text-[13px] font-black leading-tight text-gray-950">
+            {opportunity.title || 'Opportunità'}
+          </h3>
 
-        <div className="mt-3 flex items-center gap-2 text-sm font-medium text-gray-500">
-          <MapPin className="h-4 w-4 text-orange-500" />
-          <span className="line-clamp-1">
+          <p className="mt-1 line-clamp-1 text-[11px] font-semibold text-gray-500">
             {opportunity.address || 'Zona non specificata'}
-          </span>
+          </p>
         </div>
 
-        <div className="mt-4 flex items-end justify-between gap-3">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-wide text-gray-400">
-              Prezzo
+        <div>
+          <div className="mt-2 flex items-end justify-between gap-2">
+            <p className="text-sm font-black text-gray-950">
+              {price > 0 ? `€${price.toLocaleString('it-IT')}` : 'Gratis'}
             </p>
-            <p className="text-2xl font-black text-emerald-700">
-              € {price.toLocaleString('it-IT')}
-            </p>
+
+            {profit != null && (
+              <p className="text-[11px] font-black text-emerald-600">
+                +€{profit.toLocaleString('it-IT')}
+              </p>
+            )}
           </div>
 
-          {profit != null && (
-            <div className="rounded-2xl bg-emerald-50 px-3 py-2 text-right">
-              <p className="text-[10px] font-bold uppercase text-emerald-500">
-                Profitto
-              </p>
-              <p className="text-sm font-black text-emerald-700">
-                +€ {profit.toLocaleString('it-IT')}
-              </p>
-            </div>
-          )}
-        </div>
-
-        <div className="mt-5 flex items-center justify-between border-t border-gray-100 pt-4 text-xs font-semibold text-gray-500">
-          <span className="flex items-center gap-1">
-            <MapPin className="h-3.5 w-3.5" />
+          <div className="mt-2 flex items-center gap-1 text-[11px] font-bold text-emerald-600">
+            <MapPin className="h-3 w-3" />
             {opportunity.distance_km
               ? `${opportunity.distance_km.toFixed(1)} km`
               : 'Vicino'}
-          </span>
-
-          <span className="flex items-center gap-1">
-            <Clock className="h-3.5 w-3.5" />
-            {opportunity.created_at
-              ? new Date(opportunity.created_at).toLocaleDateString('it-IT')
-              : 'Nuova'}
-          </span>
+          </div>
         </div>
       </div>
     </button>
@@ -736,269 +713,275 @@ const featuredOpportunities = useMemo(() => {
 >
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,rgba(255,255,255,0.45),transparent_35%)]" />
 
-        <div className="relative z-20 mx-auto max-w-7xl px-6 pt-8">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
-  <img
-    src="/brand/dealradar-pin.png"
-    alt="DealRadar"
-    className="h-20 w-auto object-contain"
-  />
+        <div className="relative z-20 mx-auto max-w-7xl px-4 pt-4">
+  <div className="flex items-center justify-between">
+    <div className="flex items-center gap-2">
+      <img
+        src="/brand/dealradar-pin.png"
+        alt="DealRadar"
+        className="h-12 w-auto object-contain"
+      />
 
-  <h1 className="text-5xl font-black tracking-tight leading-none">
-    <span className="text-gray-950">Deal</span>
-    <span className="text-orange-600">Radar</span>
-  </h1>
+      <h1 className="text-3xl font-black tracking-tight leading-none">
+        <span className="text-gray-950">Deal</span>
+        <span className="text-orange-600">Radar</span>
+      </h1>
+    </div>
+  </div>
+
+  <div className="relative mt-4">
+    <Search className="absolute left-4 top-1/2 z-10 h-5 w-5 -translate-y-1/2 text-gray-400" />
+
+    <Input
+      placeholder="Cerca città, zona o opportunità..."
+      value={placeQuery}
+      onChange={(e) => setPlaceQuery(e.target.value)}
+      className="h-13 rounded-2xl border-0 bg-white/95 pl-12 pr-4 text-base font-semibold shadow-[0_12px_35px_rgba(91,45,12,0.16)]"
+      data-testid="place-search-input"
+    />
+
+    {(searchingPlaces || searchResults.length > 0 || placeResults.length > 0) && (
+      <div className="absolute left-0 right-0 top-[115%] z-[9999] max-h-[300px] overflow-y-auto rounded-2xl border border-gray-200 bg-white shadow-2xl">
+        {searchingPlaces && (
+          <div className="px-4 py-3 text-sm text-gray-500">
+            Sto cercando il luogo...
+          </div>
+        )}
+
+        {searchResults.length > 0 && (
+          <div className="border-b border-gray-100">
+            <div className="px-4 py-2 text-xs font-bold uppercase text-gray-400">
+              Opportunità trovate
+            </div>
+
+            {searchResults.map((opp) => (
+              <button
+                key={opp.id}
+                type="button"
+                onClick={() => {
+                  setSelectedOpportunity(opp);
+                  setDetailOpen(true);
+                  setPlaceQuery('');
+                  setPlaceResults([]);
+                }}
+                className="w-full border-t border-gray-100 px-4 py-3 text-left hover:bg-gray-50"
+              >
+                <div className="line-clamp-1 text-sm font-bold text-gray-900">
+                  {opp.title}
+                </div>
+                <div className="mt-1 line-clamp-1 text-xs text-gray-500">
+                  {opp.description}
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {!searchingPlaces &&
+          placeResults.map((place) => (
+            <button
+              key={place.place_id}
+              type="button"
+              onClick={() => handlePlaceSelect(place)}
+              className="w-full border-b border-gray-100 px-4 py-3 text-left last:border-b-0 hover:bg-gray-50"
+            >
+              <div className="line-clamp-1 text-sm font-medium text-gray-900">
+                {place.display_name}
+              </div>
+              <div className="mt-1 text-xs text-gray-500">{place.type}</div>
+            </button>
+          ))}
+      </div>
+    )}
+  </div>
+
+  <div className="mt-4 rounded-[26px] bg-white/55 p-2 shadow-[0_18px_55px_rgba(91,45,12,0.20)] backdrop-blur-md">
+    <div className="relative h-[245px] overflow-hidden rounded-[22px] bg-white">
+      <MapContainer
+        center={mapCenter}
+        zoom={12}
+        className="map-container z-0"
+        whenCreated={(mapInstance) => {
+          mapRef.current = mapInstance;
+        }}
+        zoomControl={false}
+        scrollWheelZoom={mapInteractive}
+        dragging={mapInteractive}
+        doubleClickZoom={mapInteractive}
+        touchZoom={mapInteractive}
+        boxZoom={mapInteractive}
+        keyboard={mapInteractive}
+      >
+        <TileLayer
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        />
+
+        <MapController
+          center={mapCenter}
+          shouldRecenter={shouldRecenter}
+          onRecenterDone={() => setShouldRecenter(false)}
+        />
+
+        <MapInteractionController enabled={mapInteractive} />
+
+        {isUsingUserLocation && location?.lat && location?.lng && (
+          <UserLocationMarker position={[location.lat, location.lng]} />
+        )}
+
+        {selectedPlace && (
+          <Marker position={[Number(selectedPlace.lat), Number(selectedPlace.lon)]}>
+            <Popup>{selectedPlace.display_name}</Popup>
+          </Marker>
+        )}
+
+        {isUsingUserLocation && location?.lat && location?.lng && (
+          <Circle
+            center={[location.lat, location.lng]}
+            radius={radius * 1000}
+            pathOptions={{
+              color: '#00C853',
+              fillColor: '#00C853',
+              fillOpacity: 0.05,
+              weight: 2,
+              dashArray: '5, 10',
+            }}
+          />
+        )}
+
+        {filteredOpportunities.map((opp) => (
+          <Marker
+            key={opp.id}
+            position={[opp.latitude, opp.longitude]}
+            icon={createCustomIcon(opp.category)}
+            eventHandlers={{ click: () => handleMarkerClick(opp) }}
+          >
+            <Popup closeButton={false} className="map-preview-popup">
+              <MapPreviewCard
+                opportunity={opp}
+                onViewDetails={() => {
+                  setSelectedOpportunity(opp);
+                  setDetailOpen(true);
+                }}
+              />
+            </Popup>
+          </Marker>
+        ))}
+      </MapContainer>
+
+      {!isUsingUserLocation && (
+        <button
+          type="button"
+          onClick={() => setShowLocationModal(true)}
+          className="absolute left-3 top-3 z-10 flex h-10 w-10 flex-col items-center justify-center rounded-xl border border-white/10 bg-black/85 shadow-lg backdrop-blur-md"
+          data-testid="location-banner"
+        >
+          <MapPinOff className="h-4 w-4 text-orange-400" />
+          <span className="mt-0.5 text-[9px] text-white">GPS</span>
+        </button>
+      )}
+
+      <Button
+        size="icon"
+        variant="secondary"
+        className={`absolute right-3 top-3 z-10 h-10 w-10 rounded-xl shadow-lg ${
+          isUsingUserLocation ? 'bg-primary text-white' : 'bg-white'
+        }`}
+        onClick={handleLocateMe}
+        data-testid="locate-me-btn"
+      >
+        <Navigation
+          className={`h-4 w-4 ${
+            isUsingUserLocation ? 'text-white' : 'text-primary'
+          }`}
+        />
+      </Button>
+
+      {!mapInteractive ? (
+        <button
+          type="button"
+          onClick={() => setMapInteractive(true)}
+          className="absolute bottom-3 right-3 z-10 flex h-10 items-center gap-1.5 rounded-full bg-green-600 px-4 text-xs font-black text-white shadow-xl"
+        >
+          <MapPin className="h-4 w-4" />
+          Attiva
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setMapInteractive(false)}
+          className="absolute bottom-3 right-3 z-10 flex h-10 items-center gap-1.5 rounded-full bg-white px-4 text-xs font-black text-gray-800 shadow-xl"
+        >
+          Blocca
+        </button>
+      )}
+
+      {opportunitiesError && (
+        <div className="absolute left-1/2 top-16 z-20 w-[90%] max-w-md -translate-x-1/2">
+          <div className="rounded-xl border border-red-200 bg-white px-4 py-3 shadow-lg">
+            <div className="text-sm font-semibold text-red-700">
+              {opportunitiesError}
+            </div>
+            <div className="mt-1 break-words text-xs text-red-600">
+              {debugError}
+            </div>
+            <button
+              type="button"
+              onClick={loadOpportunities}
+              className="mt-2 text-sm font-semibold text-primary"
+            >
+              Riprova
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  </div>
+</div>
 </div>
 
-          </div>
+<div className="relative z-20 mx-auto max-w-7xl px-4 pt-0 -mt-6">
+  <div className="horizontal-scroll -mx-4 overflow-x-auto px-4 pb-1">
+    <div className="flex gap-2">
+      <button
+        type="button"
+        onClick={() => setCategory('all')}
+        className={`flex h-10 flex-shrink-0 items-center rounded-full px-4 text-sm font-black shadow-sm ${
+          category === 'all'
+            ? 'bg-gray-700 text-white'
+            : 'bg-white/90 text-gray-800'
+        }`}
+      >
+        Tutte
+      </button>
 
-          <div className="mt-12 grid items-center gap-8 lg:grid-cols-[0.9fr_1.1fr]">
-            <div>
-              {!isSearchActive && (
-                <>
-                  <h2 className="max-w-xl text-5xl font-black leading-tight text-gray-950 md:text-6xl">
-                    Trova occasioni reali vicino a te.
-                  </h2>
+      {Object.entries(categoryIcons).map(([key, config]) => {
+        const Icon = config.icon;
 
-                  <p className="mt-5 max-w-lg text-xl font-semibold leading-relaxed text-gray-800/80">
-                    Stock, liquidazioni, aste e opportunità business scoperte dalla community.
-                  </p>
-                </>
-              )}
+        return (
+          <button
+            key={key}
+            type="button"
+            onClick={() => setCategory(key)}
+            className={`flex h-10 flex-shrink-0 items-center gap-2 rounded-full px-4 text-sm font-black shadow-sm ${
+              category === key
+                ? 'text-white'
+                : 'bg-white/90 text-gray-800'
+            }`}
+            style={{
+              backgroundColor: category === key ? config.color : undefined,
+            }}
+          >
+            <Icon className="h-4 w-4" />
+            {config.name}
+          </button>
+        );
+      })}
+    </div>
+  </div>
+</div>
 
-              <div className="relative mt-8 max-w-xl">
-                <Search className="absolute left-5 top-1/2 z-10 h-7 w-7 -translate-y-1/2 text-gray-400" />
-
-                <Input
-                  placeholder="Cerca città, zona o opportunità..."
-                  value={placeQuery}
-                  onChange={(e) => setPlaceQuery(e.target.value)}
-                  className="h-20 rounded-[28px] border-0 bg-white/95 pl-16 pr-5 text-xl shadow-2xl"
-                  data-testid="place-search-input"
-                />
-
-                {(searchingPlaces || searchResults.length > 0 || placeResults.length > 0) && (
-                  <div className="absolute left-0 right-0 top-[110%] z-[9999] max-h-[320px] overflow-y-auto rounded-3xl border border-gray-200 bg-white shadow-2xl">
-                    {searchingPlaces && (
-                      <div className="px-4 py-3 text-sm text-gray-500">
-                        Sto cercando il luogo...
-                      </div>
-                    )}
-
-                    {searchResults.length > 0 && (
-                      <div className="border-b border-gray-100">
-                        <div className="px-4 py-2 text-xs font-bold uppercase text-gray-400">
-                          Opportunità trovate
-                        </div>
-
-                        {searchResults.map((opp) => (
-                          <button
-                            key={opp.id}
-                            type="button"
-                            onClick={() => {
-                              setSelectedOpportunity(opp);
-                              setDetailOpen(true);
-                              setPlaceQuery('');
-                              setPlaceResults([]);
-                            }}
-                            className="w-full border-t border-gray-100 px-4 py-3 text-left hover:bg-gray-50"
-                          >
-                            <div className="line-clamp-1 text-sm font-bold text-gray-900">
-                              {opp.title}
-                            </div>
-                            <div className="mt-1 line-clamp-1 text-xs text-gray-500">
-                              {opp.description}
-                            </div>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-
-                    {!searchingPlaces &&
-                      placeResults.map((place) => (
-                        <button
-                          key={place.place_id}
-                          type="button"
-                          onClick={() => handlePlaceSelect(place)}
-                          className="w-full border-b border-gray-100 px-4 py-3 text-left last:border-b-0 hover:bg-gray-50"
-                        >
-                          <div className="line-clamp-1 text-sm font-medium text-gray-900">
-                            {place.display_name}
-                          </div>
-                          <div className="mt-1 text-xs text-gray-500">{place.type}</div>
-                        </button>
-                      ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="rounded-[36px] bg-white/45 p-3 shadow-[0_30px_90px_rgba(91,45,12,0.22)] backdrop-blur-md">
-              <div className="relative h-[430px] overflow-hidden rounded-[28px] bg-white">
-                <MapContainer
-                  center={mapCenter}
-                  zoom={12}
-                  className="map-container z-0"
-                  whenCreated={(mapInstance) => {
-                    mapRef.current = mapInstance;
-                  }}
-                  zoomControl={false}
-                  scrollWheelZoom={mapInteractive}
-                  dragging={mapInteractive}
-                  doubleClickZoom={mapInteractive}
-                  touchZoom={mapInteractive}
-                  boxZoom={mapInteractive}
-                  keyboard={mapInteractive}
-                >
-                  <TileLayer
-                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                  />
-
-                  <MapController
-                    center={mapCenter}
-                    shouldRecenter={shouldRecenter}
-                    onRecenterDone={() => setShouldRecenter(false)}
-                  />
-
-                  <MapInteractionController enabled={mapInteractive} />
-
-                  {isUsingUserLocation && location?.lat && location?.lng && (
-                    <UserLocationMarker position={[location.lat, location.lng]} />
-                  )}
-
-                  {selectedPlace && (
-                    <Marker position={[Number(selectedPlace.lat), Number(selectedPlace.lon)]}>
-                      <Popup>{selectedPlace.display_name}</Popup>
-                    </Marker>
-                  )}
-
-                  {isUsingUserLocation && location?.lat && location?.lng && (
-                    <Circle
-                      center={[location.lat, location.lng]}
-                      radius={radius * 1000}
-                      pathOptions={{
-                        color: '#00C853',
-                        fillColor: '#00C853',
-                        fillOpacity: 0.05,
-                        weight: 2,
-                        dashArray: '5, 10',
-                      }}
-                    />
-                  )}
-
-                  {filteredOpportunities.map((opp) => (
-                    <Marker
-                      key={opp.id}
-                      position={[opp.latitude, opp.longitude]}
-                      icon={createCustomIcon(opp.category)}
-                      eventHandlers={{ click: () => handleMarkerClick(opp) }}
-                    >
-                      <Popup closeButton={false} className="map-preview-popup">
-                        <MapPreviewCard
-                          opportunity={opp}
-                          onViewDetails={() => {
-                            setSelectedOpportunity(opp);
-                            setDetailOpen(true);
-                          }}
-                        />
-                      </Popup>
-                    </Marker>
-                  ))}
-                </MapContainer>
-
-                {!isUsingUserLocation && (
-                  <button
-                    type="button"
-                    onClick={() => setShowLocationModal(true)}
-                    className="absolute left-5 top-5 z-10 flex h-14 w-14 flex-col items-center justify-center rounded-2xl border border-white/10 bg-black/85 shadow-lg backdrop-blur-md"
-                    data-testid="location-banner"
-                  >
-                    <MapPinOff className="h-5 w-5 text-orange-400" />
-                    <span className="mt-1 text-[10px] text-white">GPS</span>
-                  </button>
-                )}
-
-                <Button
-                  size="icon"
-                  variant="secondary"
-                  className={`absolute right-5 top-5 z-10 h-12 w-12 rounded-2xl shadow-lg ${
-                    isUsingUserLocation ? 'bg-primary text-white' : 'bg-white'
-                  }`}
-                  onClick={handleLocateMe}
-                  data-testid="locate-me-btn"
-                >
-                  <Navigation
-                    className={`h-5 w-5 ${
-                      isUsingUserLocation ? 'text-white' : 'text-primary'
-                    }`}
-                  />
-                </Button>
-
-                {!mapInteractive ? (
-                  <button
-                    type="button"
-                    onClick={() => setMapInteractive(true)}
-                    className="absolute bottom-6 right-5 z-10 flex h-12 items-center gap-2 rounded-full bg-green-600 px-5 font-bold text-white shadow-xl"
-                  >
-                    <MapPin className="h-5 w-5" />
-                    Attiva mappa
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setMapInteractive(false)}
-                    className="absolute bottom-6 right-5 z-10 flex h-12 items-center gap-2 rounded-full bg-white px-5 font-bold text-gray-800 shadow-xl"
-                  >
-                    Blocca
-                  </button>
-                )}
-
-                {opportunitiesError && (
-                  <div className="absolute left-1/2 top-24 z-20 w-[90%] max-w-md -translate-x-1/2">
-                    <div className="rounded-xl border border-red-200 bg-white px-4 py-3 shadow-lg">
-                      <div className="text-sm font-semibold text-red-700">
-                        {opportunitiesError}
-                      </div>
-                      <div className="mt-1 break-words text-xs text-red-600">
-                        {debugError}
-                      </div>
-                      <button
-                        type="button"
-                        onClick={loadOpportunities}
-                        className="mt-2 text-sm font-semibold text-primary"
-                      >
-                        Riprova
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="mx-auto max-w-7xl px-6 pt-10 pb-10">
-        <div className="mb-6 flex items-center justify-between gap-4">
-          <div>
-            <h2 className="text-2xl font-black text-gray-950">
-              Opportunità vicino a te
-            </h2>
-            <p className="mt-1 text-sm font-semibold text-gray-800/80">
-              {latestOpportunities.length} opportunità pubblicate nella community
-            </p>
-          </div>
-          <Button
-  type="button"
-  onClick={() => setFiltersOpen(true)}
-  className="flex items-center gap-2 rounded-full bg-black/80 px-5 py-2 text-sm font-bold text-white shadow-lg backdrop-blur-md transition hover:scale-[1.03] hover:bg-black"
->
-  <SlidersHorizontal className="h-4 w-4" />
-  Filtri
-</Button>
-        </div>
+      <div className="mx-auto max-w-7xl px-4 pt-1 pb-8">
 
         {loading ? (
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
@@ -1028,9 +1011,9 @@ const featuredOpportunities = useMemo(() => {
     ref={opportunitiesScrollRef}
     className="-mx-6 overflow-x-auto px-6 pb-2 horizontal-scroll"
   >
-    <div className="flex gap-6">
+    <div className="flex gap-3">
       {latestOpportunities.map((opp) => (
-        <div key={opp.id} className="w-[270px] flex-shrink-0">
+        <div key={opp.id} className="w-[142px] flex-shrink-0">
           <HomeOpportunityCard
             opportunity={opp}
             onClick={() => {
@@ -1052,6 +1035,16 @@ const featuredOpportunities = useMemo(() => {
   </button>
 </div>
         )}
+
+<div className="mt-4 flex justify-center">
+  <button
+    type="button"
+    onClick={() => setFiltersOpen(true)}
+    className="rounded-full bg-white/90 px-5 py-2.5 text-sm font-black text-gray-800 shadow-sm"
+  >
+    Vedi filtri
+  </button>
+</div>
 
         {categoryStats.length > 0 && (
           <div className="mt-10 rounded-[32px] bg-white/55 p-5 shadow-[0_18px_50px_rgba(78,40,10,0.14)] backdrop-blur-md">
