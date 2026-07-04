@@ -9,7 +9,11 @@ import {
   Package,
   Wrench,
   Building2,
-  Box,
+  Smartphone,
+  Shirt,
+  Armchair,
+  Car,
+  Boxes,
   Gift,
   Gavel,
   Star,
@@ -49,7 +53,11 @@ const categoryIcons = {
   product_stock: { icon: Package, color: '#F59E0B', name: 'Stock' },
   equipment: { icon: Wrench, color: '#3B82F6', name: 'Attrezzatura' },
   business_sale: { icon: Building2, color: '#8B5CF6', name: 'Attività' },
-  objects: { icon: Box, color: '#06B6D4', name: 'Oggetti' },
+  electronics: { icon: Smartphone, color: '#06B6D4', name: 'Elettronica' },
+  clothing: { icon: Shirt, color: '#EC4899', name: 'Abbigliamento' },
+  home: { icon: Armchair, color: '#14B8A6', name: 'Casa e arredamento' },
+  vehicles: { icon: Car, color: '#475569', name: 'Motori' },
+  other: { icon: Boxes, color: '#6B7280', name: 'Altro' },
   free_deals: { icon: Gift, color: '#16A34A', name: 'Gratis' },
   auctions: { icon: Gavel, color: '#EF4444', name: 'Aste' },
   user_reported: { icon: Star, color: '#F97316', name: 'Segnalate' },
@@ -98,8 +106,16 @@ const getIconSvg = (category) => {
       '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>',
     business_sale:
       '<path d="M6 22V2a1 1 0 0 1 1-1h9a1 1 0 0 1 1 1v1"/><path d="M18 11h4v11h-9"/><path d="M6 12H2v10h4"/><path d="M10 6h4"/><path d="M10 10h4"/><path d="M10 14h4"/>',
-      objects:
-  '<path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/>',
+    electronics:
+      '<rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/>',
+    clothing:
+      '<path d="M20.38 3.46 16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.22l.58 3.47A2 2 0 0 0 4.83 10H6v10a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V10h1.17a2 2 0 0 0 1.97-1.85l.58-3.47a2 2 0 0 0-1.34-2.22z"/>',
+    home:
+      '<path d="M6 19v-7a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v7"/><path d="M6 19H4v-5a2 2 0 0 1 2-2"/><path d="M18 19h2v-5a2 2 0 0 0-2-2"/><path d="M8 19v3"/><path d="M16 19v3"/><path d="M9 10V6a3 3 0 0 1 6 0v4"/>',
+    vehicles:
+      '<path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9L18.7 10l-1.4-3.5A2 2 0 0 0 15.4 5H8.6a2 2 0 0 0-1.9 1.5L5.3 10l-1.8 1.1C2.7 11.3 2 12.1 2 13v3c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/>',
+    other:
+      '<path d="M2.97 12.92 12 17.5l9.03-4.58"/><path d="M12 22V12"/><path d="M2.97 7.08 12 2.5l9.03 4.58L12 12 2.97 7.08Z"/><path d="m7 4.5 10 5"/>',
     free_deals:
   '<path d="M20 12v10H4V12"/><path d="M2 7h20v5H2z"/><path d="M12 22V7"/><path d="M12 7H7.5a2.5 2.5 0 1 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 1 0 0-5C13 2 12 7 12 7z"/>',
     auctions:

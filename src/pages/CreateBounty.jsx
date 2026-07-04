@@ -19,7 +19,11 @@ const categories = [
   { id: 'product_stock', name: 'Stock prodotti' },
   { id: 'equipment', name: 'Attrezzature e macchinari' },
   { id: 'business_sale', name: 'Attività in vendita' },
-  { id: 'objects', name: 'Oggetti' },
+  { id: 'electronics', name: 'Elettronica' },
+  { id: 'clothing', name: 'Abbigliamento' },
+  { id: 'home', name: 'Casa e arredamento' },
+  { id: 'vehicles', name: 'Motori' },
+  { id: 'other', name: 'Altro' },
   { id: 'auctions', name: 'Aste e fallimenti' },
   { id: 'user_reported', name: 'Qualsiasi / Altro' },
 ];

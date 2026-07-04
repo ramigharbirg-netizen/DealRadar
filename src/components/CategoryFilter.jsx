@@ -1,5 +1,5 @@
 import React from 'react';
-import { Store, Package, Wrench, Building2, Gavel, Star, Layers, Box, Gift } from 'lucide-react';
+import { Store, Package, Wrench, Building2, Gavel, Star, Layers, Gift, Smartphone, Shirt, Armchair, Car, Boxes } from 'lucide-react';
 import { Button } from './ui/button';
 
 // Categorie tradotte in italiano
@@ -9,7 +9,11 @@ const categories = [
   { id: 'product_stock', name: 'Stock', icon: Package, color: 'bg-amber-500' },
   { id: 'equipment', name: 'Attrezzatura', icon: Wrench, color: 'bg-blue-500' },
   { id: 'business_sale', name: 'Attività', icon: Building2, color: 'bg-purple-500' },
-  { id: 'objects', name: 'Oggetti', icon: Box, color: 'bg-cyan-500' },
+  { id: 'electronics', name: 'Elettronica', icon: Smartphone, color: 'bg-cyan-500' },
+  { id: 'clothing', name: 'Abbigliamento', icon: Shirt, color: 'bg-pink-500' },
+  { id: 'home', name: 'Casa e arredamento', icon: Armchair, color: 'bg-teal-500' },
+  { id: 'vehicles', name: 'Motori', icon: Car, color: 'bg-slate-600' },
+  { id: 'other', name: 'Altro', icon: Boxes, color: 'bg-gray-500' },
   { id: 'auctions', name: 'Aste', icon: Gavel, color: 'bg-red-500' },
   { id: 'user_reported', name: 'Segnalazioni', icon: Star, color: 'bg-orange-500' },
   { id: 'free_deals', name: 'Gratis', icon: Gift, color: 'bg-green-600' },

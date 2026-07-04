@@ -47,12 +47,18 @@ const NEW_USER_MAX_OPPORTUNITIES_PER_24H = 2;
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
 const ALLOWED_IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp'];
 
+const OPTIONAL_LOCATION_CATEGORIES = ['electronics', 'clothing', 'home', 'vehicles', 'other'];
+
 const categories = [
   { id: 'store_liquidation', name: 'Liquidazione negozio' },
   { id: 'product_stock', name: 'Stock prodotti' },
   { id: 'equipment', name: 'Attrezzature e macchinari' },
   { id: 'business_sale', name: 'Attività in vendita' },
-  { id: 'objects', name: 'Oggetti' },
+  { id: 'electronics', name: 'Elettronica' },
+  { id: 'clothing', name: 'Abbigliamento' },
+  { id: 'home', name: 'Casa e arredamento' },
+  { id: 'vehicles', name: 'Motori' },
+  { id: 'other', name: 'Altro' },
   { id: 'auctions', name: 'Aste e fallimenti' },
   { id: 'user_reported', name: 'Segnalata dagli utenti' },
   { id: 'free_deals', name: 'Occasioni gratis' },
@@ -626,7 +632,7 @@ if (!validDimensions) {
     const description = formData.description.trim();
     const category = formData.category;
     const address = formData.address.trim();
-    const isObjectCategory = category === 'objects';
+    const isObjectCategory = OPTIONAL_LOCATION_CATEGORIES.includes(category);
 
     if (!title || !description || !category) {
       toast.error('Compila tutti i campi obbligatori');
@@ -992,7 +998,7 @@ if ((recentOpportunitiesCount || 0) >= maxAllowedOpportunities) {
           <>
             <div>
               <Label>
-                Posizione {formData.category === 'objects' ? '(facoltativa)' : '*'}
+                Posizione {OPTIONAL_LOCATION_CATEGORIES.includes(formData.category) ? '(facoltativa)' : '*'}
               </Label>
               <div className="mt-1.5 space-y-2">
                 <Input
@@ -1016,8 +1022,8 @@ if ((recentOpportunitiesCount || 0) >= maxAllowedOpportunities) {
                 </Button>
 
                 <p className="text-xs text-gray-500">
-                  {formData.category === 'objects'
-  ? 'Per gli oggetti la posizione è facoltativa. Se la inserisci, l’annuncio potrà comparire anche sulla mappa.'
+                  {OPTIONAL_LOCATION_CATEGORIES.includes(formData.category)
+  ? 'Per elettronica, abbigliamento, casa e arredamento, motori e altro la posizione è facoltativa. Se la inserisci, l’annuncio potrà comparire anche sulla mappa.'
   : 'Devi inserire un indirizzo oppure usare la posizione attuale.'}
                 </p>
               </div>

@@ -7,9 +7,13 @@ const categoryConfig = {
   product_stock: { name: 'Stock', color: 'bg-amber-500' },
   equipment: { name: 'Attrezzature', color: 'bg-blue-500' },
   business_sale: { name: 'Attività', color: 'bg-purple-500' },
-  objects: { name: 'Oggetti', color: 'bg-cyan-500' },
+  electronics: { name: 'Elettronica', color: 'bg-cyan-500' },
+  clothing: { name: 'Abbigliamento', color: 'bg-pink-500' },
+  home: { name: 'Casa e arredamento', color: 'bg-teal-500' },
+  vehicles: { name: 'Motori', color: 'bg-slate-600' },
+  other: { name: 'Altro', color: 'bg-gray-500' },
   auctions: { name: 'Aste', color: 'bg-red-500' },
-  user_reported: { name: 'Utente segnalato', color: 'bg-orange-500' },
+  user_reported: { name: 'Segnalazione utente', color: 'bg-orange-500' },
   free_deals: { name: 'Gratis', color: 'bg-green-600' },
 };
 
