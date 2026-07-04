@@ -49,6 +49,38 @@ const ALLOWED_IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp'];
 
 const OPTIONAL_LOCATION_CATEGORIES = ['electronics', 'clothing', 'home', 'vehicles', 'other'];
 
+const COUNTERFEIT_RISK_TERMS = [
+  'replica',
+  'repliche',
+  'fake',
+  'falso',
+  'falsa',
+  'falsi',
+  'false',
+  'contraffatto',
+  'contraffatta',
+  'contraffatti',
+  'contraffatte',
+  'imitazione',
+  'imitazioni',
+  'clone',
+  'cloni',
+  'tarocco',
+  'tarocca',
+  'tarocchi',
+  'tarocche',
+  'non originale',
+  'non autentico',
+  'non autentica',
+  '1:1',
+  'mirror quality',
+];
+
+const detectCounterfeitRiskTerms = (title = '', description = '') => {
+  const text = `${title} ${description}`.toLowerCase();
+  return COUNTERFEIT_RISK_TERMS.filter((term) => text.includes(term));
+};
+
 const categories = [
   { id: 'store_liquidation', name: 'Liquidazione negozio' },
   { id: 'product_stock', name: 'Stock prodotti' },
@@ -228,6 +260,15 @@ export const SubmitOpportunity = () => {
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState(1);
   const [positionConfirmed, setPositionConfirmed] = useState(false);
+
+  const [authenticityDeclared, setAuthenticityDeclared] = useState(false);
+
+  const detectedCounterfeitTerms = detectCounterfeitRiskTerms(
+  formData.title,
+  formData.description
+);
+
+const hasCounterfeitRisk = detectedCounterfeitTerms.length > 0;
 
   useEffect(() => {
     return () => {
@@ -639,6 +680,14 @@ if (!validDimensions) {
       return;
     }
 
+    const counterfeitRiskTerms = detectCounterfeitRiskTerms(title, description);
+const counterfeitRiskFlag = counterfeitRiskTerms.length > 0;
+
+if (counterfeitRiskFlag && !authenticityDeclared) {
+  toast.error('Per pubblicare questo annuncio devi confermare la dichiarazione di autenticità.');
+  return;
+}
+
     if (!isObjectCategory && !address && !positionConfirmed) {
   toast.error('Inserisci un indirizzo o clicca su “Usa posizione attuale”.');
   return;
@@ -758,6 +807,9 @@ if ((recentOpportunitiesCount || 0) >= maxAllowedOpportunities) {
         contact_link: formData.contact_link.trim() || null,
         images: images.length > 0 ? images : [],
         is_high_value: isHighValue,
+        authenticity_declared: counterfeitRiskFlag && authenticityDeclared,
+        counterfeit_risk_flag: counterfeitRiskFlag,
+        counterfeit_risk_terms: counterfeitRiskTerms,
         confirmations: 0,
         reports: 0,
         user_name: user.name || user.email || null,
@@ -773,10 +825,23 @@ if ((recentOpportunitiesCount || 0) >= maxAllowedOpportunities) {
       if (error) throw error;
 
       submittedRef.current = true;
-      uploadedImagePathsRef.current = new Set();
+uploadedImagePathsRef.current = new Set();
 
-      const matchesCount = await createAutomaticBountyMatches(createdOpportunity);
+if (counterfeitRiskFlag) {
+  const { error: counterfeitReportError } = await supabase.rpc(
+    'create_counterfeit_risk_report',
+    {
+      p_opportunity_id: createdOpportunity.id,
+      p_terms: counterfeitRiskTerms,
+    }
+  );
 
+  if (counterfeitReportError) {
+    console.error('Counterfeit risk report error:', counterfeitReportError);
+  }
+}
+
+const matchesCount = await createAutomaticBountyMatches(createdOpportunity);
       await trackEvent({
         userId: user.id,
         eventName: 'create_opportunity',
@@ -1103,6 +1168,30 @@ if ((recentOpportunitiesCount || 0) >= maxAllowedOpportunities) {
                 />
               </div>
             </div>
+
+            {hasCounterfeitRisk && (
+  <div className="rounded-xl border border-amber-300 bg-amber-50 p-4">
+    <p className="font-semibold text-amber-900">
+      Attenzione: possibile rischio di contraffazione
+    </p>
+    <p className="mt-1 text-sm text-amber-800">
+      DealRadar ha rilevato termini che possono indicare un prodotto non autentico.
+      La vendita o segnalazione di prodotti contraffatti non è consentita.
+    </p>
+    <label className="mt-4 flex cursor-pointer items-start gap-3">
+      <input
+        type="checkbox"
+        checked={authenticityDeclared}
+        onChange={(e) => setAuthenticityDeclared(e.target.checked)}
+        className="mt-1 h-4 w-4"
+        data-testid="authenticity-declaration-checkbox"
+      />
+      <span className="text-sm font-medium text-amber-950">
+        Confermo che il prodotto è autentico e che le informazioni inserite sono veritiere.
+      </span>
+    </label>
+  </div>
+)}
 
             <div className="flex gap-3">
               <Button
