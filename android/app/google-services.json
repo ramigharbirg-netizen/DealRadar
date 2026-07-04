@@ -12,7 +12,16 @@
           "package_name": "com.dealradar.app"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "864760124965-dn788e6omm6hm3p7pe70frthm40au2ub.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.dealradar.app",
+            "certificate_hash": "3f411da5cfea601f0d535e37a70a8eb197ea7da7"
+          }
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyBZq1M98F8AxeDeLWVf-ZwejyH51j5rCak"
