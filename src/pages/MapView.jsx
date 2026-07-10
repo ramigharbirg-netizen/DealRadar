@@ -749,7 +749,7 @@ const featuredOpportunities = useMemo(() => {
     <Search className="absolute left-4 top-1/2 z-10 h-5 w-5 -translate-y-1/2 text-gray-400" />
 
     <Input
-      placeholder="Cerca città, zona o opportunità..."
+      placeholder="Trova e condividi opportunità"
       value={placeQuery}
       onChange={(e) => setPlaceQuery(e.target.value)}
       className="h-13 rounded-2xl border-0 bg-white/95 pl-12 pr-4 text-base font-semibold shadow-[0_12px_35px_rgba(91,45,12,0.16)]"
