@@ -84,6 +84,25 @@
     min-width: 280px !important;
 }
 
+/* Preview premium compatta delle opportunità sulla mappa */
+.map-preview-popup .leaflet-popup-content {
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: calc(100vw - 40px) !important;
+}
+
+.map-preview-popup .leaflet-popup-content-wrapper {
+    padding: 0 !important;
+    overflow: hidden !important;
+    border-radius: 18px !important;
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
+.map-preview-popup.leaflet-popup {
+    margin-bottom: 12px !important;
+}
+
 .leaflet-popup-close-button {
     display: none !important;
 }

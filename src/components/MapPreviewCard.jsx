@@ -1,6 +1,5 @@
 import React from 'react';
-import { MapPin, TrendingUp, Navigation, Euro } from 'lucide-react';
-import { Button } from './ui/button';
+import { MapPin, Navigation, TrendingUp } from 'lucide-react';
 
 const categoryConfig = {
   store_liquidation: { name: 'Liquidazioni', color: 'bg-green-500' },
@@ -13,118 +12,162 @@ const categoryConfig = {
   vehicles: { name: 'Motori', color: 'bg-slate-600' },
   other: { name: 'Altro', color: 'bg-gray-500' },
   auctions: { name: 'Aste', color: 'bg-red-500' },
-  user_reported: { name: 'Segnalazione utente', color: 'bg-orange-500' },
+  user_reported: {
+    name: 'Segnalazione',
+    color: 'bg-orange-500',
+  },
   free_deals: { name: 'Gratis', color: 'bg-green-600' },
+  objects: { name: 'Oggetti', color: 'bg-indigo-500' },
 };
 
-const formatPrice = (price) => {
-  if (!price) return null;
-  return new Intl.NumberFormat('en-US', {
+const formatPrice = (value) => {
+  const price = Number(value);
+
+  if (!Number.isFinite(price) || price <= 0) {
+    return null;
+  }
+
+  return new Intl.NumberFormat('it-IT', {
     style: 'currency',
     currency: 'EUR',
     maximumFractionDigits: 0,
   }).format(price);
 };
 
-const formatDistance = (km) => {
-  if (km === null || km === undefined) return null;
-  if (km < 1) return `${Math.round(km * 1000)}m distanza`;
-  return `${km.toFixed(1)} km distanza`;
+const formatDistance = (value) => {
+  const distance = Number(value);
+
+  if (!Number.isFinite(distance) || distance < 0) {
+    return null;
+  }
+
+  if (distance < 1) {
+    return `${Math.round(distance * 1000)} m`;
+  }
+
+  return `${distance.toFixed(1)} km`;
 };
 
-export const MapPreviewCard = ({ opportunity, onViewDetails, onClose }) => {
-  const category = categoryConfig[opportunity?.category] || categoryConfig.user_reported;
-  const profit = opportunity?.estimated_resale_value && opportunity?.estimated_price
-    ? opportunity.estimated_resale_value - opportunity.estimated_price
-    : null;
-  const profitPercent = profit && opportunity?.estimated_price
-    ? Math.round((profit / opportunity.estimated_price) * 100)
-    : null;
+export const MapPreviewCard = ({ opportunity, onViewDetails }) => {
+  if (!opportunity) {
+    return null;
+  }
 
-  if (!opportunity) return null;
+  const category =
+    categoryConfig[opportunity.category] ||
+    categoryConfig.user_reported;
+
+  const price = Number(opportunity.estimated_price || 0);
+  const resaleValue = Number(
+    opportunity.estimated_resale_value || 0
+  );
+
+  const profit =
+    resaleValue > price
+      ? resaleValue - price
+      : null;
+
+  const profitPercent =
+    profit && price > 0
+      ? Math.round((profit / price) * 100)
+      : null;
+
+  const distance = formatDistance(opportunity.distance_km);
+  const firstImage = opportunity.images?.[0] || null;
 
   return (
-    <div 
-      className="w-[280px] bg-white rounded-xl shadow-xl overflow-hidden animate-fade-in"
+    <article
+      className="flex w-[270px] max-w-[calc(100vw-40px)] overflow-hidden rounded-[18px] border border-white/70 bg-white shadow-[0_12px_35px_rgba(57,34,15,0.22)] sm:w-[310px]"
       data-testid={`map-preview-${opportunity.id}`}
     >
-      {/* Image */}
-      <div className="relative">
-        {opportunity.images?.[0] ? (
+      <div className="relative h-[112px] w-[92px] flex-shrink-0 overflow-hidden bg-orange-50 sm:w-[102px]">
+        {firstImage ? (
           <img
-            src={opportunity.images[0]}
-            alt={opportunity.title}
-            className="w-full h-32 object-cover"
+            src={firstImage}
+            alt={opportunity.title || 'Opportunità'}
+            className="h-full w-full object-cover"
+            loading="lazy"
           />
         ) : (
-          <div className={`w-full h-32 ${category.color} opacity-20 flex items-center justify-center`}>
-            <MapPin className="w-8 h-8 text-gray-400" />
+          <div
+            className={`flex h-full w-full items-center justify-center ${category.color} bg-opacity-15`}
+          >
+            <MapPin className="h-7 w-7 text-gray-400" />
           </div>
         )}
-        
-        {/* Category badge */}
-        <div className="absolute top-2 left-2">
-          <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium text-white ${category.color}`}>
+
+        <div className="absolute left-0 top-0 flex h-8 w-8 items-center justify-center rounded-br-[14px] bg-orange-500 text-white shadow-sm">
+          <MapPin className="h-4 w-4" />
+        </div>
+      </div>
+
+      <div className="flex min-w-0 flex-1 flex-col px-3 py-2.5">
+        <div className="flex min-w-0 items-start justify-between gap-2">
+          <div className="min-w-0">
+            <h4 className="truncate text-[14px] font-extrabold leading-tight text-gray-900">
+              {opportunity.title || 'Opportunità'}
+            </h4>
+
+            {distance && (
+              <div className="mt-1 flex items-center gap-1 text-[11px] font-semibold text-orange-600">
+                <Navigation className="h-3 w-3 flex-shrink-0" />
+                <span className="truncate">{distance}</span>
+              </div>
+            )}
+          </div>
+
+          <span
+            className={`max-w-[82px] flex-shrink-0 truncate rounded-full px-2 py-0.5 text-[9px] font-bold text-white ${category.color}`}
+          >
             {category.name}
           </span>
         </div>
 
-        {/* Profit badge */}
-        {profitPercent && profitPercent > 0 && (
-          <div className="absolute top-2 right-2">
-            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold bg-gradient-to-r from-green-500 to-emerald-400 text-white">
-              <TrendingUp className="w-3 h-3" />
-              +{profitPercent}%
-            </span>
-          </div>
-        )}
-      </div>
+        <div className="mt-auto flex items-end justify-between gap-2">
+          <div className="min-w-0">
+            <p className="text-[9px] font-medium uppercase tracking-wide text-gray-400">
+              Prezzo
+            </p>
 
-      {/* Content */}
-      <div className="p-3">
-        {/* Title */}
-        <h4 className="font-bold text-gray-900 text-sm line-clamp-1 mb-1">
-          {opportunity.title}
-        </h4>
-
-        {/* Distance - Prominent */}
-        {opportunity.distance_km !== undefined && (
-          <div className="flex items-center gap-1.5 mb-2">
-            <Navigation className="w-4 h-4 text-primary" />
-            <span className="text-sm font-semibold text-primary">
-              {formatDistance(opportunity.distance_km)}
-            </span>
-          </div>
-        )}
-
-        {/* Price Row */}
-        <div className="flex items-center justify-between mb-3">
-          <div>
-            <p className="text-xs text-gray-500">Prezzo</p>
-            <p className="text-lg font-bold text-gray-900">
-              {formatPrice(opportunity.estimated_price) || 'Contact'}
+            <p className="truncate text-[18px] font-extrabold leading-none text-gray-900">
+              {formatPrice(price) || 'Gratis'}
             </p>
           </div>
+
           {profit && profit > 0 && (
-            <div className="text-right">
-              <p className="text-xs text-gray-500">Profitto</p>
-              <p className="text-lg font-bold text-green-600">
-                {formatPrice(profit)}
+            <div className="min-w-0 text-right">
+              <p className="text-[9px] font-medium uppercase tracking-wide text-gray-400">
+                Profitto
+              </p>
+
+              <p className="truncate text-[14px] font-extrabold leading-none text-green-600">
+                +{formatPrice(profit)}
               </p>
             </div>
           )}
         </div>
 
-        {/* Dettagli Button */}
-        <Button
-          onClick={onViewDetails}
-          className="w-full h-10 bg-primary hover:bg-primary/90 text-white rounded-lg font-semibold text-sm"
-          data-testid="view-details-btn"
-        >
-          Dettagli
-        </Button>
+        <div className="mt-2 flex items-center justify-between gap-2">
+          {profitPercent && profitPercent > 0 ? (
+            <span className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-1 text-[10px] font-bold text-green-700">
+              <TrendingUp className="h-3 w-3" />
+              +{profitPercent}%
+            </span>
+          ) : (
+            <span />
+          )}
+
+          <button
+            type="button"
+            onClick={onViewDetails}
+            className="h-8 rounded-[10px] bg-orange-500 px-4 text-[11px] font-bold text-white shadow-sm transition hover:bg-orange-600 active:scale-95"
+            data-testid="view-details-btn"
+          >
+            Vedi
+          </button>
+        </div>
       </div>
-    </div>
+    </article>
   );
 };
 
