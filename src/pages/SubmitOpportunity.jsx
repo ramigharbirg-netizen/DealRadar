@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Camera,
+  ImagePlus,
   MapPin,
   DollarSign,
   Phone,
@@ -16,6 +17,13 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Textarea } from '../components/ui/textarea';
 import { Label } from '../components/ui/label';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '../components/ui/dialog';
 import {
   Select,
   SelectContent,
@@ -235,6 +243,8 @@ export const SubmitOpportunity = () => {
   const { location, requestLocation } = useLocation();
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
+  const cameraInputRef = useRef(null);
+  const [photoSourceOpen, setPhotoSourceOpen] = useState(false);
 
   const uploadedFingerprintsRef = useRef(new Set());
   const uploadedImagePathsRef = useRef(new Set());
@@ -962,7 +972,7 @@ const matchesCount = await createAutomaticBountyMatches(createdOpportunity);
                 {images.length < MAX_IMAGES && (
                   <button
                     type="button"
-                    onClick={() => fileInputRef.current?.click()}
+                    onClick={() => setPhotoSourceOpen(true)}
                     disabled={uploadingImages}
                     className="w-24 h-24 rounded-xl border-2 border-dashed border-gray-300 flex flex-col items-center justify-center text-gray-400 hover:border-primary hover:text-primary transition-colors flex-shrink-0 disabled:opacity-50"
                     data-testid="add-photo-btn"
@@ -979,19 +989,106 @@ const matchesCount = await createAutomaticBountyMatches(createdOpportunity);
                 )}
 
                 <input
-                  ref={fileInputRef}
+                  ref={cameraInputRef}
                   type="file"
-                  accept="image/jpeg,image/jpg,image/png,image/webp"
-                  multiple
-                  onChange={handleImageUpload}
-                  className="hidden"
-                />
-              </div>
+                  accept="image/*"
+                  capture="environment"
+                 onChange={handleImageUpload}
+                 className="hidden"
+               />
+
+                <input
+                 ref={fileInputRef}
+                 type="file"
+                 accept="image/jpeg,image/jpg,image/png,image/webp"
+                 multiple
+                 onChange={handleImageUpload}
+                 className="hidden"
+               />
+           </div>
 
               <p className="mt-2 text-xs text-gray-500">
-                Puoi caricare fino a {MAX_IMAGES} immagini. Formati: JPG, PNG, WEBP. Max {MAX_UPLOAD_IMAGE_SIZE_MB} MB per foto. Le immagini vengono compresse automaticamente.
+                Puoi scattare foto o caricarne fino a {MAX_IMAGES} dalla galleria. Formati: JPG, PNG, WEBP. Max {MAX_UPLOAD_IMAGE_SIZE_MB} MB per foto. Le immagini vengono compresse automaticamente.
               </p>
             </div>
+
+            <Dialog open={photoSourceOpen} onOpenChange={setPhotoSourceOpen}>
+  <DialogContent className="w-[calc(100%_-_32px)] max-w-sm rounded-3xl border-0 p-0 shadow-2xl">
+    <DialogHeader className="px-6 pb-3 pt-6 text-left">
+      <DialogTitle className="text-xl font-bold text-gray-900">
+        Aggiungi una foto
+      </DialogTitle>
+
+      <DialogDescription className="text-sm text-gray-500">
+        Scatta una nuova foto oppure scegli un’immagine già presente sul dispositivo.
+      </DialogDescription>
+    </DialogHeader>
+
+    <div className="space-y-3 px-4 pb-5">
+      <button
+        type="button"
+        onClick={() => {
+  setPhotoSourceOpen(false);
+
+  if (cameraInputRef.current) {
+    cameraInputRef.current.value = '';
+    cameraInputRef.current.click();
+  }
+}}
+        className="flex w-full items-center gap-4 rounded-2xl border border-orange-100 bg-orange-50 px-4 py-4 text-left transition hover:border-orange-300 hover:bg-orange-100 active:scale-[0.99]"
+      >
+        <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-orange-500 text-white shadow-sm">
+          <Camera className="h-6 w-6" />
+        </span>
+
+        <span>
+          <span className="block font-bold text-gray-900">
+            Scatta una foto
+          </span>
+
+          <span className="mt-0.5 block text-xs text-gray-500">
+            Apri la fotocamera del telefono
+          </span>
+        </span>
+      </button>
+
+      <button
+        type="button"
+        onClick={() => {
+  setPhotoSourceOpen(false);
+
+  if (fileInputRef.current) {
+    fileInputRef.current.value = '';
+    fileInputRef.current.click();
+  }
+}}
+        className="flex w-full items-center gap-4 rounded-2xl border border-gray-200 bg-white px-4 py-4 text-left transition hover:border-orange-200 hover:bg-orange-50/50 active:scale-[0.99]"
+      >
+        <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-gray-100 text-gray-700">
+          <ImagePlus className="h-6 w-6" />
+        </span>
+
+        <span>
+          <span className="block font-bold text-gray-900">
+            Scegli dalla galleria
+          </span>
+
+          <span className="mt-0.5 block text-xs text-gray-500">
+            Seleziona una o più immagini
+          </span>
+        </span>
+      </button>
+
+      <button
+        type="button"
+        onClick={() => setPhotoSourceOpen(false)}
+        className="h-11 w-full rounded-xl text-sm font-semibold text-gray-500 transition hover:bg-gray-100 hover:text-gray-900"
+      >
+        Annulla
+      </button>
+    </div>
+  </DialogContent>
+</Dialog>
 
             <div>
               <Label htmlFor="title">Titolo *</Label>
