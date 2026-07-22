@@ -39,6 +39,12 @@ const EditOpportunity = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
+  const [originalLocation, setOriginalLocation] = useState({
+  address: '',
+  latitude: null,
+  longitude: null,
+});
+
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -85,6 +91,19 @@ const EditOpportunity = () => {
           contact_email: data.contact_email || '',
           contact_link: data.contact_link || '',
         });
+
+        setOriginalLocation({
+  address: data.address || '',
+  latitude:
+    data.latitude !== null && data.latitude !== undefined
+      ? Number(data.latitude)
+      : null,
+  longitude:
+    data.longitude !== null && data.longitude !== undefined
+      ? Number(data.longitude)
+      : null,
+});
+
       } catch (err) {
         console.error('Load opportunity error:', err);
         toast.error('Opportunità non trovata o non modificabile');
@@ -103,6 +122,49 @@ const EditOpportunity = () => {
       [field]: value,
     }));
   };
+
+  const geocodeAddress = async (address) => {
+  const params = new URLSearchParams({
+    q: address,
+    format: 'jsonv2',
+    limit: '1',
+    countrycodes: 'it',
+    addressdetails: '1',
+  });
+
+  const response = await fetch(
+    `https://nominatim.openstreetmap.org/search?${params.toString()}`,
+    {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+      },
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(`Ricerca indirizzo non riuscita (${response.status})`);
+  }
+
+  const results = await response.json();
+
+  if (!Array.isArray(results) || results.length === 0) {
+    return null;
+  }
+
+  const latitude = Number(results[0].lat);
+  const longitude = Number(results[0].lon);
+
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+    return null;
+  }
+
+  return {
+    lat: latitude,
+    lng: longitude,
+    displayName: results[0].display_name,
+  };
+};
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -127,24 +189,54 @@ const EditOpportunity = () => {
     setSaving(true);
 
     try {
-      const payload = {
-        title: formData.title.trim(),
-        description: formData.description.trim(),
-        category: formData.category,
-        address: formData.address.trim() || null,
-        estimated_price:
-          formData.estimated_price === ''
-            ? null
-            : Number(formData.estimated_price),
-        estimated_resale_value:
-          formData.estimated_resale_value === ''
-            ? null
-            : Number(formData.estimated_resale_value),
-        contact_phone: formData.contact_phone.trim() || null,
-        contact_email: formData.contact_email.trim() || null,
-        contact_link: formData.contact_link.trim() || null,
-        updated_at: new Date().toISOString(),
-      };
+  const newAddress = formData.address.trim();
+  const previousAddress = String(originalLocation.address || '').trim();
+
+  let finalAddress = newAddress || null;
+  let finalLatitude = originalLocation.latitude;
+  let finalLongitude = originalLocation.longitude;
+
+  const addressChanged = newAddress !== previousAddress;
+
+  if (addressChanged) {
+    if (newAddress) {
+      const geocoded = await geocodeAddress(newAddress);
+
+      if (!geocoded) {
+        toast.error('Indirizzo non trovato. Prova a scriverlo meglio.');
+        return;
+      }
+
+      finalAddress = geocoded.displayName || newAddress;
+      finalLatitude = geocoded.lat;
+      finalLongitude = geocoded.lng;
+    } else {
+      finalAddress = null;
+      finalLatitude = null;
+      finalLongitude = null;
+    }
+  }
+
+  const payload = {
+    title: formData.title.trim(),
+    description: formData.description.trim(),
+    category: formData.category,
+    address: finalAddress,
+    latitude: finalLatitude,
+    longitude: finalLongitude,
+    estimated_price:
+      formData.estimated_price === ''
+        ? null
+        : Number(formData.estimated_price),
+    estimated_resale_value:
+      formData.estimated_resale_value === ''
+        ? null
+        : Number(formData.estimated_resale_value),
+    contact_phone: formData.contact_phone.trim() || null,
+    contact_email: formData.contact_email.trim() || null,
+    contact_link: formData.contact_link.trim() || null,
+    updated_at: new Date().toISOString(),
+  };
 
       const { error } = await supabase
         .from('opportunities')
