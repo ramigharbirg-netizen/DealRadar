@@ -16,7 +16,6 @@ import {
   Boxes,
   Gift,
   Gavel,
-  Star,
   MapPinOff,
   Heart,
   Clock,
@@ -24,7 +23,6 @@ import {
   X,
   Check,
   Euro,
-  TrendingUp,
   ShieldCheck,
   ChevronLeft,
   ChevronRight,
@@ -38,6 +36,7 @@ import { MapPreviewCard } from '../components/MapPreviewCard';
 import { LocationPermissionModal } from '../components/LocationPermissionModal';
 import { toast } from 'sonner';
 import 'leaflet/dist/leaflet.css';
+import { categories, getCategoryById } from '../data/categories';
 
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -47,21 +46,6 @@ L.Icon.Default.mergeOptions({
 });
 
 const DEFAULT_MAP_CENTER = [41.9028, 12.4964];
-
-const categoryIcons = {
-  store_liquidation: { icon: Store, color: '#00C853', name: 'Liquidazione' },
-  product_stock: { icon: Package, color: '#F59E0B', name: 'Stock' },
-  equipment: { icon: Wrench, color: '#3B82F6', name: 'Attrezzatura' },
-  business_sale: { icon: Building2, color: '#8B5CF6', name: 'Attività' },
-  electronics: { icon: Smartphone, color: '#06B6D4', name: 'Elettronica' },
-  clothing: { icon: Shirt, color: '#EC4899', name: 'Abbigliamento' },
-  home: { icon: Armchair, color: '#14B8A6', name: 'Casa e arredamento' },
-  vehicles: { icon: Car, color: '#475569', name: 'Motori' },
-  other: { icon: Boxes, color: '#6B7280', name: 'Altro' },
-  free_deals: { icon: Gift, color: '#16A34A', name: 'Gratis' },
-  auctions: { icon: Gavel, color: '#EF4444', name: 'Aste' },
-  user_reported: { icon: Star, color: '#F97316', name: 'Segnalate' },
-};
 
 const toRadians = (deg) => (deg * Math.PI) / 180;
 
@@ -96,46 +80,89 @@ const distanceKm = (lat1, lon1, lat2, lon2) => {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 };
 
-const getIconSvg = (category) => {
+
+const getMarkerIconSvg = (categoryId) => {
   const paths = {
     store_liquidation:
       '<path d="m2 7 4.41-4.41A2 2 0 0 1 7.83 2h8.34a2 2 0 0 1 1.42.59L22 7"/><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><path d="M15 22v-4a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2v4"/><path d="M2 7h20"/>',
+
     product_stock:
       '<path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z"/><path d="M12 22V12"/><path d="m3.3 7 7.703 4.734a2 2 0 0 0 1.994 0L20.7 7"/>',
+
     equipment:
       '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>',
+
     business_sale:
       '<path d="M6 22V2a1 1 0 0 1 1-1h9a1 1 0 0 1 1 1v1"/><path d="M18 11h4v11h-9"/><path d="M6 12H2v10h4"/><path d="M10 6h4"/><path d="M10 10h4"/><path d="M10 14h4"/>',
+
     electronics:
       '<rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/>',
+
     clothing:
       '<path d="M20.38 3.46 16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.22l.58 3.47A2 2 0 0 0 4.83 10H6v10a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V10h1.17a2 2 0 0 0 1.97-1.85l.58-3.47a2 2 0 0 0-1.34-2.22z"/>',
+
+    games_sports_hobbies:
+      '<line x1="6" x2="10" y1="11" y2="11"/><line x1="8" x2="8" y1="9" y2="13"/><line x1="15" x2="15.01" y1="12" y2="12"/><line x1="18" x2="18.01" y1="10" y2="10"/><path d="M17.32 5H6.68a4 4 0 0 0-3.978 3.59c-.006.052-.01.101-.017.152C2.604 9.416 2 14.456 2 16a3 3 0 0 0 3 3c1 0 1.5-.5 2-1l1.414-1.414A2 2 0 0 1 9.828 16h4.344a2 2 0 0 1 1.414.586L17 18c.5.5 1 1 2 1a3 3 0 0 0 3-3c0-1.545-.604-6.584-.685-7.258-.007-.05-.011-.1-.017-.152A4 4 0 0 0 17.32 5z"/>',
+
     home:
       '<path d="M6 19v-7a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v7"/><path d="M6 19H4v-5a2 2 0 0 1 2-2"/><path d="M18 19h2v-5a2 2 0 0 0-2-2"/><path d="M8 19v3"/><path d="M16 19v3"/><path d="M9 10V6a3 3 0 0 1 6 0v4"/>',
+
     vehicles:
       '<path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9L18.7 10l-1.4-3.5A2 2 0 0 0 15.4 5H8.6a2 2 0 0 0-1.9 1.5L5.3 10l-1.8 1.1C2.7 11.3 2 12.1 2 13v3c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/>',
-    other:
-      '<path d="M2.97 12.92 12 17.5l9.03-4.58"/><path d="M12 22V12"/><path d="M2.97 7.08 12 2.5l9.03 4.58L12 12 2.97 7.08Z"/><path d="m7 4.5 10 5"/>',
-    free_deals:
-  '<path d="M20 12v10H4V12"/><path d="M2 7h20v5H2z"/><path d="M12 22V7"/><path d="M12 7H7.5a2.5 2.5 0 1 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 1 0 0-5C13 2 12 7 12 7z"/>',
+
     auctions:
       '<path d="m14.5 12.5-8 8a2.119 2.119 0 1 1-3-3l8-8"/><path d="m16 16 6-6"/><path d="m8 8 6-6"/><path d="m9 7 8 8"/>',
+
+    free_deals:
+      '<path d="M20 12v10H4V12"/><path d="M2 7h20v5H2z"/><path d="M12 22V7"/><path d="M12 7H7.5a2.5 2.5 0 1 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 1 0 0-5C13 2 12 7 12 7z"/>',
+
     user_reported:
       '<path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>',
+
+    job_offers:
+      '<rect width="20" height="14" x="2" y="7" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/><path d="M2 12h20"/><path d="M10 12v2h4v-2"/>',
+
+    rental_homes:
+      '<path d="m3 11 9-8 9 8"/><path d="M5 10v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V10"/><path d="M9 21v-6h6v6"/>',
+
+    other:
+      '<path d="M2.97 12.92 12 17.5l9.03-4.58"/><path d="M12 22V12"/><path d="M2.97 7.08 12 2.5l9.03 4.58L12 12 2.97 7.08Z"/><path d="m7 4.5 10 5"/>',
   };
 
-  return paths[category] || paths.user_reported;
+  return paths[categoryId] || paths.user_reported;
 };
 
-const createCustomIcon = (category) => {
-  const config = categoryIcons[category] || categoryIcons.user_reported;
+const createCustomIcon = (categoryId) => {
+  const config =
+    getCategoryById(categoryId) ||
+    getCategoryById('user_reported');
+
+  const color = config?.color || '#F97316';
+  const safeCategoryId =
+    typeof categoryId === 'string'
+      ? categoryId.replace(/[^a-zA-Z0-9_-]/g, '')
+      : 'user_reported';
 
   return L.divIcon({
     className: 'custom-div-icon',
     html: `
-      <div class="custom-marker marker-${category}" style="background-color: ${config.color}">
-        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          ${getIconSvg(category)}
+      <div
+        class="custom-marker marker-${safeCategoryId}"
+        style="background-color: ${color}"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="white"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          ${getMarkerIconSvg(categoryId)}
         </svg>
       </div>
     `,
@@ -205,10 +232,17 @@ const HomeOpportunityCard = ({ opportunity, onClick }) => {
       : null;
 
   const price = Number(opportunity.estimated_price || 0);
-  const resale = Number(opportunity.estimated_resale_value || 0);
-  const profit = resale > price ? resale - price : null;
-  const categoryConfig = categoryIcons[opportunity.category] || categoryIcons.user_reported;
-  const CategoryIcon = categoryConfig.icon;
+
+const estimatedValue =
+  opportunity.estimated_resale_value !== null &&
+  opportunity.estimated_resale_value !== undefined
+    ? Number(opportunity.estimated_resale_value)
+    : null;
+  const categoryConfig =
+  getCategoryById(opportunity.category) ||
+  getCategoryById('user_reported');
+
+  const CategoryIcon = categoryConfig?.icon || MapPin;
 
   return (
     <button
@@ -237,7 +271,7 @@ const HomeOpportunityCard = ({ opportunity, onClick }) => {
           className="absolute left-2 top-2 rounded-full px-2 py-0.5 text-[10px] font-black text-white shadow"
           style={{ backgroundColor: categoryConfig.color }}
         >
-          {categoryConfig.name}
+          {categoryConfig.shortName || categoryConfig.name}
         </div>
       </div>
 
@@ -258,11 +292,14 @@ const HomeOpportunityCard = ({ opportunity, onClick }) => {
               {price > 0 ? `€${price.toLocaleString('it-IT')}` : 'Gratis'}
             </p>
 
-            {profit != null && (
-              <p className="text-[11px] font-black text-emerald-600">
-                +€{profit.toLocaleString('it-IT')}
-              </p>
-            )}
+            {estimatedValue !== null && (
+  <p className="text-[11px] font-semibold text-gray-500">
+    Valore: {estimatedValue.toLocaleString('it-IT', {
+  style: 'currency',
+  currency: 'EUR',
+})}
+  </p>
+)}
           </div>
 
           <div className="mt-2 flex items-center gap-1 text-[11px] font-bold text-emerald-600">
@@ -304,7 +341,6 @@ export const MapView = () => {
 const [filtersOpen, setFiltersOpen] = useState(false);
 const [homeSort, setHomeSort] = useState('recent');
 const [onlyVerified, setOnlyVerified] = useState(false);
-const [onlyHighValue, setOnlyHighValue] = useState(false);
 const [maxPrice, setMaxPrice] = useState('');
 
 useEffect(() => {
@@ -495,12 +531,6 @@ total_opportunities_profile:
           : null,
     }));
 
-    if (location?.lat != null && location?.lng != null) {
-      filtered = filtered.filter(
-        (opp) => opp.distance_km == null || opp.distance_km <= radius
-      );
-    }
-
     filtered.sort(
       (a, b) =>
         new Date(b.created_at || 0).getTime() -
@@ -508,24 +538,9 @@ total_opportunities_profile:
     );
 
     return filtered;
-  }, [allOpportunities, category, radius, location?.lat, location?.lng]);
+  }, [allOpportunities, category, location?.lat, location?.lng]);
 
-  const categoryStats = useMemo(() => {
-    const stats = Object.entries(categoryIcons).map(([key, config]) => {
-      const items = filteredOpportunities.filter((opp) => opp.category === key);
-
-      return {
-        key,
-        name: config.name,
-        Icon: config.icon,
-        color: config.color,
-        count: items.length,
-      };
-    });
-
-    return stats.filter((item) => item.count > 0);
-  }, [filteredOpportunities]);
-const latestOpportunities = useMemo(() => {
+  const latestOpportunities = useMemo(() => {
   let items = [...allOpportunities];
 
   if (category !== 'all') {
@@ -534,10 +549,6 @@ const latestOpportunities = useMemo(() => {
 
   if (onlyVerified) {
     items = items.filter((opp) => opp.is_verified === true);
-  }
-
-  if (onlyHighValue) {
-    items = items.filter((opp) => opp.is_high_value === true);
   }
 
   if (maxPrice !== '') {
@@ -561,14 +572,7 @@ const latestOpportunities = useMemo(() => {
       const bDist = b.distance_km ?? Number.MAX_SAFE_INTEGER;
       return aDist - bDist;
     });
-  } else if (homeSort === 'profit') {
-    items.sort((a, b) => {
-      const profitA =
-        Number(a.estimated_resale_value || 0) - Number(a.estimated_price || 0);
-      const profitB =
-        Number(b.estimated_resale_value || 0) - Number(b.estimated_price || 0);
-      return profitB - profitA;
-    });
+  
   } else if (homeSort === 'price_low') {
     items.sort(
       (a, b) =>
@@ -590,7 +594,6 @@ const latestOpportunities = useMemo(() => {
   location?.lng,
   homeSort,
   onlyVerified,
-  onlyHighValue,
   maxPrice,
 ]);
 
@@ -971,7 +974,8 @@ const featuredOpportunities = useMemo(() => {
         Tutte
       </button>
 
-      {Object.entries(categoryIcons).map(([key, config]) => {
+      {categories.map((config) => {
+        const key = config.id;
         const Icon = config.icon;
 
         return (
@@ -1061,43 +1065,6 @@ const featuredOpportunities = useMemo(() => {
     Vedi filtri
   </button>
 </div>
-
-        {categoryStats.length > 0 && (
-          <div className="mt-10 rounded-[32px] bg-white/55 p-5 shadow-[0_18px_50px_rgba(78,40,10,0.14)] backdrop-blur-md">
-            <h2 className="mb-4 text-xl font-black text-gray-950">
-              Sfoglia per categoria
-            </h2>
-
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
-              {categoryStats.map((cat) => (
-                <button
-                  key={cat.key}
-                  type="button"
-                  onClick={() => setCategory(cat.key)}
-                  className={`rounded-2xl border p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
-                    category === cat.key
-                      ? 'border-orange-400 bg-orange-50'
-                      : 'border-white/60 bg-white/80'
-                  }`}
-                >
-                  <div
-                    className="mb-3 flex h-11 w-11 items-center justify-center rounded-2xl"
-                    style={{ backgroundColor: cat.color }}
-                  >
-                    <cat.Icon className="h-5 w-5 text-white" />
-                  </div>
-
-                  <h3 className="line-clamp-1 text-sm font-black text-gray-900">
-                    {cat.name}
-                  </h3>
-                  <p className="mt-1 text-xs font-semibold text-gray-500">
-                    {cat.count} offerte
-                  </p>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
 
       {filtersOpen && (
@@ -1137,11 +1104,6 @@ const featuredOpportunities = useMemo(() => {
               Vicine
             </FilterButton>
 
-            <FilterButton active={homeSort === 'profit'} onClick={() => setHomeSort('profit')}>
-              <TrendingUp className="h-4 w-4" />
-              Profitto
-            </FilterButton>
-
             <FilterButton active={homeSort === 'price_low'} onClick={() => setHomeSort('price_low')}>
               <Euro className="h-4 w-4" />
               Prezzo basso
@@ -1159,7 +1121,8 @@ const featuredOpportunities = useMemo(() => {
               Tutte
             </FilterButton>
 
-            {Object.entries(categoryIcons).map(([key, config]) => {
+            {categories.map((config) => {
+              const key = config.id;
               const Icon = config.icon;
 
               return (
@@ -1204,14 +1167,6 @@ const featuredOpportunities = useMemo(() => {
               title="Solo verificate"
               subtitle="Mostra opportunità confermate dalla community"
             />
-
-            <ToggleRow
-              active={onlyHighValue}
-              onClick={() => setOnlyHighValue((prev) => !prev)}
-              icon={<Star className="h-4 w-4" />}
-              title="Solo alto valore"
-              subtitle="Mostra opportunità con profitto potenziale alto"
-            />
           </div>
         </div>
 
@@ -1224,7 +1179,6 @@ const featuredOpportunities = useMemo(() => {
               setHomeSort('recent');
               setCategory('all');
               setOnlyVerified(false);
-              setOnlyHighValue(false);
               setMaxPrice('');
             }}
           >

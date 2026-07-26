@@ -36,6 +36,20 @@ import { useLocation } from '../contexts/LocationContext';
 import { supabase } from '../lib/supabase';
 import { toast } from 'sonner';
 import { trackEvent } from '../lib/analytics';
+import {
+  categories,
+  getSubcategories,
+  getSubcategoryAttributes,
+  optionalLocationCategoryIds,
+} from "../data/categories";
+import OpportunityCategoryFields from '../components/OpportunityCategoryFields';
+import OpportunityWizard from '../components/opportunity-wizard/OpportunityWizard';
+import {
+  applyWizardEntry,
+  applyWizardSubcategory,
+  getWizardEntryById,
+  getWizardEntryForValue,
+} from '../data/opportunityWizardCatalog';
 
 const MAX_IMAGES = 5;
 const MAX_UPLOAD_IMAGE_SIZE_MB = 15;
@@ -49,13 +63,12 @@ const COMPRESSED_IMAGE_MAX_HEIGHT = 1400;
 const COMPRESSED_IMAGE_QUALITY = 0.78;
 const MAX_IMAGE_WIDTH = 4000;
 const MAX_IMAGE_HEIGHT = 4000;
-const DEFAULT_MAX_OPPORTUNITIES_PER_24H = 5;
-const NEW_USER_MAX_OPPORTUNITIES_PER_24H = 2;
+const DEFAULT_MAX_OPPORTUNITIES_PER_24H = 20;
+const NEW_USER_MAX_OPPORTUNITIES_PER_24H = 20;
 
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
 const ALLOWED_IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp'];
 
-const OPTIONAL_LOCATION_CATEGORIES = ['electronics', 'clothing', 'home', 'vehicles', 'other'];
 
 const COUNTERFEIT_RISK_TERMS = [
   'replica',
@@ -88,21 +101,6 @@ const detectCounterfeitRiskTerms = (title = '', description = '') => {
   const text = `${title} ${description}`.toLowerCase();
   return COUNTERFEIT_RISK_TERMS.filter((term) => text.includes(term));
 };
-
-const categories = [
-  { id: 'store_liquidation', name: 'Liquidazione negozio' },
-  { id: 'product_stock', name: 'Stock prodotti' },
-  { id: 'equipment', name: 'Attrezzature e macchinari' },
-  { id: 'business_sale', name: 'Attività in vendita' },
-  { id: 'electronics', name: 'Elettronica' },
-  { id: 'clothing', name: 'Abbigliamento' },
-  { id: 'home', name: 'Casa e arredamento' },
-  { id: 'vehicles', name: 'Motori' },
-  { id: 'other', name: 'Altro' },
-  { id: 'auctions', name: 'Aste e fallimenti' },
-  { id: 'user_reported', name: 'Segnalata dagli utenti' },
-  { id: 'free_deals', name: 'Occasioni gratis' },
-];
 
 const getFileExtension = (filename = '') => {
   const parts = filename.toLowerCase().split('.');
@@ -238,6 +236,55 @@ const validateImageDimensions = async (file) => {
   });
 };
 
+const sanitizeCategoryAttributes = (
+  categoryId,
+  subcategoryId,
+  rawAttributes
+) => {
+  if (!categoryId || !subcategoryId || !rawAttributes || typeof rawAttributes !== 'object') {
+    return {};
+  }
+
+  const definitions = getSubcategoryAttributes(categoryId, subcategoryId);
+  const sanitized = {};
+
+  definitions.forEach((definition) => {
+    const rawValue = rawAttributes[definition.id];
+    const allowedOptionIds = new Set(
+      definition.options.map((option) => option.id)
+    );
+
+    if (definition.type === 'single_select') {
+      if (
+        typeof rawValue === 'string' &&
+        allowedOptionIds.has(rawValue)
+      ) {
+        sanitized[definition.id] = rawValue;
+      }
+
+      return;
+    }
+
+    if (definition.type === 'multi_select' && Array.isArray(rawValue)) {
+      const cleanValues = Array.from(
+        new Set(
+          rawValue.filter(
+            (value) =>
+              typeof value === 'string' &&
+              allowedOptionIds.has(value)
+          )
+        )
+      );
+
+      if (cleanValues.length > 0) {
+        sanitized[definition.id] = cleanValues;
+      }
+    }
+  });
+
+  return sanitized;
+};
+
 export const SubmitOpportunity = () => {
   const { user, loading: authLoading } = useAuth();
   const { location, requestLocation } = useLocation();
@@ -254,6 +301,8 @@ export const SubmitOpportunity = () => {
     title: '',
     description: '',
     category: '',
+    subcategory: '',
+    attributes: {},
     latitude: null,
     longitude: null,
     address: '',
@@ -269,6 +318,7 @@ export const SubmitOpportunity = () => {
   const [uploadingImages, setUploadingImages] = useState(false);
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState(1);
+  const [wizardEntryId, setWizardEntryId] = useState('');
   const [positionConfirmed, setPositionConfirmed] = useState(false);
 
   const [authenticityDeclared, setAuthenticityDeclared] = useState(false);
@@ -279,6 +329,31 @@ export const SubmitOpportunity = () => {
 );
 
 const hasCounterfeitRisk = detectedCounterfeitTerms.length > 0;
+
+  const selectedCategorySubcategories = formData.category
+    ? getSubcategories(formData.category)
+    : [];
+
+  const requiresSubcategory = selectedCategorySubcategories.length > 0;
+
+  const selectedWizardEntry = wizardEntryId
+    ? getWizardEntryById(wizardEntryId)
+    : getWizardEntryForValue(
+        formData.category,
+        formData.attributes,
+        formData.subcategory
+      );
+
+  const handleWizardEntrySelect = (entry) => {
+    setWizardEntryId(entry.id);
+    setFormData((previous) => applyWizardEntry(entry, previous));
+  };
+
+  const handleWizardSubcategorySelect = (subcategoryId) => {
+    setFormData((previous) =>
+      applyWizardSubcategory(selectedWizardEntry, subcategoryId, previous)
+    );
+  };
 
   useEffect(() => {
     return () => {
@@ -682,11 +757,22 @@ if (!validDimensions) {
     const title = formData.title.trim();
     const description = formData.description.trim();
     const category = formData.category;
+    const subcategory = formData.subcategory;
+    const attributes = sanitizeCategoryAttributes(
+      category,
+      subcategory,
+      formData.attributes
+    );
     const address = formData.address.trim();
-    const isObjectCategory = OPTIONAL_LOCATION_CATEGORIES.includes(category);
+    const isObjectCategory = optionalLocationCategoryIds.includes(category);
 
     if (!title || !description || !category) {
       toast.error('Compila tutti i campi obbligatori');
+      return;
+    }
+
+    if (getSubcategories(category).length > 0 && !subcategory) {
+      toast.error('Seleziona una sottocategoria');
       return;
     }
 
@@ -779,12 +865,18 @@ if ((recentOpportunitiesCount || 0) >= maxAllowedOpportunities) {
 }
 
       const estimatedPrice =
-        formData.estimated_price !== '' ? Number(formData.estimated_price) : null;
+  category === 'job_offers'
+    ? null
+    : formData.estimated_price !== ''
+      ? Number(formData.estimated_price)
+      : null;
 
-      const estimatedResaleValue =
-        formData.estimated_resale_value !== ''
-          ? Number(formData.estimated_resale_value)
-          : null;
+const estimatedResaleValue =
+  category === 'job_offers'
+    ? null
+    : formData.estimated_resale_value !== ''
+      ? Number(formData.estimated_resale_value)
+      : null;
 
       if (estimatedPrice !== null && Number.isNaN(estimatedPrice)) {
         toast.error('Prezzo richiesto non valido');
@@ -793,20 +885,17 @@ if ((recentOpportunitiesCount || 0) >= maxAllowedOpportunities) {
       }
 
       if (estimatedResaleValue !== null && Number.isNaN(estimatedResaleValue)) {
-        toast.error('Valore di rivendita non valido');
-        setLoading(false);
-        return;
-      }
-
-      const isHighValue =
-        estimatedPrice !== null &&
-        estimatedResaleValue !== null &&
-        estimatedResaleValue - estimatedPrice >= 10000;
+  toast.error('Valore stimato non valido');
+  setLoading(false);
+  return;
+}
 
       const payload = {
         title,
         description,
         category,
+        subcategory: subcategory || null,
+        attributes,
         latitude: finalLatitude,
         longitude: finalLongitude,
         address: finalAddress,
@@ -816,7 +905,6 @@ if ((recentOpportunitiesCount || 0) >= maxAllowedOpportunities) {
         contact_email: formData.contact_email.trim() || null,
         contact_link: formData.contact_link.trim() || null,
         images: images.length > 0 ? images : [],
-        is_high_value: isHighValue,
         authenticity_declared: counterfeitRiskFlag && authenticityDeclared,
         counterfeit_risk_flag: counterfeitRiskFlag,
         counterfeit_risk_terms: counterfeitRiskTerms,
@@ -860,6 +948,8 @@ const matchesCount = await createAutomaticBountyMatches(createdOpportunity);
         category: createdOpportunity.category,
         metadata: {
           title: createdOpportunity.title,
+          subcategory: createdOpportunity.subcategory,
+          attributes: createdOpportunity.attributes,
           estimated_price: createdOpportunity.estimated_price,
           estimated_resale_value: createdOpportunity.estimated_resale_value,
           matches_count: matchesCount,
@@ -914,415 +1004,35 @@ const matchesCount = await createAutomaticBountyMatches(createdOpportunity);
   };
 
   return (
-    <div className="min-h-screen bg-background pb-20" data-testid="submit-opportunity-page">
-      <div className="sticky top-0 z-20 bg-white border-b border-gray-100">
-        <div className="flex items-center justify-between px-4 py-4">
-          <div className="flex items-center gap-3">
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="h-10 w-10 rounded-full"
-              onClick={() => navigate(-1)}
-              data-testid="back-btn"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </Button>
-            <h1 className="text-lg font-bold">Invia opportunità</h1>
-          </div>
-          <div className="flex items-center gap-2 text-sm text-gray-500">
-            Fase {step}/2
-          </div>
-        </div>
-
-        <div className="h-1 bg-gray-100">
-          <div
-            className="h-full bg-primary transition-all duration-300"
-            style={{ width: `${step * 50}%` }}
-          />
-        </div>
-      </div>
-
-      <form
-  onSubmit={handleSubmit}
-  className="mx-auto max-w-4xl space-y-6 px-4 py-6"
->
-        {step === 1 && (
-          <>
-            <div>
-              <Label className="mb-2 block">Foto</Label>
-              <div className="flex gap-3 overflow-x-auto pb-2">
-                {images.map((img, index) => (
-                  <div key={index} className="relative flex-shrink-0">
-                    <img
-                      src={img}
-                      alt={`Foto caricata ${index + 1}`}
-                      className="w-24 h-24 rounded-xl object-cover"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removeImage(index)}
-                      className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                ))}
-
-                {images.length < MAX_IMAGES && (
-                  <button
-                    type="button"
-                    onClick={() => setPhotoSourceOpen(true)}
-                    disabled={uploadingImages}
-                    className="w-24 h-24 rounded-xl border-2 border-dashed border-gray-300 flex flex-col items-center justify-center text-gray-400 hover:border-primary hover:text-primary transition-colors flex-shrink-0 disabled:opacity-50"
-                    data-testid="add-photo-btn"
-                  >
-                    {uploadingImages ? (
-                      <Loader2 className="w-6 h-6 mb-1 animate-spin" />
-                    ) : (
-                      <Camera className="w-6 h-6 mb-1" />
-                    )}
-                    <span className="text-xs">
-                      {uploadingImages ? 'Carico...' : 'Aggiungi foto'}
-                    </span>
-                  </button>
-                )}
-
-                <input
-                  ref={cameraInputRef}
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                 onChange={handleImageUpload}
-                 className="hidden"
-               />
-
-                <input
-                 ref={fileInputRef}
-                 type="file"
-                 accept="image/jpeg,image/jpg,image/png,image/webp"
-                 multiple
-                 onChange={handleImageUpload}
-                 className="hidden"
-               />
-           </div>
-
-              <p className="mt-2 text-xs text-gray-500">
-                Puoi scattare foto o caricarne fino a {MAX_IMAGES} dalla galleria. Formati: JPG, PNG, WEBP. Max {MAX_UPLOAD_IMAGE_SIZE_MB} MB per foto. Le immagini vengono compresse automaticamente.
-              </p>
-            </div>
-
-            <Dialog open={photoSourceOpen} onOpenChange={setPhotoSourceOpen}>
-  <DialogContent className="w-[calc(100%_-_32px)] max-w-sm rounded-3xl border-0 p-0 shadow-2xl">
-    <DialogHeader className="px-6 pb-3 pt-6 text-left">
-      <DialogTitle className="text-xl font-bold text-gray-900">
-        Aggiungi una foto
-      </DialogTitle>
-
-      <DialogDescription className="text-sm text-gray-500">
-        Scatta una nuova foto oppure scegli un’immagine già presente sul dispositivo.
-      </DialogDescription>
-    </DialogHeader>
-
-    <div className="space-y-3 px-4 pb-5">
-      <button
-        type="button"
-        onClick={() => {
-  setPhotoSourceOpen(false);
-
-  if (cameraInputRef.current) {
-    cameraInputRef.current.value = '';
-    cameraInputRef.current.click();
-  }
-}}
-        className="flex w-full items-center gap-4 rounded-2xl border border-orange-100 bg-orange-50 px-4 py-4 text-left transition hover:border-orange-300 hover:bg-orange-100 active:scale-[0.99]"
-      >
-        <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-orange-500 text-white shadow-sm">
-          <Camera className="h-6 w-6" />
-        </span>
-
-        <span>
-          <span className="block font-bold text-gray-900">
-            Scatta una foto
-          </span>
-
-          <span className="mt-0.5 block text-xs text-gray-500">
-            Apri la fotocamera del telefono
-          </span>
-        </span>
-      </button>
-
-      <button
-        type="button"
-        onClick={() => {
-  setPhotoSourceOpen(false);
-
-  if (fileInputRef.current) {
-    fileInputRef.current.value = '';
-    fileInputRef.current.click();
-  }
-}}
-        className="flex w-full items-center gap-4 rounded-2xl border border-gray-200 bg-white px-4 py-4 text-left transition hover:border-orange-200 hover:bg-orange-50/50 active:scale-[0.99]"
-      >
-        <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-gray-100 text-gray-700">
-          <ImagePlus className="h-6 w-6" />
-        </span>
-
-        <span>
-          <span className="block font-bold text-gray-900">
-            Scegli dalla galleria
-          </span>
-
-          <span className="mt-0.5 block text-xs text-gray-500">
-            Seleziona una o più immagini
-          </span>
-        </span>
-      </button>
-
-      <button
-        type="button"
-        onClick={() => setPhotoSourceOpen(false)}
-        className="h-11 w-full rounded-xl text-sm font-semibold text-gray-500 transition hover:bg-gray-100 hover:text-gray-900"
-      >
-        Annulla
-      </button>
-    </div>
-  </DialogContent>
-</Dialog>
-
-            <div>
-              <Label htmlFor="title">Titolo *</Label>
-              <Input
-                id="title"
-                name="title"
-                value={formData.title}
-                onChange={handleChange}
-                placeholder="Es. liquidazione negozio di elettronica"
-                className="mt-1.5 h-12 rounded-xl"
-                required
-                data-testid="title-input"
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="description">Descrizione *</Label>
-              <Textarea
-                id="description"
-                name="description"
-                value={formData.description}
-                onChange={handleChange}
-                placeholder="Descrivi l’opportunità nel dettaglio..."
-                className="mt-1.5 min-h-[120px] rounded-xl"
-                required
-                data-testid="description-input"
-              />
-            </div>
-
-            <div>
-              <Label>Categoria *</Label>
-              <Select
-                value={formData.category}
-                onValueChange={(value) =>
-                  setFormData((prev) => ({ ...prev, category: value }))
-                }
-              >
-                <SelectTrigger className="mt-1.5 h-12 rounded-xl" data-testid="category-select">
-                  <SelectValue placeholder="Seleziona categoria" />
-                </SelectTrigger>
-                <SelectContent>
-                  {categories.map((cat) => (
-                    <SelectItem key={cat.id} value={cat.id}>
-                      {cat.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <Button
-              type="button"
-              onClick={() => setStep(2)}
-              className="w-full h-12 bg-primary rounded-xl"
-              disabled={
-                uploadingImages ||
-                !formData.title.trim() ||
-                !formData.description.trim() ||
-                !formData.category
-              }
-              data-testid="next-step-btn"
-            >
-              Continua
-            </Button>
-          </>
-        )}
-
-        {step === 2 && (
-          <>
-            <div>
-              <Label>
-                Posizione {OPTIONAL_LOCATION_CATEGORIES.includes(formData.category) ? '(facoltativa)' : '*'}
-              </Label>
-              <div className="mt-1.5 space-y-2">
-                <Input
-                  name="address"
-                  value={formData.address}
-                  onChange={handleChange}
-                  placeholder="Inserisci indirizzo o nome della zona"
-                  className="h-12 rounded-xl"
-                  data-testid="address-input"
-                />
-
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full h-11 rounded-xl"
-                  onClick={useCurrentLocation}
-                  data-testid="use-location-btn"
-                >
-                  <MapPin className="w-4 h-4 mr-2" />
-                  {positionConfirmed ? 'Posizione attuale selezionata' : 'Usa posizione attuale'}
-                </Button>
-
-                <p className="text-xs text-gray-500">
-                  {OPTIONAL_LOCATION_CATEGORIES.includes(formData.category)
-  ? 'Per elettronica, abbigliamento, casa e arredamento, motori e altro la posizione è facoltativa. Se la inserisci, l’annuncio potrà comparire anche sulla mappa.'
-  : 'Devi inserire un indirizzo oppure usare la posizione attuale.'}
-                </p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="estimated_price">
-                  <span className="mr-1 inline text-sm font-semibold">€</span>
-                  Prezzo richiesto
-                </Label>
-                <Input
-                  id="estimated_price"
-                  name="estimated_price"
-                  type="number"
-                  min="0"
-                  value={formData.estimated_price}
-                  onChange={handleChange}
-                  placeholder="0"
-                  className="mt-1.5 h-12 rounded-xl"
-                  data-testid="price-input"
-                />
-              </div>
-              <div>
-                <Label htmlFor="estimated_resale_value">
-                  <span className="mr-1 inline text-sm font-semibold">€</span>
-                  Valore rivendita
-                </Label>
-                <Input
-                  id="estimated_resale_value"
-                  name="estimated_resale_value"
-                  type="number"
-                  min="0"
-                  value={formData.estimated_resale_value}
-                  onChange={handleChange}
-                  placeholder="0"
-                  className="mt-1.5 h-12 rounded-xl"
-                  data-testid="resale-input"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <Label>Informazioni di contatto</Label>
-              <div className="relative">
-                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                <Input
-                  name="contact_phone"
-                  value={formData.contact_phone}
-                  onChange={handleChange}
-                  placeholder="Numero di telefono"
-                  className="pl-10 h-12 rounded-xl"
-                  data-testid="phone-input"
-                />
-              </div>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                <Input
-                  name="contact_email"
-                  type="email"
-                  value={formData.contact_email}
-                  onChange={handleChange}
-                  placeholder="Indirizzo email"
-                  className="pl-10 h-12 rounded-xl"
-                  data-testid="email-input"
-                />
-              </div>
-              <div className="relative">
-                <LinkIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                <Input
-                  name="contact_link"
-                  value={formData.contact_link}
-                  onChange={handleChange}
-                  placeholder="Sito web o link annuncio"
-                  className="pl-10 h-12 rounded-xl"
-                  data-testid="link-input"
-                />
-              </div>
-            </div>
-
-            {hasCounterfeitRisk && (
-  <div className="rounded-xl border border-amber-300 bg-amber-50 p-4">
-    <p className="font-semibold text-amber-900">
-      Attenzione: possibile rischio di contraffazione
-    </p>
-    <p className="mt-1 text-sm text-amber-800">
-      DealRadar ha rilevato termini che possono indicare un prodotto non autentico.
-      La vendita o segnalazione di prodotti contraffatti non è consentita.
-    </p>
-    <label className="mt-4 flex cursor-pointer items-start gap-3">
-      <input
-        type="checkbox"
-        checked={authenticityDeclared}
-        onChange={(e) => setAuthenticityDeclared(e.target.checked)}
-        className="mt-1 h-4 w-4"
-        data-testid="authenticity-declaration-checkbox"
-      />
-      <span className="text-sm font-medium text-amber-950">
-        Confermo che il prodotto è autentico e che le informazioni inserite sono veritiere.
-      </span>
-    </label>
-  </div>
-)}
-
-            <div className="flex gap-3">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setStep(1)}
-                className="flex-1 h-12 rounded-xl"
-                data-testid="back-step-btn"
-              >
-                Indietro
-              </Button>
-              <Button
-                type="submit"
-                className="flex-1 h-12 bg-primary rounded-xl"
-                disabled={loading || authLoading || uploadingImages}
-                data-testid="submit-btn"
-              >
-                {loading ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Invio in corso...
-                  </>
-                ) : (
-                  <>
-                    <Check className="w-4 h-4 mr-2" />
-                    Invia
-                  </>
-                )}
-              </Button>
-            </div>
-          </>
-        )}
-      </form>
-    </div>
+    <OpportunityWizard
+      step={step}
+      setStep={setStep}
+      selectedEntry={selectedWizardEntry}
+      onSelectEntry={handleWizardEntrySelect}
+      onSelectSubcategory={handleWizardSubcategorySelect}
+      formData={formData}
+      setFormData={setFormData}
+      images={images}
+      uploadingImages={uploadingImages}
+      loading={loading}
+      authLoading={authLoading}
+      photoSourceOpen={photoSourceOpen}
+      setPhotoSourceOpen={setPhotoSourceOpen}
+      cameraInputRef={cameraInputRef}
+      fileInputRef={fileInputRef}
+      onImageUpload={handleImageUpload}
+      onRemoveImage={removeImage}
+      onChange={handleChange}
+      useCurrentLocation={useCurrentLocation}
+      positionConfirmed={positionConfirmed}
+      authenticityDeclared={authenticityDeclared}
+      setAuthenticityDeclared={setAuthenticityDeclared}
+      hasCounterfeitRisk={hasCounterfeitRisk}
+      onSubmit={handleSubmit}
+      onExit={() => navigate(-1)}
+      maxImages={MAX_IMAGES}
+      maxUploadMb={MAX_UPLOAD_IMAGE_SIZE_MB}
+    />
   );
 };
 

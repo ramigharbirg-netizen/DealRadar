@@ -4,7 +4,6 @@ import {
   Phone,
   Mail,
   ExternalLink,
-  TrendingUp,
   Clock,
   Heart,
   MessageCircle,
@@ -14,7 +13,6 @@ import {
   Share2,
   User,
   Navigation,
-  Star,
   Euro,
   X,
   Flag,
@@ -235,24 +233,6 @@ export const OpportunityDetail = ({ opportunity, open, onClose }) => {
   const category = useMemo(() => {
     return categoryConfig[opportunity?.category] || categoryConfig.user_reported;
   }, [opportunity?.category]);
-
-  const profit = useMemo(() => {
-    if (
-      opportunity?.estimated_resale_value === null ||
-      opportunity?.estimated_resale_value === undefined ||
-      opportunity?.estimated_price === null ||
-      opportunity?.estimated_price === undefined
-    ) {
-      return null;
-    }
-
-    const resale = Number(opportunity.estimated_resale_value);
-    const price = Number(opportunity.estimated_price);
-
-    if (Number.isNaN(resale) || Number.isNaN(price)) return null;
-
-    return resale - price;
-  }, [opportunity?.estimated_resale_value, opportunity?.estimated_price]);
 
   const goToPreviousImage = useCallback(() => {
     if (images.length <= 1) return;
@@ -1032,13 +1012,6 @@ if (existingConversation) {
                   </Badge>
                 )}
 
-                {opportunity.is_high_value && (
-                  <Badge className="border-0 bg-yellow-400 text-yellow-900">
-                    <Star className="mr-1 h-3 w-3" />
-                    Alto valore
-                  </Badge>
-                )}
-
                 {Number(opportunity.estimated_price) === 0 && (
                   <Badge className="border-0 bg-green-500 text-white">GRATIS</Badge>
                 )}
@@ -1107,7 +1080,7 @@ if (existingConversation) {
                       <div>
                         <p className="mb-1 flex items-center gap-1 text-xs text-gray-500">
                           <Euro className="h-3 w-3" />
-                          Valore rivendita
+                          Valore stimato
                         </p>
                         <p className="text-lg font-bold text-blue-600">
                           {formatPrice(opportunity.estimated_resale_value)}
@@ -1115,20 +1088,6 @@ if (existingConversation) {
                       </div>
                     )}
                 </div>
-
-                {profit !== null && profit > 0 && (
-                  <div className="border-t border-gray-200 pt-2">
-                    <div className="flex items-center justify-between">
-                      <p className="text-sm font-medium text-gray-600">Profitto stimato</p>
-                      <div className="flex items-center gap-2">
-                        <TrendingUp className="h-4 w-4 text-green-500" />
-                        <span className="text-lg font-bold text-green-600">
-                          {formatPrice(profit)}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                )}
               </div>
 
               {images.length > 0 && (

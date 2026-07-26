@@ -1,6 +1,5 @@
 import React from 'react';
 import {
-  TrendingUp,
   Clock,
   CheckCircle,
   AlertTriangle,
@@ -11,21 +10,7 @@ import {
 import { Badge } from './ui/badge';
 import { Card, CardContent } from './ui/card';
 import { useNavigate } from 'react-router-dom';
-
-const categoryConfig = {
-  store_liquidation: { name: 'Liquidazione negozio', color: 'bg-green-500' },
-  product_stock: { name: 'Stock prodotti', color: 'bg-amber-500' },
-  equipment: { name: 'Attrezzatura', color: 'bg-blue-500' },
-  business_sale: { name: 'Vendita attività', color: 'bg-purple-500' },
-  electronics: { name: 'Elettronica', color: 'bg-cyan-500' },
-  clothing: { name: 'Abbigliamento', color: 'bg-pink-500' },
-  home: { name: 'Casa e arredamento', color: 'bg-teal-500' },
-  vehicles: { name: 'Motori', color: 'bg-slate-600' },
-  other: { name: 'Altro', color: 'bg-gray-500' },
-  auctions: { name: 'Aste', color: 'bg-red-500' },
-  user_reported: { name: 'Segnalazione utente', color: 'bg-orange-500' },
-  free_deals: { name: 'Gratis', color: 'bg-green-600' },
-};
+import { getCategoryById } from '../data/categories';
 
 const formatPrice = (price) => {
   if (price === null || price === undefined) return null;
@@ -59,24 +44,15 @@ const timeAgo = (dateString) => {
 export const OpportunityCard = ({ opportunity, onClick, compact = false }) => { 
   const navigate = useNavigate();
 
-  const category =
-    categoryConfig[opportunity.category] || categoryConfig.user_reported;
+  const categoryFromCatalog = getCategoryById(opportunity.category);
+
+const category = {
+  name: categoryFromCatalog?.name || 'Segnalazione utente',
+  color: categoryFromCatalog?.chipColor || 'bg-orange-500',
+};
 
   const verifiedCount = Number(opportunity.verified_count || 0);
   const isVerified = opportunity.is_verified === true;
-
-  const profit =
-    opportunity.estimated_resale_value !== null &&
-    opportunity.estimated_resale_value !== undefined &&
-    opportunity.estimated_price !== null &&
-    opportunity.estimated_price !== undefined
-      ? opportunity.estimated_resale_value - opportunity.estimated_price
-      : null;
-
-  const profitPercent =
-    profit && opportunity.estimated_price
-      ? Math.round((profit / opportunity.estimated_price) * 100)
-      : null;
 
   if (compact) {
     return (
@@ -136,6 +112,12 @@ export const OpportunityCard = ({ opportunity, onClick, compact = false }) => {
                 </p>
               )}
             </div>
+            {opportunity.estimated_resale_value !== null &&
+  opportunity.estimated_resale_value !== undefined && (
+    <p className="mt-1 text-[11px] font-medium text-gray-500">
+      Valore stimato: {formatPrice(opportunity.estimated_resale_value)}
+    </p>
+  )}
           </div>
         </div>
       </div>
@@ -171,13 +153,6 @@ export const OpportunityCard = ({ opportunity, onClick, compact = false }) => {
           <Badge className={`${category.color} border-0 px-2 py-0.5 text-[10px] font-bold text-white`}>
             {category.name}
           </Badge>
-
-          {profitPercent && profitPercent > 0 && (
-            <div className="flex items-center gap-1 whitespace-nowrap text-[11px] font-black text-green-600">
-              <TrendingUp className="h-3 w-3" />
-              +{profitPercent}%
-            </div>
-          )}
         </div>
 
         <h3 className="line-clamp-1 text-[14px] font-black leading-tight text-gray-950">
@@ -189,23 +164,32 @@ export const OpportunityCard = ({ opportunity, onClick, compact = false }) => {
 </p>
 
 <div className="mt-0.5 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-3">
-  {opportunity.estimated_price === 0 ? (
-    <p className="text-[15px] font-black text-green-600">
-      Gratis
-    </p>
-  ) : (
-    <p className="text-[15px] font-black text-gray-950">
-      {formatPrice(opportunity.estimated_price) || '—'}
-    </p>
-  )}
+          <div className="min-w-0">
+  <div className="flex items-center gap-3">
+    {opportunity.estimated_price === 0 ? (
+      <p className="text-[15px] font-black text-green-600">
+        Gratis
+      </p>
+    ) : (
+      <p className="text-[15px] font-black text-gray-950">
+        {formatPrice(opportunity.estimated_price) || '—'}
+      </p>
+    )}
 
-  {opportunity.distance_km !== undefined && (
-    <div className="flex items-center gap-1 text-[11px] font-bold text-primary">
-      <Navigation className="h-3 w-3" />
-      {formatDistance(opportunity.distance_km)}
-    </div>
-  )}
+    {opportunity.distance_km !== undefined && (
+      <div className="flex items-center gap-1 text-[11px] font-bold text-primary">
+        <Navigation className="h-3 w-3" />
+        {formatDistance(opportunity.distance_km)}
+      </div>
+    )}
+  </div>
+
+  {opportunity.estimated_resale_value !== null &&
+    opportunity.estimated_resale_value !== undefined && (
+      <p className="mt-0.5 text-[11px] font-medium text-gray-500">
+        Valore stimato: {formatPrice(opportunity.estimated_resale_value)}
+      </p>
+    )}
 </div>
 
           <div className="flex flex-col items-end gap-1 text-[11px] text-gray-500">

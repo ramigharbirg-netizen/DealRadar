@@ -1,28 +1,12 @@
 import React from 'react';
 import { Store, Package, Wrench, Building2, Gavel, Star, Layers, Gift, Smartphone, Shirt, Armchair, Car, Boxes } from 'lucide-react';
 import { Button } from './ui/button';
-
-// Categorie tradotte in italiano
-const categories = [
-  { id: 'all', name: 'Tutte', icon: Layers, color: 'bg-gray-500' },
-  { id: 'store_liquidation', name: 'Liquidazioni', icon: Store, color: 'bg-green-500' },
-  { id: 'product_stock', name: 'Stock', icon: Package, color: 'bg-amber-500' },
-  { id: 'equipment', name: 'Attrezzatura', icon: Wrench, color: 'bg-blue-500' },
-  { id: 'business_sale', name: 'Attività', icon: Building2, color: 'bg-purple-500' },
-  { id: 'electronics', name: 'Elettronica', icon: Smartphone, color: 'bg-cyan-500' },
-  { id: 'clothing', name: 'Abbigliamento', icon: Shirt, color: 'bg-pink-500' },
-  { id: 'home', name: 'Casa e arredamento', icon: Armchair, color: 'bg-teal-500' },
-  { id: 'vehicles', name: 'Motori', icon: Car, color: 'bg-slate-600' },
-  { id: 'other', name: 'Altro', icon: Boxes, color: 'bg-gray-500' },
-  { id: 'auctions', name: 'Aste', icon: Gavel, color: 'bg-red-500' },
-  { id: 'user_reported', name: 'Segnalazioni', icon: Star, color: 'bg-orange-500' },
-  { id: 'free_deals', name: 'Gratis', icon: Gift, color: 'bg-green-600' },
-];
+import { categoryFilterOptions } from '../data/categories';
 
 export const CategoryFilter = ({ selected, onSelect }) => {
   return (
     <div className="filter-chips no-scrollbar" data-testid="category-filter">
-      {categories.map((cat) => {
+      {categoryFilterOptions.map((cat) => {
         const Icon = cat.icon;
         const isSelected = selected === cat.id;
         
@@ -33,14 +17,14 @@ export const CategoryFilter = ({ selected, onSelect }) => {
             size="sm"
             className={`flex-shrink-0 rounded-full h-8 px-3 gap-2 transition-all ${
               isSelected 
-                ? `${cat.color} text-white border-0 shadow-md` 
+                ? `${cat.chipColor} text-white border-0 shadow-md` 
                 : 'bg-white border-gray-200 text-gray-700 hover:border-gray-300'
             }`}
             onClick={() => onSelect(cat.id)}
             data-testid={`category-${cat.id}`}
           >
             <Icon className="w-3.5 h-3.5" />
-            <span className="text-xs font-semibold">{cat.name}</span>
+            <span className="text-xs font-semibold">{cat.shortName}</span>
           </Button>
         );
       })}

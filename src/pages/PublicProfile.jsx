@@ -5,7 +5,6 @@ import {
   Star,
   ShieldCheck,
   MapPin,
-  TrendingUp,
   ChevronLeft,
 } from 'lucide-react';
 import { Card, CardContent } from '../components/ui/card';
@@ -183,7 +182,7 @@ const PublicProfile = () => {
               />
 
               <StatItem
-                icon={<TrendingUp className="w-4 h-4 text-emerald-500" />}
+                icon={<ShieldCheck className="w-4 h-4 text-green-500" />}
                 value={profile.verified_deals || 0}
                 label="Verificate"
               />

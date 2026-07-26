@@ -13,20 +13,7 @@ import { useLocation } from '../contexts/LocationContext';
 import { supabase } from '../lib/supabase';
 import { toast } from 'sonner';
 import { trackEvent } from '../lib/analytics';
-
-const categories = [
-  { id: 'store_liquidation', name: 'Liquidazione negozio' },
-  { id: 'product_stock', name: 'Stock prodotti' },
-  { id: 'equipment', name: 'Attrezzature e macchinari' },
-  { id: 'business_sale', name: 'Attività in vendita' },
-  { id: 'electronics', name: 'Elettronica' },
-  { id: 'clothing', name: 'Abbigliamento' },
-  { id: 'home', name: 'Casa e arredamento' },
-  { id: 'vehicles', name: 'Motori' },
-  { id: 'other', name: 'Altro' },
-  { id: 'auctions', name: 'Aste e fallimenti' },
-  { id: 'user_reported', name: 'Qualsiasi / Altro' },
-];
+import { categories } from '../data/categories';
 
 export const CreateBounty = () => {
   const { user } = useAuth();

@@ -1,0 +1,111 @@
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\components\CategoryFilter.jsx:4: import { categoryFilterOptions } from '../data/categories';
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\components\MapPreviewCard.jsx:3: import { getCategoryById } from '../data/categories';
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\components\OpportunityCard.jsx:13: import { getCategoryById } from '../data/categories';
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\components\OpportunityCategoryFields.jsx:15: getSubcategories,
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\components\OpportunityCategoryFields.jsx:16: getSubcategoryAttributes,
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\components\OpportunityCategoryFields.jsx:17: } from '../data/categories';
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\components\OpportunityCategoryFields.jsx:21: const OpportunityCategoryFields = ({
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\components\OpportunityCategoryFields.jsx:23: subcategoryId,
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\components\OpportunityCategoryFields.jsx:25: onSubcategoryChange,
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\components\OpportunityCategoryFields.jsx:31: const subcategories = useMemo(() => {
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\components\OpportunityCategoryFields.jsx:33: return getSubcategories(categoryId);
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\components\OpportunityCategoryFields.jsx:37: if (!categoryId || !subcategoryId) return [];
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\components\OpportunityCategoryFields.jsx:39: return getSubcategoryAttributes(categoryId, subcategoryId);
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\components\OpportunityCategoryFields.jsx:40: }, [categoryId, subcategoryId]);
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\components\OpportunityCategoryFields.jsx:42: const selectedSubcategoryExists = useMemo(() => {
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\components\OpportunityCategoryFields.jsx:43: if (!subcategoryId) return false;
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\components\OpportunityCategoryFields.jsx:45: return subcategories.some(
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\components\OpportunityCategoryFields.jsx:46: (subcategory) => subcategory.id === subcategoryId
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\components\OpportunityCategoryFields.jsx:48: }, [subcategories, subcategoryId]);
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\components\OpportunityCategoryFields.jsx:64: const handleSubcategoryChange = (value) => {
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\components\OpportunityCategoryFields.jsx:67: onSubcategoryChange?.(value);
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\components\OpportunityCategoryFields.jsx:118: {subcategories.length > 0 && (
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\components\OpportunityCategoryFields.jsx:120: <Label htmlFor="subcategory">Sottocategoria *</Label>
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\components\OpportunityCategoryFields.jsx:123: value={selectedSubcategoryExists ? subcategoryId : ''}
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\components\OpportunityCategoryFields.jsx:124: onValueChange={handleSubcategoryChange}
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\components\OpportunityCategoryFields.jsx:128: id="subcategory"
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\components\OpportunityCategoryFields.jsx:130: data-testid="subcategory-select"
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\components\OpportunityCategoryFields.jsx:136: {subcategories.map((subcategory) => (
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\components\OpportunityCategoryFields.jsx:138: key={subcategory.id}
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\components\OpportunityCategoryFields.jsx:139: value={subcategory.id}
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\components\OpportunityCategoryFields.jsx:141: {subcategory.name}
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\components\OpportunityCategoryFields.jsx:149: {subcategoryId && attributes.length > 0 && (
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\components\OpportunityCategoryFields.jsx:325: export default OpportunityCategoryFields;
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\data\categories.js:19: export const categories = [
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\data\categories.js:28: subcategories: [
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\data\categories.js:257: subcategories: [
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\data\categories.js:444: subcategories: [
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\data\categories.js:624: subcategories: [
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\data\categories.js:647: subcategories: [
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\data\categories.js:946: subcategories: [
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\data\categories.js:1115: subcategories: [
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\data\categories.js:1436: subcategories: [
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\data\categories.js:1649: subcategories: [
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\data\categories.js:1862: subcategories: [
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\data\categories.js:1984: subcategories: [
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\data\categories.js:2031: subcategories: [],
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\data\categories.js:2042: subcategories: [
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\data\categories.js:2061: ].map((subcategory) => ({
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\data\categories.js:2062: ...subcategory,
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\data\categories.js:2096: subcategories: [
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\data\categories.js:2163: subcategories: [],
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\data\categories.js:2176: ...categories,
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\data\categories.js:2180: categories.map((category) => [category.id, category])
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\data\categories.js:2187: export const getSubcategories = (categoryId) => {
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\data\categories.js:2188: return getCategoryById(categoryId)?.subcategories || [];
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\data\categories.js:2191: export const getSubcategoryById = (categoryId, subcategoryId) => {
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\data\categories.js:2193: getSubcategories(categoryId).find(
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\data\categories.js:2194: (subcategory) => subcategory.id === subcategoryId
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\data\categories.js:2261: export const getSubcategoryAttributes = (
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\data\categories.js:2263: subcategoryId
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\data\categories.js:2265: const subcategory = getSubcategoryById(
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\data\categories.js:2267: subcategoryId
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\data\categories.js:2270: if (!subcategory) {
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\data\categories.js:2280: if (Array.isArray(subcategory.attributes)) {
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\data\categories.js:2281: return subcategory.attributes
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\data\categories.js:2294: const legacyLabel = subcategory.thirdLevelLabel || '';
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\data\categories.js:2295: const legacyOptions = subcategory.thirdLevelOptions || [];
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\data\categories.js:2304: type: subcategory.thirdLevelMultiple
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\data\categories.js:2307: required: Boolean(subcategory.thirdLevelRequired),
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\data\categories.js:2308: multiple: Boolean(subcategory.thirdLevelMultiple),
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\data\categories.js:2317: subcategoryId
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\data\categories.js:2320: getSubcategoryAttributes(categoryId, subcategoryId)[0];
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\data\categories.js:2341: export const optionalLocationCategoryIds = categories
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\pages\CreateBounty.jsx:16: import { categories } from '../data/categories';
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\pages\CreateBounty.jsx:213: {categories.map((cat) => (
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\pages\EditOpportunity.jsx:18: import { categories } from '../data/categories';
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\pages\EditOpportunity.jsx:311: {categories.map((cat) => (
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\pages\MapView.jsx:39: import { categories, getCategoryById } from '../data/categories';
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\pages\MapView.jsx:977: {categories.map((config) => {
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\pages\MapView.jsx:1124: {categories.map((config) => {
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\pages\Profile.jsx:45: import { categories } from '../data/categories';
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\pages\Profile.jsx:83: const [notificationCategories, setNotificationCategories] = useState([]);
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\pages\Profile.jsx:204: setNotificationCategories(parsed.notificationCategories || []);
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\pages\Profile.jsx:427: notificationCategories,
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\pages\Profile.jsx:442: setNotificationCategories((prev) =>
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\pages\Profile.jsx:582: {categories.map((cat) => (
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\pages\Profile.jsx:586: checked={notificationCategories.includes(cat.id)}
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\pages\SubmitOpportunity.jsx:40: categories,
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\pages\SubmitOpportunity.jsx:41: getSubcategories,
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\pages\SubmitOpportunity.jsx:42: getSubcategoryAttributes,
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\pages\SubmitOpportunity.jsx:44: } from "../data/categories";
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\pages\SubmitOpportunity.jsx:45: import OpportunityCategoryFields from '../components/OpportunityCategoryFields';
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\pages\SubmitOpportunity.jsx:234: subcategoryId,
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\pages\SubmitOpportunity.jsx:237: if (!categoryId || !subcategoryId || !rawAttributes || typeof rawAttributes !== 'object') {
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\pages\SubmitOpportunity.jsx:241: const definitions = getSubcategoryAttributes(categoryId, subcategoryId);
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\pages\SubmitOpportunity.jsx:297: subcategory: '',
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\pages\SubmitOpportunity.jsx:325: const selectedCategorySubcategories = formData.category
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\pages\SubmitOpportunity.jsx:326: ? getSubcategories(formData.category)
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\pages\SubmitOpportunity.jsx:329: const requiresSubcategory = selectedCategorySubcategories.length > 0;
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\pages\SubmitOpportunity.jsx:733: const subcategory = formData.subcategory;
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\pages\SubmitOpportunity.jsx:736: subcategory,
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\pages\SubmitOpportunity.jsx:747: if (getSubcategories(category).length > 0 && !subcategory) {
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\pages\SubmitOpportunity.jsx:864: subcategory: subcategory || null,
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\pages\SubmitOpportunity.jsx:918: subcategory: createdOpportunity.subcategory,
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\pages\SubmitOpportunity.jsx:1186: subcategory: '',
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\pages\SubmitOpportunity.jsx:1195: {categories.map((cat) => (
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\pages\SubmitOpportunity.jsx:1204: <OpportunityCategoryFields
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\pages\SubmitOpportunity.jsx:1206: subcategoryId={formData.subcategory}
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\pages\SubmitOpportunity.jsx:1208: onSubcategoryChange={(value) =>
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\pages\SubmitOpportunity.jsx:1211: subcategory: value,
+C:\Users\utente\Desktop\Codice DealRadar\dealradar\src\pages\SubmitOpportunity.jsx:1233: (requiresSubcategory && !formData.subcategory)

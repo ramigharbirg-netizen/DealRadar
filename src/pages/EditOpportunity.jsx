@@ -15,21 +15,7 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { toast } from 'sonner';
-
-const categories = [
-  { id: 'store_liquidation', name: 'Liquidazione negozio' },
-  { id: 'product_stock', name: 'Stock prodotti' },
-  { id: 'equipment', name: 'Attrezzature e macchinari' },
-  { id: 'business_sale', name: 'Attività in vendita' },
-  { id: 'electronics', name: 'Elettronica' },
-  { id: 'clothing', name: 'Abbigliamento' },
-  { id: 'home', name: 'Casa e arredamento' },
-  { id: 'vehicles', name: 'Motori' },
-  { id: 'other', name: 'Altro' },
-  { id: 'auctions', name: 'Aste e fallimenti' },
-  { id: 'user_reported', name: 'Segnalata dagli utenti' },
-  { id: 'free_deals', name: 'Occasioni gratis' },
-];
+import { categories } from '../data/categories';
 
 const EditOpportunity = () => {
   const { id } = useParams();
@@ -352,16 +338,27 @@ const EditOpportunity = () => {
           </div>
 
           <div className="space-y-2">
-            <Label>Valore rivendita</Label>
-            <Input
-              type="number"
-              value={formData.estimated_resale_value}
-              onChange={(e) =>
-                updateField('estimated_resale_value', e.target.value)
-              }
-              placeholder="0"
-            />
-          </div>
+  <Label>
+    Valore stimato
+    <span className="ml-1 text-xs font-normal text-gray-500">
+      (facoltativo)
+    </span>
+  </Label>
+
+  <Input
+    type="number"
+    min="0"
+    value={formData.estimated_resale_value}
+    onChange={(e) =>
+      updateField('estimated_resale_value', e.target.value)
+    }
+    placeholder="0"
+  />
+
+  <p className="text-xs text-gray-500">
+    Se non conosci il valore, puoi lasciare questo campo vuoto.
+  </p>
+</div>
         </div>
 
         <div className="space-y-2">

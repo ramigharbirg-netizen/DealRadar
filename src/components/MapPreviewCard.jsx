@@ -1,24 +1,6 @@
 import React from 'react';
-import { MapPin, Navigation, TrendingUp } from 'lucide-react';
-
-const categoryConfig = {
-  store_liquidation: { name: 'Liquidazioni', color: 'bg-green-500' },
-  product_stock: { name: 'Stock', color: 'bg-amber-500' },
-  equipment: { name: 'Attrezzature', color: 'bg-blue-500' },
-  business_sale: { name: 'Attività', color: 'bg-purple-500' },
-  electronics: { name: 'Elettronica', color: 'bg-cyan-500' },
-  clothing: { name: 'Abbigliamento', color: 'bg-pink-500' },
-  home: { name: 'Casa e arredamento', color: 'bg-teal-500' },
-  vehicles: { name: 'Motori', color: 'bg-slate-600' },
-  other: { name: 'Altro', color: 'bg-gray-500' },
-  auctions: { name: 'Aste', color: 'bg-red-500' },
-  user_reported: {
-    name: 'Segnalazione',
-    color: 'bg-orange-500',
-  },
-  free_deals: { name: 'Gratis', color: 'bg-green-600' },
-  objects: { name: 'Oggetti', color: 'bg-indigo-500' },
-};
+import { MapPin, Navigation } from 'lucide-react';
+import { getCategoryById } from '../data/categories';
 
 const formatPrice = (value) => {
   const price = Number(value);
@@ -53,24 +35,22 @@ export const MapPreviewCard = ({ opportunity, onViewDetails }) => {
     return null;
   }
 
-  const category =
-    categoryConfig[opportunity.category] ||
-    categoryConfig.user_reported;
+  const categoryData =
+  getCategoryById(opportunity.category) ||
+  getCategoryById('user_reported');
+
+const category = {
+  name: categoryData?.shortName || categoryData?.name || 'Segnalazione',
+  color: categoryData?.chipColor || 'bg-orange-500',
+};
 
   const price = Number(opportunity.estimated_price || 0);
-  const resaleValue = Number(
-    opportunity.estimated_resale_value || 0
-  );
 
-  const profit =
-    resaleValue > price
-      ? resaleValue - price
-      : null;
-
-  const profitPercent =
-    profit && price > 0
-      ? Math.round((profit / price) * 100)
-      : null;
+const estimatedValue =
+  opportunity.estimated_resale_value !== null &&
+  opportunity.estimated_resale_value !== undefined
+    ? Number(opportunity.estimated_resale_value)
+    : null;
 
   const distance = formatDistance(opportunity.distance_km);
   const firstImage = opportunity.images?.[0] || null;
@@ -134,28 +114,21 @@ export const MapPreviewCard = ({ opportunity, onViewDetails }) => {
             </p>
           </div>
 
-          {profit && profit > 0 && (
-            <div className="min-w-0 text-right">
-              <p className="text-[9px] font-medium uppercase tracking-wide text-gray-400">
-                Profitto
-              </p>
+          {estimatedValue !== null && (
+  <div className="min-w-0 text-right">
+    <p className="text-[9px] font-medium uppercase tracking-wide text-gray-400">
+      Valore stimato
+    </p>
 
-              <p className="truncate text-[14px] font-extrabold leading-none text-green-600">
-                +{formatPrice(profit)}
-              </p>
-            </div>
-          )}
+    <p className="truncate text-[14px] font-extrabold leading-none text-gray-700">
+      {formatPrice(estimatedValue)}
+    </p>
+  </div>
+)}
         </div>
 
         <div className="mt-2 flex items-center justify-between gap-2">
-          {profitPercent && profitPercent > 0 ? (
-            <span className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-1 text-[10px] font-bold text-green-700">
-              <TrendingUp className="h-3 w-3" />
-              +{profitPercent}%
-            </span>
-          ) : (
-            <span />
-          )}
+          <span />
 
           <button
             type="button"

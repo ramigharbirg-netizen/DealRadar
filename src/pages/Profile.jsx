@@ -13,7 +13,6 @@ import {
   Trophy,
   Star,
   Settings,
-  TrendingUp,
   ShieldCheck,
   Shield,
   Camera,
@@ -43,21 +42,7 @@ import { supabase } from '../lib/supabase';
 import { OpportunityCard } from '../components/OpportunityCard';
 import { OpportunityDetail } from '../components/OpportunityDetail';
 import { toast } from 'sonner';
-
-const categories = [
-  { id: 'store_liquidation', name: 'Liquidazione negozio' },
-  { id: 'product_stock', name: 'Stock prodotti' },
-  { id: 'equipment', name: 'Attrezzature' },
-  { id: 'business_sale', name: 'Attività in vendita' },
-  { id: 'electronics', name: 'Elettronica' },
-  { id: 'clothing', name: 'Abbigliamento' },
-  { id: 'home', name: 'Casa e arredamento' },
-  { id: 'vehicles', name: 'Motori' },
-  { id: 'other', name: 'Altro' },
-  { id: 'auctions', name: 'Aste' },
-  { id: 'user_reported', name: 'Segnalate dagli utenti' },
-  { id: 'free_deals', name: 'Occasioni gratis' },
-];
+import { categories } from '../data/categories';
 
 const createPasswordCheckClient = () => {
   const supabaseUrl = process.env.REACT_APP_SUPABASE_URL;
@@ -187,30 +172,19 @@ export const Profile = () => {
 
       const hiddenDeals = Number(profileData?.hidden_deals) || 0;
 
-      const highValueDeals = opportunities.filter((opp) => opp.is_high_value).length;
-
       const freeDeals = opportunities.filter(
         (opp) => Number(opp.estimated_price) === 0
       ).length;
 
-      const totalEstimatedProfit = opportunities.reduce((sum, opp) => {
-        const price = Number(opp.estimated_price);
-        const resale = Number(opp.estimated_resale_value);
-
-        if (Number.isNaN(price) || Number.isNaN(resale)) return sum;
-
-        return sum + Math.max(resale - price, 0);
-      }, 0);
-
       const points =
-        Number(profileData?.points) ||
-        totalDeals * 5 + verifiedDeals * 10 + highValueDeals * 20 - hiddenDeals * 10;
+  Number(profileData?.points) ||
+  totalDeals * 5 +
+  verifiedDeals * 10 -
+  hiddenDeals * 10;
 
       setStats({
         total_deals: totalDeals,
-        high_value_deals: highValueDeals,
         free_deals: freeDeals,
-        estimated_profit: totalEstimatedProfit,
         points,
         reputation: Number(profileData?.trust_score) || totalDeals,
         opportunities_posted: totalDeals,
@@ -235,9 +209,7 @@ export const Profile = () => {
 
       setStats({
         total_deals: 0,
-        high_value_deals: 0,
         free_deals: 0,
-        estimated_profit: 0,
         points: 0,
         reputation: 0,
         opportunities_posted: 0,
@@ -716,7 +688,7 @@ setLeaderboard(cleanLeaderboard);
                 label="Pubblicate"
               />
               <StatItem
-                icon={<TrendingUp className="w-4 h-4 text-green-500" />}
+                icon={<ShieldCheck className="w-4 h-4 text-green-500" />}
                 value={stats?.verified_deals || 0}
                 label="Verificate"
               />
@@ -738,7 +710,6 @@ setLeaderboard(cleanLeaderboard);
             <div className="space-y-2 text-sm">
               <PointsRow label="Invia opportunità" value="+5 pt" />
               <PointsRow label="Opportunità confermata" value="+10 pt" />
-              <PointsRow label="Alto valore verificato" value="+20 pt" />
             </div>
 
             <div className="mt-3 pt-3 border-t border-primary/10">

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { Clock, TrendingUp, RefreshCw, Sparkles, MapPin } from 'lucide-react';
+import { Clock, RefreshCw, Sparkles, MapPin } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { useLocation } from '../contexts/LocationContext';
@@ -47,15 +47,6 @@ const calculateOpportunityScore = (opp) => {
 
   if (opp.is_verified) {
     score += 30;
-  }
-
-  if (opp.estimated_resale_value != null && opp.estimated_price != null) {
-    const profit =
-      Number(opp.estimated_resale_value) - Number(opp.estimated_price);
-
-    if (!Number.isNaN(profit)) {
-      score += Math.min(Math.max(profit / 1000, 0), 50);
-    }
   }
 
   score -= Number(opp.reports || 0) * 15;
@@ -221,28 +212,6 @@ export const FeedView = () => {
       return [...opportunities].sort(
         (a, b) => calculateOpportunityScore(b) - calculateOpportunityScore(a)
       );
-    }
-
-    if (sortBy === 'profit') {
-      return [...opportunities]
-        .filter(
-          (opp) =>
-            opp.estimated_resale_value != null &&
-            opp.estimated_price != null &&
-            !Number.isNaN(Number(opp.estimated_resale_value)) &&
-            !Number.isNaN(Number(opp.estimated_price))
-        )
-        .sort((a, b) => {
-          const profitA =
-            Number(a.estimated_resale_value || 0) -
-            Number(a.estimated_price || 0);
-
-          const profitB =
-            Number(b.estimated_resale_value || 0) -
-            Number(b.estimated_price || 0);
-
-          return profitB - profitA;
-        });
     }
 
     if (sortBy === 'distance') {
