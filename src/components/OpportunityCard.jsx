@@ -1,14 +1,10 @@
 import React from 'react';
 import {
   Clock,
-  CheckCircle,
-  AlertTriangle,
   Navigation,
-  Star,
   ShieldCheck,
 } from 'lucide-react';
 import { Badge } from './ui/badge';
-import { Card, CardContent } from './ui/card';
 import { useNavigate } from 'react-router-dom';
 import { getCategoryById } from '../data/categories';
 
@@ -41,18 +37,28 @@ const timeAgo = (dateString) => {
   return date.toLocaleDateString('it-IT');
 };
 
-export const OpportunityCard = ({ opportunity, onClick, compact = false }) => { 
-  const navigate = useNavigate();
+export const OpportunityCard = ({
+  opportunity,
+  onClick,
+  compact = false,
+}) => {
+  useNavigate();
 
   const categoryFromCatalog = getCategoryById(opportunity.category);
 
-const category = {
-  name: categoryFromCatalog?.name || 'Segnalazione utente',
-  color: categoryFromCatalog?.chipColor || 'bg-orange-500',
-};
+  const category = {
+    name: categoryFromCatalog?.name || 'Segnalazione utente',
+    color: categoryFromCatalog?.chipColor || 'bg-orange-500',
+  };
 
   const verifiedCount = Number(opportunity.verified_count || 0);
   const isVerified = opportunity.is_verified === true;
+  const isJobOffer = opportunity.category === 'job_offers';
+
+  const hasResaleValue =
+    !isJobOffer &&
+    opportunity.estimated_resale_value !== null &&
+    opportunity.estimated_resale_value !== undefined;
 
   if (compact) {
     return (
@@ -68,14 +74,16 @@ const category = {
               alt={opportunity.title}
               loading="lazy"
               decoding="async"
-              onError={(e) => {
-  e.currentTarget.style.display = 'none';
-}}
+              onError={(event) => {
+                event.currentTarget.style.display = 'none';
+              }}
               className="h-14 w-14 flex-shrink-0 rounded-lg object-cover"
             />
           ) : (
             <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-lg bg-gray-100">
-              <div className={`h-6 w-6 rounded-full ${category.color} opacity-20`} />
+              <div
+                className={`h-6 w-6 rounded-full ${category.color} opacity-20`}
+              />
             </div>
           )}
 
@@ -92,32 +100,40 @@ const category = {
 
             <div className="mt-1 flex items-center gap-2">
               <span className={`h-2 w-2 rounded-full ${category.color}`} />
-              <span className="truncate text-xs text-gray-500">{category.name}</span>
+              <span className="truncate text-xs text-gray-500">
+                {category.name}
+              </span>
             </div>
 
             {verifiedCount > 0 && (
               <p className="mt-1 text-[11px] font-medium text-emerald-600">
-                {verifiedCount === 1 ? '1 verifica' : `${verifiedCount} verifiche`}
+                {verifiedCount === 1
+                  ? '1 verifica'
+                  : `${verifiedCount} verifiche`}
               </p>
             )}
 
-            <div className="mt-1">
-              {opportunity.estimated_price === 0 ? (
-                <span className="inline-block rounded-md bg-green-500 px-2 py-0.5 text-[11px] font-bold text-white">
-                  GRATIS
-                </span>
-              ) : (
-                <p className="text-sm font-bold text-primary">
-                  {formatPrice(opportunity.estimated_price)}
-                </p>
-              )}
-            </div>
-            {opportunity.estimated_resale_value !== null &&
-  opportunity.estimated_resale_value !== undefined && (
-    <p className="mt-1 text-[11px] font-medium text-gray-500">
-      Valore stimato: {formatPrice(opportunity.estimated_resale_value)}
-    </p>
-  )}
+            {!isJobOffer && (
+              <div className="mt-1">
+                {opportunity.estimated_price === 0 ? (
+                  <span className="inline-block rounded-md bg-green-500 px-2 py-0.5 text-[11px] font-bold text-white">
+                    GRATIS
+                  </span>
+                ) : opportunity.estimated_price !== null &&
+                  opportunity.estimated_price !== undefined ? (
+                  <p className="text-sm font-bold text-primary">
+                    {formatPrice(opportunity.estimated_price)}
+                  </p>
+                ) : null}
+              </div>
+            )}
+
+            {hasResaleValue && (
+              <p className="mt-1 text-[11px] font-medium text-gray-500">
+                Valore stimato:{' '}
+                {formatPrice(opportunity.estimated_resale_value)}
+              </p>
+            )}
           </div>
         </div>
       </div>
@@ -125,91 +141,100 @@ const category = {
   }
 
   return (
-  <div
-    onClick={onClick}
-    className="cursor-pointer border-b border-gray-100 bg-white px-3 py-2 transition-colors hover:bg-gray-50"
-    data-testid={`opportunity-card-${opportunity.id}`}
-  >
-    <div className="flex gap-3">
-      {opportunity.images?.[0] ? (
-        <img
-          src={opportunity.images[0]}
-          alt={opportunity.title}
-          loading="lazy"
-          decoding="async"
-          onError={(e) => {
-            e.currentTarget.style.display = 'none';
-          }}
-          className="h-[72px] w-[72px] flex-shrink-0 rounded-xl object-cover"
-        />
-      ) : (
-        <div className="flex h-[72px] w-[72px] flex-shrink-0 items-center justify-center rounded-xl bg-gray-100">
-          <div className={`h-8 w-8 rounded-full ${category.color} opacity-20`} />
-        </div>
-      )}
+    <div
+      onClick={onClick}
+      className="cursor-pointer border-b border-gray-100 bg-white px-3 py-2 transition-colors hover:bg-gray-50"
+      data-testid={`opportunity-card-${opportunity.id}`}
+    >
+      <div className="flex gap-3">
+        {opportunity.images?.[0] ? (
+          <img
+            src={opportunity.images[0]}
+            alt={opportunity.title}
+            loading="lazy"
+            decoding="async"
+            onError={(event) => {
+              event.currentTarget.style.display = 'none';
+            }}
+            className="h-[72px] w-[72px] flex-shrink-0 rounded-xl object-cover"
+          />
+        ) : (
+          <div className="flex h-[72px] w-[72px] flex-shrink-0 items-center justify-center rounded-xl bg-gray-100">
+            <div
+              className={`h-8 w-8 rounded-full ${category.color} opacity-20`}
+            />
+          </div>
+        )}
 
-      <div className="min-w-0 flex-1 leading-tight">
-        <div className="mb-1 flex items-start justify-between gap-2">
-          <Badge className={`${category.color} border-0 px-2 py-0.5 text-[10px] font-bold text-white`}>
-            {category.name}
-          </Badge>
-        </div>
+        <div className="min-w-0 flex-1 leading-tight">
+          <div className="mb-1 flex items-start justify-between gap-2">
+            <Badge
+              className={`${category.color} border-0 px-2 py-0.5 text-[10px] font-bold text-white`}
+            >
+              {category.name}
+            </Badge>
+          </div>
 
-        <h3 className="line-clamp-1 text-[14px] font-black leading-tight text-gray-950">
-          {opportunity.title}
-        </h3>
+          <h3 className="line-clamp-1 text-[14px] font-black leading-tight text-gray-950">
+            {opportunity.title}
+          </h3>
 
-        <p className="mt-0.5 line-clamp-1 text-[12px] font-medium text-gray-500">
-  {opportunity.address || 'Zona non specificata'}
-</p>
+          <p className="mt-0.5 line-clamp-1 text-[12px] font-medium text-gray-500">
+            {opportunity.address || 'Zona non specificata'}
+          </p>
 
-<div className="mt-0.5 flex items-center justify-between gap-2">
-          <div className="min-w-0">
-  <div className="flex items-center gap-3">
-    {opportunity.estimated_price === 0 ? (
-      <p className="text-[15px] font-black text-green-600">
-        Gratis
-      </p>
-    ) : (
-      <p className="text-[15px] font-black text-gray-950">
-        {formatPrice(opportunity.estimated_price) || '—'}
-      </p>
-    )}
+          <div className="mt-0.5 flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <div className="flex items-center gap-3">
+                {!isJobOffer && (
+                  <>
+                    {opportunity.estimated_price === 0 ? (
+                      <p className="text-[15px] font-black text-green-600">
+                        Gratis
+                      </p>
+                    ) : opportunity.estimated_price !== null &&
+                      opportunity.estimated_price !== undefined ? (
+                      <p className="text-[15px] font-black text-gray-950">
+                        {formatPrice(opportunity.estimated_price)}
+                      </p>
+                    ) : null}
+                  </>
+                )}
 
-    {opportunity.distance_km !== undefined && (
-      <div className="flex items-center gap-1 text-[11px] font-bold text-primary">
-        <Navigation className="h-3 w-3" />
-        {formatDistance(opportunity.distance_km)}
-      </div>
-    )}
-  </div>
+                {opportunity.distance_km !== undefined && (
+                  <div className="flex items-center gap-1 text-[11px] font-bold text-primary">
+                    <Navigation className="h-3 w-3" />
+                    {formatDistance(opportunity.distance_km)}
+                  </div>
+                )}
+              </div>
 
-  {opportunity.estimated_resale_value !== null &&
-    opportunity.estimated_resale_value !== undefined && (
-      <p className="mt-0.5 text-[11px] font-medium text-gray-500">
-        Valore stimato: {formatPrice(opportunity.estimated_resale_value)}
-      </p>
-    )}
-</div>
+              {hasResaleValue && (
+                <p className="mt-0.5 text-[11px] font-medium text-gray-500">
+                  Valore stimato:{' '}
+                  {formatPrice(opportunity.estimated_resale_value)}
+                </p>
+              )}
+            </div>
 
-          <div className="flex flex-col items-end gap-1 text-[11px] text-gray-500">
-            <span className="flex items-center gap-1 whitespace-nowrap">
-              <Clock className="h-3 w-3" />
-              {timeAgo(opportunity.created_at)}
-            </span>
-
-            {verifiedCount > 0 && (
-              <span className="flex items-center gap-1 text-emerald-600">
-                <ShieldCheck className="h-3 w-3" />
-                {verifiedCount}
+            <div className="flex flex-col items-end gap-1 text-[11px] text-gray-500">
+              <span className="flex items-center gap-1 whitespace-nowrap">
+                <Clock className="h-3 w-3" />
+                {timeAgo(opportunity.created_at)}
               </span>
-            )}
+
+              {verifiedCount > 0 && (
+                <span className="flex items-center gap-1 text-emerald-600">
+                  <ShieldCheck className="h-3 w-3" />
+                  {verifiedCount}
+                </span>
+              )}
+            </div>
           </div>
         </div>
       </div>
     </div>
-  </div>
-);
+  );
 };
 
 export default React.memo(OpportunityCard);

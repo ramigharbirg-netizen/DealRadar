@@ -45,6 +45,7 @@ const category = {
 };
 
   const price = Number(opportunity.estimated_price || 0);
+  const isJobOffer = opportunity.category === 'job_offers';
 
 const estimatedValue =
   opportunity.estimated_resale_value !== null &&
@@ -103,29 +104,31 @@ const estimatedValue =
           </span>
         </div>
 
-        <div className="mt-auto flex items-end justify-between gap-2">
-          <div className="min-w-0">
-            <p className="text-[9px] font-medium uppercase tracking-wide text-gray-400">
-              Prezzo
-            </p>
+        {!isJobOffer && (
+  <div className="mt-auto flex items-end justify-between gap-2">
+    <div className="min-w-0">
+      <p className="text-[9px] font-medium uppercase tracking-wide text-gray-400">
+        Prezzo
+      </p>
 
-            <p className="truncate text-[18px] font-extrabold leading-none text-gray-900">
-              {formatPrice(price) || 'Gratis'}
-            </p>
-          </div>
+      <p className="truncate text-[18px] font-extrabold leading-none text-gray-900">
+        {formatPrice(price) || 'Gratis'}
+      </p>
+    </div>
 
-          {estimatedValue !== null && (
-  <div className="min-w-0 text-right">
-    <p className="text-[9px] font-medium uppercase tracking-wide text-gray-400">
-      Valore stimato
-    </p>
+    {estimatedValue !== null && (
+      <div className="min-w-0 text-right">
+        <p className="text-[9px] font-medium uppercase tracking-wide text-gray-400">
+          Valore stimato
+        </p>
 
-    <p className="truncate text-[14px] font-extrabold leading-none text-gray-700">
-      {formatPrice(estimatedValue)}
-    </p>
+        <p className="truncate text-[14px] font-extrabold leading-none text-gray-700">
+          {formatPrice(estimatedValue)}
+        </p>
+      </div>
+    )}
   </div>
 )}
-        </div>
 
         <div className="mt-2 flex items-center justify-between gap-2">
           <span />

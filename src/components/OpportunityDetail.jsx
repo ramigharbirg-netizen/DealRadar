@@ -913,6 +913,7 @@ if (existingConversation) {
   };
 
   const TrustIcon = authorTrust.level === 'risky' ? AlertTriangle : ShieldCheck;
+  const isJobOffer = opportunity.category === 'job_offers';
 
   return (
     <Sheet open={open} onOpenChange={onClose}>
@@ -1012,9 +1013,11 @@ if (existingConversation) {
                   </Badge>
                 )}
 
-                {Number(opportunity.estimated_price) === 0 && (
-                  <Badge className="border-0 bg-green-500 text-white">GRATIS</Badge>
-                )}
+                {!isJobOffer && Number(opportunity.estimated_price) === 0 && (
+  <Badge className="border-0 bg-green-500 text-white">
+    GRATIS
+  </Badge>
+)}
               </div>
 
               <SheetHeader className="space-y-1 p-0 text-left">
@@ -1055,40 +1058,43 @@ if (existingConversation) {
           </div>
 
           <ScrollArea className="min-h-0 flex-1">
-            <div className="mx-auto w-full max-w-[calc(100vw-48px)] space-y-3 p-3 sm:max-w-[600px] sm:p-4">
-              <div className="rounded-xl border border-gray-200 bg-gradient-to-br from-gray-50 to-gray-100 p-3">
-                <div className="mb-2 grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
-                  <div>
-                    <p className="mb-1 flex items-center gap-1 text-xs text-gray-500">
-                      <Euro className="h-3 w-3" />
-                      Prezzo
-                    </p>
+  <div className="mx-auto w-full max-w-[calc(100vw-48px)] space-y-3 p-3 sm:max-w-[600px] sm:p-4">
+    {!isJobOffer && (
+      <div className="rounded-xl border border-gray-200 bg-gradient-to-br from-gray-50 to-gray-100 p-3">
+        <div className="mb-2 grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
+          <div>
+            <p className="mb-1 flex items-center gap-1 text-xs text-gray-500">
+              <Euro className="h-3 w-3" />
+              Prezzo
+            </p>
 
-                    {Number(opportunity.estimated_price) === 0 ? (
-                      <span className="inline-block rounded-md bg-green-500 px-2 py-1 text-xs font-bold text-white">
-                        GRATIS
-                      </span>
-                    ) : (
-                      <p className="text-lg font-bold text-gray-900">
-                        {formatPrice(opportunity.estimated_price) || 'Contatta'}
-                      </p>
-                    )}
-                  </div>
+            {Number(opportunity.estimated_price) === 0 ? (
+              <span className="inline-block rounded-md bg-green-500 px-2 py-1 text-xs font-bold text-white">
+                GRATIS
+              </span>
+            ) : (
+              <p className="text-lg font-bold text-gray-900">
+                {formatPrice(opportunity.estimated_price) || 'Contatta'}
+              </p>
+            )}
+          </div>
 
-                  {opportunity.estimated_resale_value !== null &&
-                    opportunity.estimated_resale_value !== undefined && (
-                      <div>
-                        <p className="mb-1 flex items-center gap-1 text-xs text-gray-500">
-                          <Euro className="h-3 w-3" />
-                          Valore stimato
-                        </p>
-                        <p className="text-lg font-bold text-blue-600">
-                          {formatPrice(opportunity.estimated_resale_value)}
-                        </p>
-                      </div>
-                    )}
-                </div>
+          {opportunity.estimated_resale_value !== null &&
+            opportunity.estimated_resale_value !== undefined && (
+              <div>
+                <p className="mb-1 flex items-center gap-1 text-xs text-gray-500">
+                  <Euro className="h-3 w-3" />
+                  Valore stimato
+                </p>
+
+                <p className="text-lg font-bold text-blue-600">
+                  {formatPrice(opportunity.estimated_resale_value)}
+                </p>
               </div>
+            )}
+        </div>
+      </div>
+    )}
 
               {images.length > 0 && (
                 <div

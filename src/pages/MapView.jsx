@@ -238,6 +238,8 @@ const estimatedValue =
   opportunity.estimated_resale_value !== undefined
     ? Number(opportunity.estimated_resale_value)
     : null;
+
+    const isJobOffer = opportunity.category === 'job_offers';
   const categoryConfig =
   getCategoryById(opportunity.category) ||
   getCategoryById('user_reported');
@@ -287,28 +289,31 @@ const estimatedValue =
         </div>
 
         <div>
-          <div className="mt-2 flex items-end justify-between gap-2">
-            <p className="text-sm font-black text-gray-950">
-              {price > 0 ? `€${price.toLocaleString('it-IT')}` : 'Gratis'}
-            </p>
+  {!isJobOffer && (
+    <div className="mt-2 flex items-end justify-between gap-2">
+      <p className="text-sm font-black text-gray-950">
+        {price > 0 ? `€${price.toLocaleString('it-IT')}` : 'Gratis'}
+      </p>
 
-            {estimatedValue !== null && (
-  <p className="text-[11px] font-semibold text-gray-500">
-    Valore: {estimatedValue.toLocaleString('it-IT', {
-  style: 'currency',
-  currency: 'EUR',
-})}
-  </p>
-)}
-          </div>
+      {estimatedValue !== null && (
+        <p className="text-[11px] font-semibold text-gray-500">
+          Valore:{' '}
+          {estimatedValue.toLocaleString('it-IT', {
+            style: 'currency',
+            currency: 'EUR',
+          })}
+        </p>
+      )}
+    </div>
+  )}
 
-          <div className="mt-2 flex items-center gap-1 text-[11px] font-bold text-emerald-600">
-            <MapPin className="h-3 w-3" />
-            {opportunity.distance_km
-              ? `${opportunity.distance_km.toFixed(1)} km`
-              : 'Vicino'}
-          </div>
-        </div>
+  <div className="mt-2 flex items-center gap-1 text-[11px] font-bold text-emerald-600">
+    <MapPin className="h-3 w-3" />
+    {opportunity.distance_km
+      ? `${opportunity.distance_km.toFixed(1)} km`
+      : 'Vicino'}
+  </div>
+</div>
       </div>
     </button>
   );
