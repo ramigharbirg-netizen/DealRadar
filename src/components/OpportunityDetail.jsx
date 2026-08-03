@@ -37,6 +37,10 @@ import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
+import {
+  formatOpportunityPrice,
+  isExplicitlyFreeOpportunity,
+} from '../utils/opportunityPricing';
 
 const COMMENT_MIN_LENGTH = 3;
 const COMMENT_MAX_LENGTH = 500;
@@ -883,7 +887,7 @@ if (existingConversation) {
       sender_email: user.email,
       sender_id: user.id,
       message:
-        Number(opportunity.estimated_price) === 0
+        isExplicitlyFreeOpportunity(opportunity)
           ? 'Ciao, sono interessato al ritiro. Quando sarebbe possibile passare?'
           : 'Ciao, sono interessato a questa opportunità. È ancora disponibile?',
     },
@@ -913,7 +917,16 @@ if (existingConversation) {
   };
 
   const TrustIcon = authorTrust.level === 'risky' ? AlertTriangle : ShieldCheck;
-  const isJobOffer = opportunity.category === 'job_offers';
+  const isJobOffer =
+    opportunity.content_type === 'job' || opportunity.category === 'job_offers';
+  const isDeal = opportunity.content_type === 'deal';
+  const isExplicitlyFree = isExplicitlyFreeOpportunity(opportunity);
+  const displayedPrice = formatOpportunityPrice(opportunity);
+  const shouldShowPricingSection =
+    !isDeal &&
+    !isJobOffer &&
+    !isExplicitlyFree &&
+    displayedPrice !== null;
 
   return (
     <Sheet open={open} onOpenChange={onClose}>
@@ -1013,11 +1026,6 @@ if (existingConversation) {
                   </Badge>
                 )}
 
-                {!isJobOffer && Number(opportunity.estimated_price) === 0 && (
-  <Badge className="border-0 bg-green-500 text-white">
-    GRATIS
-  </Badge>
-)}
               </div>
 
               <SheetHeader className="space-y-1 p-0 text-left">
@@ -1059,7 +1067,7 @@ if (existingConversation) {
 
           <ScrollArea className="min-h-0 flex-1">
   <div className="mx-auto w-full max-w-[calc(100vw-48px)] space-y-3 p-3 sm:max-w-[600px] sm:p-4">
-    {!isJobOffer && (
+    {shouldShowPricingSection && (
       <div className="rounded-xl border border-gray-200 bg-gradient-to-br from-gray-50 to-gray-100 p-3">
         <div className="mb-2 grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
           <div>
@@ -1068,19 +1076,15 @@ if (existingConversation) {
               Prezzo
             </p>
 
-            {Number(opportunity.estimated_price) === 0 ? (
-              <span className="inline-block rounded-md bg-green-500 px-2 py-1 text-xs font-bold text-white">
-                GRATIS
-              </span>
-            ) : (
-              <p className="text-lg font-bold text-gray-900">
-                {formatPrice(opportunity.estimated_price) || 'Contatta'}
-              </p>
-            )}
+            <p className="text-lg font-bold text-gray-900">
+              {displayedPrice}
+            </p>
           </div>
 
           {opportunity.estimated_resale_value !== null &&
-            opportunity.estimated_resale_value !== undefined && (
+            opportunity.estimated_resale_value !== undefined &&
+            Number.isFinite(Number(opportunity.estimated_resale_value)) &&
+            Number(opportunity.estimated_resale_value) > 0 && (
               <div>
                 <p className="mb-1 flex items-center gap-1 text-xs text-gray-500">
                   <Euro className="h-3 w-3" />
@@ -1142,7 +1146,7 @@ if (existingConversation) {
   >
     {sendingPickup
       ? 'Apertura...'
-      : Number(opportunity.estimated_price) === 0
+      : isExplicitlyFreeOpportunity(opportunity)
         ? 'Richiedi ritiro in chat'
         : 'Contatta in chat'}
   </button>

@@ -1,20 +1,10 @@
 import React from 'react';
 import { MapPin, Navigation } from 'lucide-react';
 import { getCategoryById } from '../data/categories';
-
-const formatPrice = (value) => {
-  const price = Number(value);
-
-  if (!Number.isFinite(price) || price <= 0) {
-    return null;
-  }
-
-  return new Intl.NumberFormat('it-IT', {
-    style: 'currency',
-    currency: 'EUR',
-    maximumFractionDigits: 0,
-  }).format(price);
-};
+import {
+  formatOpportunityPrice,
+  isExplicitlyFreeOpportunity,
+} from '../utils/opportunityPricing';
 
 const formatDistance = (value) => {
   const distance = Number(value);
@@ -44,8 +34,10 @@ const category = {
   color: categoryData?.chipColor || 'bg-orange-500',
 };
 
-  const price = Number(opportunity.estimated_price || 0);
   const isJobOffer = opportunity.category === 'job_offers';
+  const displayedPrice = formatOpportunityPrice(opportunity);
+  const isExplicitlyFree = isExplicitlyFreeOpportunity(opportunity);
+  const shouldShowPrice = !isJobOffer && displayedPrice !== null;
 
 const estimatedValue =
   opportunity.estimated_resale_value !== null &&
@@ -104,16 +96,20 @@ const estimatedValue =
           </span>
         </div>
 
-        {!isJobOffer && (
+        {shouldShowPrice && (
   <div className="mt-auto flex items-end justify-between gap-2">
     <div className="min-w-0">
       <p className="text-[9px] font-medium uppercase tracking-wide text-gray-400">
         Prezzo
       </p>
 
-      <p className="truncate text-[18px] font-extrabold leading-none text-gray-900">
-        {formatPrice(price) || 'Gratis'}
-      </p>
+      <p
+  className={`truncate text-[18px] font-extrabold leading-none ${
+    isExplicitlyFree ? 'text-green-600' : 'text-gray-900'
+  }`}
+>
+  {displayedPrice}
+</p>
     </div>
 
     {estimatedValue !== null && (
@@ -123,7 +119,11 @@ const estimatedValue =
         </p>
 
         <p className="truncate text-[14px] font-extrabold leading-none text-gray-700">
-          {formatPrice(estimatedValue)}
+          {new Intl.NumberFormat('it-IT', {
+  style: 'currency',
+  currency: 'EUR',
+  maximumFractionDigits: 0,
+}).format(estimatedValue)}
         </p>
       </div>
     )}

@@ -37,6 +37,10 @@ import { LocationPermissionModal } from '../components/LocationPermissionModal';
 import { toast } from 'sonner';
 import 'leaflet/dist/leaflet.css';
 import { categories, getCategoryById } from '../data/categories';
+import {
+  formatOpportunityPrice,
+  isExplicitlyFreeOpportunity,
+} from '../utils/opportunityPricing';
 
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -231,8 +235,6 @@ const HomeOpportunityCard = ({ opportunity, onClick }) => {
       ? opportunity.images[0]
       : null;
 
-  const price = Number(opportunity.estimated_price || 0);
-
 const estimatedValue =
   opportunity.estimated_resale_value !== null &&
   opportunity.estimated_resale_value !== undefined
@@ -240,6 +242,9 @@ const estimatedValue =
     : null;
 
     const isJobOffer = opportunity.category === 'job_offers';
+    const displayedPrice = formatOpportunityPrice(opportunity);
+    const isExplicitlyFree = isExplicitlyFreeOpportunity(opportunity);
+    const shouldShowPrice = !isJobOffer && displayedPrice !== null;
   const categoryConfig =
   getCategoryById(opportunity.category) ||
   getCategoryById('user_reported');
@@ -289,23 +294,27 @@ const estimatedValue =
         </div>
 
         <div>
-  {!isJobOffer && (
-    <div className="mt-2 flex items-end justify-between gap-2">
-      <p className="text-sm font-black text-gray-950">
-        {price > 0 ? `€${price.toLocaleString('it-IT')}` : 'Gratis'}
-      </p>
+  {shouldShowPrice && (
+  <div className="mt-2 flex items-end justify-between gap-2">
+    <p
+      className={`text-sm font-black ${
+        isExplicitlyFree ? 'text-green-600' : 'text-gray-950'
+      }`}
+    >
+      {displayedPrice}
+    </p>
 
-      {estimatedValue !== null && (
-        <p className="text-[11px] font-semibold text-gray-500">
-          Valore:{' '}
-          {estimatedValue.toLocaleString('it-IT', {
-            style: 'currency',
-            currency: 'EUR',
-          })}
-        </p>
-      )}
-    </div>
-  )}
+    {!isExplicitlyFree && estimatedValue !== null && (
+      <p className="text-[11px] font-semibold text-gray-500">
+        Valore:{' '}
+        {estimatedValue.toLocaleString('it-IT', {
+          style: 'currency',
+          currency: 'EUR',
+        })}
+      </p>
+    )}
+  </div>
+)}
 
   <div className="mt-2 flex items-center gap-1 text-[11px] font-bold text-emerald-600">
     <MapPin className="h-3 w-3" />

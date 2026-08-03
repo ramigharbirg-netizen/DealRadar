@@ -313,6 +313,7 @@ export const SubmitOpportunity = () => {
     contact_phone: '',
     contact_email: '',
     contact_link: '',
+    merchant_name: '',
   });
 
   const [images, setImages] = useState([]);
@@ -367,6 +368,7 @@ const hasCounterfeitRisk = detectedCounterfeitTerms.length > 0;
       contact_phone: '',
       contact_email: '',
       contact_link: '',
+      merchant_name: '',
     }));
   };
 
@@ -822,7 +824,9 @@ if (!validDimensions) {
           }
         : sanitizedAttributes;
     const address = formData.address.trim();
+    const merchantName = formData.merchant_name.trim();
     const isDeal = publicationType === 'deal';
+    const isFreeDeal = category === 'free_deals';
     const locationOptional = !isDeal && optionalLocationCategoryIds.includes(category);
 
     if (!publicationType) {
@@ -846,6 +850,16 @@ if (!validDimensions) {
       !attributes.rental_period
     ) {
       toast.error('Seleziona il periodo del canone di affitto');
+      return;
+    }
+
+    if (isDeal && merchantName.length < 2) {
+      toast.error('Inserisci il nome del negozio in cui hai trovato l’affare');
+      return;
+    }
+
+    if (isDeal && merchantName.length > 120) {
+      toast.error('Il nome del negozio non può superare 120 caratteri');
       return;
     }
 
@@ -943,14 +957,14 @@ if ((recentOpportunitiesCount || 0) >= maxAllowedOpportunities) {
 }
 
       const estimatedPrice =
-  publicationType === 'deal' || category === 'job_offers'
+  publicationType === 'deal' || category === 'job_offers' || isFreeDeal
     ? null
     : formData.estimated_price !== ''
       ? Number(formData.estimated_price)
       : null;
 
 const estimatedResaleValue =
-  publicationType === 'deal' || category === 'job_offers'
+  publicationType === 'deal' || category === 'job_offers' || isFreeDeal
     ? null
     : formData.estimated_resale_value !== ''
       ? Number(formData.estimated_resale_value)
@@ -969,6 +983,8 @@ const estimatedResaleValue =
 }
 
       const payload = {
+        content_type: publicationType,
+        merchant_name: isDeal ? merchantName : null,
         title,
         description,
         category,
@@ -1029,6 +1045,8 @@ const matchesCount = await createAutomaticBountyMatches(createdOpportunity);
         category: createdOpportunity.category,
         metadata: {
           publication_type: publicationType,
+          content_type: createdOpportunity.content_type,
+          merchant_name: createdOpportunity.merchant_name,
           title: createdOpportunity.title,
           subcategory: createdOpportunity.subcategory,
           attributes: createdOpportunity.attributes,

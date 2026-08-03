@@ -278,6 +278,25 @@ const DetailsStep = (props) => {
   return (
     <div className="space-y-6">
       <PhotosBlock {...props} required={isDeal} />
+      {isDeal && (
+        <div className="rounded-2xl border border-orange-100 bg-orange-50/60 p-4 sm:p-5">
+          <Label htmlFor="merchant_name">Nome del negozio *</Label>
+          <Input
+            id="merchant_name"
+            name="merchant_name"
+            value={props.formData.merchant_name}
+            onChange={props.onChange}
+            maxLength={120}
+            autoComplete="organization"
+            placeholder="Es. MediaWorld, Lidl, Zara, Unieuro..."
+            className="mt-1.5 h-12 rounded-xl border-orange-200 bg-white focus-visible:ring-orange-500"
+          />
+          <div className="mt-2 flex items-center justify-between gap-3 text-xs">
+            <span className="text-orange-800">Indica il punto vendita in cui la community può trovare l’affare.</span>
+            <span className="flex-shrink-0 font-semibold text-orange-600">{props.formData.merchant_name.length}/120</span>
+          </div>
+        </div>
+      )}
       <div>
         <Label htmlFor="title">{titleLabel} *</Label>
         <Input id="title" name="title" value={props.formData.title} onChange={props.onChange} placeholder={titlePlaceholder} className="mt-1.5 h-12 rounded-xl" />
@@ -303,8 +322,9 @@ const LocationStep = ({ publicationType, formData, onChange, onAttributesChange,
   const isDeal = publicationType === 'deal';
   const isJob = publicationType === 'job';
   const isRealEstate = publicationType === 'real_estate';
+  const isFreeDeal = formData.category === 'free_deals';
   const locationOptional = !isDeal && optionalLocationCategoryIds.includes(formData.category);
-  const showPrice = !isDeal && !isJob;
+  const showPrice = !isDeal && !isJob && !isFreeDeal;
   const showContacts = !isDeal;
   const rentPeriodOptions = isRealEstate
     ? getRealEstateRentPeriodOptions(formData.subcategory)
@@ -403,6 +423,15 @@ const LocationStep = ({ publicationType, formData, onChange, onAttributesChange,
         </div>
       )}
 
+      {isFreeDeal && (
+        <div className="rounded-3xl border border-emerald-200 bg-emerald-50 p-5">
+          <p className="font-bold text-emerald-900">Questo oggetto sarà pubblicato come regalo</p>
+          <p className="mt-1 text-sm leading-6 text-emerald-700">
+            Non verrà mostrato alcun prezzo. Chi è interessato potrà contattarti tramite DealRadar.
+          </p>
+        </div>
+      )}
+
       {showContacts && (
         <div className="space-y-3">
           <Label>Informazioni di contatto</Label>
@@ -434,7 +463,8 @@ const PreviewStep = ({ publicationType, formData, images, selectedEntry }) => {
   const category = getCategoryById(formData.category);
   const subcategory = getSubcategoryById(formData.category, formData.subcategory);
   const type = getPublicationTypeById(publicationType);
-  const showPrice = publicationType !== 'deal' && publicationType !== 'job';
+  const isFreeDeal = formData.category === 'free_deals';
+  const showPrice = publicationType !== 'deal' && publicationType !== 'job' && !isFreeDeal;
   const rentPeriodLabel = getRealEstateRentPeriodLabel(
     formData.attributes?.rental_period
   );
@@ -456,6 +486,9 @@ const PreviewStep = ({ publicationType, formData, images, selectedEntry }) => {
         </div>
         <p className="whitespace-pre-wrap text-sm leading-6 text-gray-600">{formData.description}</p>
         <div className="grid gap-3 rounded-2xl bg-gray-50 p-4 text-sm text-gray-600 sm:grid-cols-2">
+          {publicationType === 'deal' && (
+            <div><span className="block text-xs font-semibold uppercase tracking-wide text-gray-400">Negozio</span><span className="mt-1 block font-semibold text-gray-800">{formData.merchant_name || 'Non indicato'}</span></div>
+          )}
           <div><span className="block text-xs font-semibold uppercase tracking-wide text-gray-400">Posizione</span><span className="mt-1 block font-semibold text-gray-800">{formData.address || (formData.latitude ? 'Posizione attuale' : 'Non indicata')}</span></div>
           <div><span className="block text-xs font-semibold uppercase tracking-wide text-gray-400">Contatto</span><span className="mt-1 block font-semibold text-gray-800">{publicationType === 'deal' ? 'Segnalato alla community' : formData.contact_phone || formData.contact_email || 'Tramite DealRadar'}</span></div>
         </div>
@@ -522,7 +555,19 @@ const OpportunityWizard = ({
   const canContinue = (() => {
     if (step === 1) return Boolean(publicationType);
     if (step === 2) return Boolean(selectedEntry) && (subcategories.length === 0 || Boolean(formData.subcategory));
-    if (step === 3) return Boolean(formData.title.trim() && formData.description.trim() && (!isDeal || images.length > 0));
+    if (step === 3) {
+      const hasRequiredDealData =
+        !isDeal ||
+        (images.length > 0 &&
+          formData.merchant_name.trim().length >= 2 &&
+          formData.merchant_name.trim().length <= 120);
+
+      return Boolean(
+        formData.title.trim() &&
+        formData.description.trim() &&
+        hasRequiredDealData
+      );
+    }
     if (step === 4) {
       const hasLocation = Boolean(formData.address.trim() || (positionConfirmed && formData.latitude && formData.longitude));
       const rentPeriodIsValid =

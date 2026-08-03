@@ -6,6 +6,7 @@ import {
   Car,
   Dumbbell,
   Flame,
+  Gift,
   Gamepad2,
   HeartPulse,
   House,
@@ -192,6 +193,14 @@ const saleEntries = [
     categoryId: 'clothing',
     preferredSubcategory: 'bambino',
     locksSubcategory: true,
+  },
+  {
+    id: 'sale_free',
+    name: 'Regalo / Gratis',
+    description: 'Oggetti che vuoi regalare senza chiedere denaro',
+    icon: Gift,
+    iconClass: 'bg-emerald-100 text-emerald-600',
+    categoryId: 'free_deals',
   },
   {
     id: 'sale_other',
