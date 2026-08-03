@@ -47,6 +47,7 @@ import OpportunityWizard from '../components/opportunity-wizard/OpportunityWizar
 import {
   applyWizardEntry,
   applyWizardSubcategory,
+  getRealEstateRentPeriodOptions,
   getWizardEntryById,
   getWizardEntryForValue,
 } from '../data/opportunityWizardCatalog';
@@ -292,6 +293,7 @@ export const SubmitOpportunity = () => {
   const fileInputRef = useRef(null);
   const cameraInputRef = useRef(null);
   const [photoSourceOpen, setPhotoSourceOpen] = useState(false);
+  const [publicationType, setPublicationType] = useState('');
 
   const uploadedFingerprintsRef = useRef(new Set());
   const uploadedImagePathsRef = useRef(new Set());
@@ -337,16 +339,58 @@ const hasCounterfeitRisk = detectedCounterfeitTerms.length > 0;
   const requiresSubcategory = selectedCategorySubcategories.length > 0;
 
   const selectedWizardEntry = wizardEntryId
-    ? getWizardEntryById(wizardEntryId)
+    ? getWizardEntryById(wizardEntryId, publicationType)
     : getWizardEntryForValue(
+        publicationType,
         formData.category,
         formData.attributes,
         formData.subcategory
       );
 
+  const handlePublicationTypeSelect = (type) => {
+    if (!type?.id) return;
+
+    setPublicationType(type.id);
+    setWizardEntryId('');
+    setAuthenticityDeclared(false);
+    setPositionConfirmed(false);
+    setFormData((previous) => ({
+      ...previous,
+      category: '',
+      subcategory: '',
+      attributes: {},
+      latitude: null,
+      longitude: null,
+      address: '',
+      estimated_price: '',
+      estimated_resale_value: '',
+      contact_phone: '',
+      contact_email: '',
+      contact_link: '',
+    }));
+  };
+
   const handleWizardEntrySelect = (entry) => {
     setWizardEntryId(entry.id);
-    setFormData((previous) => applyWizardEntry(entry, previous));
+    setFormData((previous) => {
+      const nextFormData = applyWizardEntry(entry, previous);
+
+      if (publicationType !== 'real_estate') {
+        return nextFormData;
+      }
+
+      return {
+        ...nextFormData,
+        attributes: {
+          ...nextFormData.attributes,
+          rental_period:
+            entry.preferredSubcategory === 'casa_vacanze'
+              ? ''
+              : 'monthly',
+        },
+        estimated_resale_value: '',
+      };
+    });
   };
 
   const handleWizardSubcategorySelect = (subcategoryId) => {
@@ -758,13 +802,33 @@ if (!validDimensions) {
     const description = formData.description.trim();
     const category = formData.category;
     const subcategory = formData.subcategory;
-    const attributes = sanitizeCategoryAttributes(
+    const sanitizedAttributes = sanitizeCategoryAttributes(
       category,
       subcategory,
       formData.attributes
     );
+
+    const allowedRentPeriods = new Set(
+      getRealEstateRentPeriodOptions(subcategory).map((option) => option.id)
+    );
+    const selectedRentPeriod = formData.attributes?.rental_period;
+    const attributes =
+      publicationType === 'real_estate' &&
+      typeof selectedRentPeriod === 'string' &&
+      allowedRentPeriods.has(selectedRentPeriod)
+        ? {
+            ...sanitizedAttributes,
+            rental_period: selectedRentPeriod,
+          }
+        : sanitizedAttributes;
     const address = formData.address.trim();
-    const isObjectCategory = optionalLocationCategoryIds.includes(category);
+    const isDeal = publicationType === 'deal';
+    const locationOptional = !isDeal && optionalLocationCategoryIds.includes(category);
+
+    if (!publicationType) {
+      toast.error('Seleziona il tipo di pubblicazione');
+      return;
+    }
 
     if (!title || !description || !category) {
       toast.error('Compila tutti i campi obbligatori');
@@ -776,6 +840,20 @@ if (!validDimensions) {
       return;
     }
 
+    if (
+      publicationType === 'real_estate' &&
+      formData.estimated_price !== '' &&
+      !attributes.rental_period
+    ) {
+      toast.error('Seleziona il periodo del canone di affitto');
+      return;
+    }
+
+    if (isDeal && images.length === 0) {
+      toast.error('Aggiungi almeno una foto dell’affare');
+      return;
+    }
+
     const counterfeitRiskTerms = detectCounterfeitRiskTerms(title, description);
 const counterfeitRiskFlag = counterfeitRiskTerms.length > 0;
 
@@ -784,7 +862,7 @@ if (counterfeitRiskFlag && !authenticityDeclared) {
   return;
 }
 
-    if (!isObjectCategory && !address && !positionConfirmed) {
+    if (!locationOptional && !address && !positionConfirmed) {
   toast.error('Inserisci un indirizzo o clicca su “Usa posizione attuale”.');
   return;
 }
@@ -851,7 +929,7 @@ if ((recentOpportunitiesCount || 0) >= maxAllowedOpportunities) {
       }
 
       if (
-  !isObjectCategory &&
+  !locationOptional &&
   (
     finalLatitude === null ||
     finalLongitude === null ||
@@ -865,14 +943,14 @@ if ((recentOpportunitiesCount || 0) >= maxAllowedOpportunities) {
 }
 
       const estimatedPrice =
-  category === 'job_offers'
+  publicationType === 'deal' || category === 'job_offers'
     ? null
     : formData.estimated_price !== ''
       ? Number(formData.estimated_price)
       : null;
 
 const estimatedResaleValue =
-  category === 'job_offers'
+  publicationType === 'deal' || category === 'job_offers'
     ? null
     : formData.estimated_resale_value !== ''
       ? Number(formData.estimated_resale_value)
@@ -901,9 +979,12 @@ const estimatedResaleValue =
         address: finalAddress,
         estimated_price: estimatedPrice,
         estimated_resale_value: estimatedResaleValue,
-        contact_phone: formData.contact_phone.trim() || null,
-        contact_email: formData.contact_email.trim() || null,
-        contact_link: formData.contact_link.trim() || null,
+        contact_phone:
+          publicationType === 'deal' ? null : formData.contact_phone.trim() || null,
+        contact_email:
+          publicationType === 'deal' ? null : formData.contact_email.trim() || null,
+        contact_link:
+          publicationType === 'deal' ? null : formData.contact_link.trim() || null,
         images: images.length > 0 ? images : [],
         authenticity_declared: counterfeitRiskFlag && authenticityDeclared,
         counterfeit_risk_flag: counterfeitRiskFlag,
@@ -947,6 +1028,7 @@ const matchesCount = await createAutomaticBountyMatches(createdOpportunity);
         entityId: createdOpportunity.id,
         category: createdOpportunity.category,
         metadata: {
+          publication_type: publicationType,
           title: createdOpportunity.title,
           subcategory: createdOpportunity.subcategory,
           attributes: createdOpportunity.attributes,
@@ -1007,6 +1089,8 @@ const matchesCount = await createAutomaticBountyMatches(createdOpportunity);
     <OpportunityWizard
       step={step}
       setStep={setStep}
+      publicationType={publicationType}
+      onSelectPublicationType={handlePublicationTypeSelect}
       selectedEntry={selectedWizardEntry}
       onSelectEntry={handleWizardEntrySelect}
       onSelectSubcategory={handleWizardSubcategorySelect}
