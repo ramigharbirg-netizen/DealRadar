@@ -5,23 +5,27 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { Badge } from './ui/badge';
-import { useNavigate } from 'react-router-dom';
 import { getCategoryById } from '../data/categories';
-
-const formatPrice = (price) => {
-  if (price === null || price === undefined) return null;
-
-  return new Intl.NumberFormat('it-IT', {
-    style: 'currency',
-    currency: 'EUR',
-    maximumFractionDigits: 0,
-  }).format(price);
-};
+import {
+  formatOpportunityPrice,
+  isExplicitlyFreeOpportunity,
+} from '../utils/opportunityPricing';
+import {
+  getContentTypeConfig,
+  inferOpportunityContentType,
+} from '../data/contentTypeCatalog';
 
 const formatDistance = (km) => {
   if (km === null || km === undefined) return null;
-  if (km < 1) return `${Math.round(km * 1000)} m`;
-  return `${km.toFixed(1)} km`;
+
+  const numericDistance = Number(km);
+  if (!Number.isFinite(numericDistance) || numericDistance < 0) return null;
+
+  if (numericDistance < 1) {
+    return `${Math.round(numericDistance * 1000)} m`;
+  }
+
+  return `${numericDistance.toFixed(1)} km`;
 };
 
 const timeAgo = (dateString) => {
@@ -29,6 +33,7 @@ const timeAgo = (dateString) => {
   const now = new Date();
   const seconds = Math.floor((now - date) / 1000);
 
+  if (!Number.isFinite(seconds) || seconds < 0) return '';
   if (seconds < 60) return 'ora';
   if (seconds < 3600) return `${Math.floor(seconds / 60)} min`;
   if (seconds < 86400) return `${Math.floor(seconds / 3600)} h`;
@@ -42,23 +47,52 @@ export const OpportunityCard = ({
   onClick,
   compact = false,
 }) => {
-  useNavigate();
-
   const categoryFromCatalog = getCategoryById(opportunity.category);
+  const categoryName =
+    categoryFromCatalog?.shortName ||
+    categoryFromCatalog?.name ||
+    'Altra categoria';
 
-  const category = {
-    name: categoryFromCatalog?.name || 'Segnalazione utente',
-    color: categoryFromCatalog?.chipColor || 'bg-orange-500',
-  };
+  const contentType = inferOpportunityContentType(opportunity);
+  const typeConfig = getContentTypeConfig(contentType);
+  const TypeIcon = typeConfig.icon;
 
   const verifiedCount = Number(opportunity.verified_count || 0);
   const isVerified = opportunity.is_verified === true;
-  const isJobOffer = opportunity.category === 'job_offers';
+  const isDeal = contentType === 'deal';
+  const isJobOffer = contentType === 'job';
+
+  const displayedPrice = formatOpportunityPrice(opportunity);
+  const isExplicitlyFree = isExplicitlyFreeOpportunity(opportunity);
+  const shouldShowPrice =
+    !isDeal && !isJobOffer && displayedPrice !== null;
 
   const hasResaleValue =
+    !isDeal &&
     !isJobOffer &&
+    !isExplicitlyFree &&
     opportunity.estimated_resale_value !== null &&
-    opportunity.estimated_resale_value !== undefined;
+    opportunity.estimated_resale_value !== undefined &&
+    Number.isFinite(Number(opportunity.estimated_resale_value)) &&
+    Number(opportunity.estimated_resale_value) > 0;
+
+  const badges = (
+    <div className="flex min-w-0 items-center gap-1.5">
+      <Badge
+        className={`${typeConfig.chipColor} flex-shrink-0 border-0 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-white`}
+      >
+        <TypeIcon className="mr-1 h-3 w-3" />
+        {typeConfig.label}
+      </Badge>
+
+      <Badge
+        variant="outline"
+        className={`${typeConfig.softChipColor} ${typeConfig.softTextColor} ${typeConfig.borderColor} min-w-0 max-w-[150px] truncate px-2 py-0.5 text-[9px] font-bold`}
+      >
+        {categoryName}
+      </Badge>
+    </div>
+  );
 
   if (compact) {
     return (
@@ -80,15 +114,17 @@ export const OpportunityCard = ({
               className="h-14 w-14 flex-shrink-0 rounded-lg object-cover"
             />
           ) : (
-            <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-lg bg-gray-100">
-              <div
-                className={`h-6 w-6 rounded-full ${category.color} opacity-20`}
-              />
+            <div
+              className={`flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-lg ${typeConfig.softChipColor}`}
+            >
+              <TypeIcon className={`h-6 w-6 ${typeConfig.softTextColor}`} />
             </div>
           )}
 
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-1">
+            {badges}
+
+            <div className="mt-1.5 flex items-center gap-1">
               <h4 className="truncate text-sm font-semibold text-gray-900">
                 {opportunity.title}
               </h4>
@@ -96,13 +132,6 @@ export const OpportunityCard = ({
               {isVerified && (
                 <ShieldCheck className="h-3.5 w-3.5 flex-shrink-0 text-emerald-500" />
               )}
-            </div>
-
-            <div className="mt-1 flex items-center gap-2">
-              <span className={`h-2 w-2 rounded-full ${category.color}`} />
-              <span className="truncate text-xs text-gray-500">
-                {category.name}
-              </span>
             </div>
 
             {verifiedCount > 0 && (
@@ -113,25 +142,24 @@ export const OpportunityCard = ({
               </p>
             )}
 
-            {!isJobOffer && (
-              <div className="mt-1">
-                {opportunity.estimated_price === 0 ? (
-                  <span className="inline-block rounded-md bg-green-500 px-2 py-0.5 text-[11px] font-bold text-white">
-                    GRATIS
-                  </span>
-                ) : opportunity.estimated_price !== null &&
-                  opportunity.estimated_price !== undefined ? (
-                  <p className="text-sm font-bold text-primary">
-                    {formatPrice(opportunity.estimated_price)}
-                  </p>
-                ) : null}
-              </div>
+            {shouldShowPrice && (
+              <p
+                className={`mt-1 text-sm font-bold ${
+                  isExplicitlyFree ? 'text-green-600' : 'text-gray-950'
+                }`}
+              >
+                {displayedPrice}
+              </p>
             )}
 
             {hasResaleValue && (
               <p className="mt-1 text-[11px] font-medium text-gray-500">
                 Valore stimato:{' '}
-                {formatPrice(opportunity.estimated_resale_value)}
+                {new Intl.NumberFormat('it-IT', {
+                  style: 'currency',
+                  currency: 'EUR',
+                  maximumFractionDigits: 0,
+                }).format(Number(opportunity.estimated_resale_value))}
               </p>
             )}
           </div>
@@ -159,23 +187,17 @@ export const OpportunityCard = ({
             className="h-[72px] w-[72px] flex-shrink-0 rounded-xl object-cover"
           />
         ) : (
-          <div className="flex h-[72px] w-[72px] flex-shrink-0 items-center justify-center rounded-xl bg-gray-100">
-            <div
-              className={`h-8 w-8 rounded-full ${category.color} opacity-20`}
-            />
+          <div
+            className={`flex h-[72px] w-[72px] flex-shrink-0 items-center justify-center rounded-xl ${typeConfig.softChipColor}`}
+          >
+            <TypeIcon className={`h-8 w-8 ${typeConfig.softTextColor}`} />
           </div>
         )}
 
         <div className="min-w-0 flex-1 leading-tight">
-          <div className="mb-1 flex items-start justify-between gap-2">
-            <Badge
-              className={`${category.color} border-0 px-2 py-0.5 text-[10px] font-bold text-white`}
-            >
-              {category.name}
-            </Badge>
-          </div>
+          {badges}
 
-          <h3 className="line-clamp-1 text-[14px] font-black leading-tight text-gray-950">
+          <h3 className="mt-1 line-clamp-1 text-[14px] font-black leading-tight text-gray-950">
             {opportunity.title}
           </h3>
 
@@ -186,33 +208,35 @@ export const OpportunityCard = ({
           <div className="mt-0.5 flex items-center justify-between gap-2">
             <div className="min-w-0">
               <div className="flex items-center gap-3">
-                {!isJobOffer && (
-                  <>
-                    {opportunity.estimated_price === 0 ? (
-                      <p className="text-[15px] font-black text-green-600">
-                        Gratis
-                      </p>
-                    ) : opportunity.estimated_price !== null &&
-                      opportunity.estimated_price !== undefined ? (
-                      <p className="text-[15px] font-black text-gray-950">
-                        {formatPrice(opportunity.estimated_price)}
-                      </p>
-                    ) : null}
-                  </>
+                {shouldShowPrice && (
+                  <p
+                    className={`text-[15px] font-black ${
+                      isExplicitlyFree ? 'text-green-600' : 'text-gray-950'
+                    }`}
+                  >
+                    {displayedPrice}
+                  </p>
                 )}
 
-                {opportunity.distance_km !== undefined && (
-                  <div className="flex items-center gap-1 text-[11px] font-bold text-primary">
-                    <Navigation className="h-3 w-3" />
-                    {formatDistance(opportunity.distance_km)}
-                  </div>
-                )}
+                {opportunity.distance_km !== undefined &&
+                  formatDistance(opportunity.distance_km) && (
+                    <div
+                      className={`flex items-center gap-1 text-[11px] font-bold ${typeConfig.softTextColor}`}
+                    >
+                      <Navigation className="h-3 w-3" />
+                      {formatDistance(opportunity.distance_km)}
+                    </div>
+                  )}
               </div>
 
               {hasResaleValue && (
                 <p className="mt-0.5 text-[11px] font-medium text-gray-500">
                   Valore stimato:{' '}
-                  {formatPrice(opportunity.estimated_resale_value)}
+                  {new Intl.NumberFormat('it-IT', {
+                    style: 'currency',
+                    currency: 'EUR',
+                    maximumFractionDigits: 0,
+                  }).format(Number(opportunity.estimated_resale_value))}
                 </p>
               )}
             </div>

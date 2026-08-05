@@ -7,6 +7,7 @@ import { supabase } from '../lib/supabase';
 import { OpportunityCard } from '../components/OpportunityCard';
 import { OpportunityDetail } from '../components/OpportunityDetail';
 import { CategoryFilter } from '../components/CategoryFilter';
+import { opportunityMatchesContentType } from '../data/contentTypeCatalog';
 
 const toRadians = (deg) => (deg * Math.PI) / 180;
 
@@ -69,6 +70,7 @@ export const FeedView = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedOpportunity, setSelectedOpportunity] = useState(null);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [contentType, setContentType] = useState('all');
   const [category, setCategory] = useState('all');
   const [sortBy, setSortBy] = useState('smart');
   const [feedError, setFeedError] = useState('');
@@ -177,6 +179,10 @@ export const FeedView = () => {
   const opportunities = useMemo(() => {
     let filtered = [...allOpportunities];
 
+    filtered = filtered.filter((opp) =>
+      opportunityMatchesContentType(opp, contentType)
+    );
+
     if (category !== 'all') {
       filtered = filtered.filter((opp) => opp.category === category);
     }
@@ -191,7 +197,13 @@ export const FeedView = () => {
 
 
     return filtered;
-  }, [allOpportunities, category, location?.lat, location?.lng]);
+  }, [
+    allOpportunities,
+    contentType,
+    category,
+    location?.lat,
+    location?.lng,
+  ]);
 
   const todayOpportunities = useMemo(() => {
     return opportunities.filter((opp) => {
@@ -263,7 +275,12 @@ export const FeedView = () => {
           </div>
 
           <div className="-mx-4">
-            <CategoryFilter selected={category} onSelect={setCategory} />
+            <CategoryFilter
+              selectedContentType={contentType}
+              onContentTypeSelect={setContentType}
+              selectedCategory={category}
+              onCategorySelect={setCategory}
+            />
           </div>
         </div>
       </div>

@@ -38,6 +38,12 @@ import { toast } from 'sonner';
 import 'leaflet/dist/leaflet.css';
 import { categories, getCategoryById } from '../data/categories';
 import {
+  contentTypeFilterOptions,
+  getContentTypeConfig,
+  inferOpportunityContentType,
+  opportunityMatchesContentType,
+} from '../data/contentTypeCatalog';
+import {
   formatOpportunityPrice,
   isExplicitlyFreeOpportunity,
 } from '../utils/opportunityPricing';
@@ -136,23 +142,22 @@ const getMarkerIconSvg = (categoryId) => {
   return paths[categoryId] || paths.user_reported;
 };
 
-const createCustomIcon = (categoryId) => {
-  const config =
-    getCategoryById(categoryId) ||
-    getCategoryById('user_reported');
+const createCustomIcon = (opportunity) => {
+  const categoryId = opportunity?.category;
+  const contentType = inferOpportunityContentType(opportunity);
+  const typeConfig = getContentTypeConfig(contentType);
 
-  const color = config?.color || '#F97316';
-  const safeCategoryId =
-    typeof categoryId === 'string'
-      ? categoryId.replace(/[^a-zA-Z0-9_-]/g, '')
-      : 'user_reported';
+  const safeContentType = String(contentType).replace(
+    /[^a-zA-Z0-9_-]/g,
+    ''
+  );
 
   return L.divIcon({
     className: 'custom-div-icon',
     html: `
       <div
-        class="custom-marker marker-${safeCategoryId}"
-        style="background-color: ${color}"
+        class="custom-marker marker-content-${safeContentType}"
+        style="background-color: ${typeConfig.color}"
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"
@@ -241,10 +246,15 @@ const estimatedValue =
     ? Number(opportunity.estimated_resale_value)
     : null;
 
-    const isJobOffer = opportunity.category === 'job_offers';
+    const contentType = inferOpportunityContentType(opportunity);
+    const typeConfig = getContentTypeConfig(contentType);
+    const TypeIcon = typeConfig.icon;
+    const isDeal = contentType === 'deal';
+    const isJobOffer = contentType === 'job';
     const displayedPrice = formatOpportunityPrice(opportunity);
     const isExplicitlyFree = isExplicitlyFreeOpportunity(opportunity);
-    const shouldShowPrice = !isJobOffer && displayedPrice !== null;
+    const shouldShowPrice =
+      !isDeal && !isJobOffer && displayedPrice !== null;
   const categoryConfig =
   getCategoryById(opportunity.category) ||
   getCategoryById('user_reported');
@@ -268,17 +278,26 @@ const estimatedValue =
         ) : (
           <div
             className="flex h-full w-full items-center justify-center"
-            style={{ backgroundColor: `${categoryConfig.color}22` }}
+            style={{ backgroundColor: `${typeConfig.color}18` }}
           >
-            <CategoryIcon className="h-8 w-8" style={{ color: categoryConfig.color }} />
+            <TypeIcon className="h-8 w-8" style={{ color: typeConfig.color }} />
           </div>
         )}
 
-        <div
-          className="absolute left-2 top-2 rounded-full px-2 py-0.5 text-[10px] font-black text-white shadow"
-          style={{ backgroundColor: categoryConfig.color }}
-        >
-          {categoryConfig.shortName || categoryConfig.name}
+        <div className="absolute left-2 top-2 flex max-w-[126px] flex-col items-start gap-1">
+          <span
+            className="rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-white shadow"
+            style={{ backgroundColor: typeConfig.color }}
+          >
+            {typeConfig.label}
+          </span>
+
+          <span
+            className="max-w-[126px] truncate rounded-full border border-white/70 bg-white/90 px-2 py-0.5 text-[9px] font-bold shadow-sm"
+            style={{ color: typeConfig.color }}
+          >
+            {categoryConfig.shortName || categoryConfig.name}
+          </span>
         </div>
       </div>
 
@@ -316,7 +335,9 @@ const estimatedValue =
   </div>
 )}
 
-  <div className="mt-2 flex items-center gap-1 text-[11px] font-bold text-emerald-600">
+  <div
+    className={`mt-2 flex items-center gap-1 text-[11px] font-bold ${typeConfig.softTextColor}`}
+  >
     <MapPin className="h-3 w-3" />
     {opportunity.distance_km
       ? `${opportunity.distance_km.toFixed(1)} km`
@@ -340,6 +361,7 @@ export const MapView = () => {
   const [allOpportunities, setAllOpportunities] = useState([]);
   const [selectedOpportunity, setSelectedOpportunity] = useState(null);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [contentType, setContentType] = useState('all');
   const [category, setCategory] = useState('all');
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [placeQuery, setPlaceQuery] = useState('');
@@ -533,6 +555,10 @@ total_opportunities_profile:
   const filteredOpportunities = useMemo(() => {
     let filtered = [...allOpportunities];
 
+    filtered = filtered.filter((opp) =>
+      opportunityMatchesContentType(opp, contentType)
+    );
+
     if (category !== 'all') {
       filtered = filtered.filter((opp) => opp.category === category);
     }
@@ -552,10 +578,20 @@ total_opportunities_profile:
     );
 
     return filtered;
-  }, [allOpportunities, category, location?.lat, location?.lng]);
+  }, [
+    allOpportunities,
+    contentType,
+    category,
+    location?.lat,
+    location?.lng,
+  ]);
 
   const latestOpportunities = useMemo(() => {
   let items = [...allOpportunities];
+
+  items = items.filter((opp) =>
+    opportunityMatchesContentType(opp, contentType)
+  );
 
   if (category !== 'all') {
     items = items.filter((opp) => opp.category === category);
@@ -603,6 +639,7 @@ total_opportunities_profile:
   return items;
 }, [
   allOpportunities,
+  contentType,
   category,
   location?.lat,
   location?.lng,
@@ -886,7 +923,7 @@ const featuredOpportunities = useMemo(() => {
           <Marker
             key={opp.id}
             position={[opp.latitude, opp.longitude]}
-            icon={createCustomIcon(opp.category)}
+            icon={createCustomIcon(opp)}
             eventHandlers={{ click: () => handleMarkerClick(opp) }}
           >
             <Popup closeButton={false} className="map-preview-popup">
@@ -975,6 +1012,34 @@ const featuredOpportunities = useMemo(() => {
 
 <div className="relative z-20 mx-auto max-w-7xl px-4 pt-0 -mt-6">
   <div className="horizontal-scroll -mx-4 overflow-x-auto px-4 pb-1">
+    <div className="flex gap-2">
+      {contentTypeFilterOptions.map((type) => {
+        const Icon = type.icon;
+        const isSelected = contentType === type.id;
+
+        return (
+          <button
+            key={type.id}
+            type="button"
+            onClick={() => setContentType(type.id)}
+            className={`flex h-10 flex-shrink-0 items-center gap-2 rounded-full border px-4 text-sm font-black shadow-sm ${
+              isSelected
+                ? 'border-transparent text-white'
+                : 'border-gray-200 bg-white/90 text-gray-800'
+            }`}
+            style={{
+              backgroundColor: isSelected ? type.color : undefined,
+            }}
+          >
+            <Icon className="h-4 w-4" />
+            {type.pluralLabel}
+          </button>
+        );
+      })}
+    </div>
+  </div>
+
+  <div className="horizontal-scroll -mx-4 mt-2 overflow-x-auto px-4 pb-1">
     <div className="flex gap-2">
       <button
         type="button"
@@ -1081,6 +1146,32 @@ const featuredOpportunities = useMemo(() => {
 </div>
       </div>
 
+            <div className="mx-auto max-w-7xl px-4 pb-8">
+        <section
+          className="mx-auto mt-6 max-w-3xl overflow-hidden rounded-[24px] bg-gradient-to-br from-orange-500 via-orange-500 to-orange-600 px-5 py-5 text-white shadow-[0_14px_38px_rgba(234,88,12,0.24)] sm:px-7 sm:py-6"
+          aria-labelledby="home-community-banner-title"
+        >
+          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-orange-100 sm:text-[11px]">
+            La community cresce con te
+          </p>
+
+          <h2
+            id="home-community-banner-title"
+            className="mt-2 text-[20px] font-black leading-tight sm:text-[24px]"
+          >
+            Hai trovato un affare?
+            <br />
+            Condividilo su DealRadar.
+          </h2>
+
+          <p className="mt-2 max-w-2xl text-[13px] font-medium leading-relaxed text-orange-50 sm:text-sm">
+            Segnala occasioni, vendite, offerte di lavoro e immobili vicino a
+            te. Più persone partecipano, più opportunità reali scoprirà tutta
+            la community.
+          </p>
+        </section>
+      </div>
+
       {filtersOpen && (
   <div className="fixed inset-0 z-[9999] bg-black/40 backdrop-blur-sm">
     <div className="absolute right-0 top-0 h-full w-full max-w-md overflow-y-auto bg-white p-6 shadow-2xl">
@@ -1122,6 +1213,29 @@ const featuredOpportunities = useMemo(() => {
               <Euro className="h-4 w-4" />
               Prezzo basso
             </FilterButton>
+          </div>
+        </div>
+
+        <div>
+          <h3 className="mb-3 text-sm font-black uppercase tracking-wide text-gray-500">
+            Tipo di contenuto
+          </h3>
+
+          <div className="grid grid-cols-2 gap-3">
+            {contentTypeFilterOptions.map((type) => {
+              const Icon = type.icon;
+
+              return (
+                <FilterButton
+                  key={type.id}
+                  active={contentType === type.id}
+                  onClick={() => setContentType(type.id)}
+                >
+                  <Icon className="h-4 w-4" />
+                  {type.pluralLabel}
+                </FilterButton>
+              );
+            })}
           </div>
         </div>
 
@@ -1191,6 +1305,7 @@ const featuredOpportunities = useMemo(() => {
             className="h-12 flex-1 rounded-2xl"
             onClick={() => {
               setHomeSort('recent');
+              setContentType('all');
               setCategory('all');
               setOnlyVerified(false);
               setMaxPrice('');

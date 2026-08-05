@@ -37,6 +37,11 @@ import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
+import { getCategoryById } from '../data/categories';
+import {
+  getContentTypeConfig,
+  inferOpportunityContentType,
+} from '../data/contentTypeCatalog';
 import {
   formatOpportunityPrice,
   isExplicitlyFreeOpportunity,
@@ -48,21 +53,6 @@ const COMMENT_COOLDOWN_SECONDS = 10;
 const REPORTS_AUTO_HIDE_THRESHOLD = 3;
 const REPORTS_DAILY_LIMIT = 10;
 const VERIFIED_THRESHOLD = 3;
-
-const categoryConfig = {
-  store_liquidation: { name: 'Liquidazione negozio', color: 'bg-green-500' },
-  product_stock: { name: 'Stock prodotti', color: 'bg-amber-500' },
-  equipment: { name: 'Attrezzatura', color: 'bg-blue-500' },
-  business_sale: { name: 'Vendita attività', color: 'bg-purple-500' },
-  electronics: { name: 'Elettronica', color: 'bg-cyan-500' },
-  clothing: { name: 'Abbigliamento', color: 'bg-pink-500' },
-  home: { name: 'Casa e arredamento', color: 'bg-teal-500' },
-  vehicles: { name: 'Motori', color: 'bg-slate-600' },
-  other: { name: 'Altro', color: 'bg-gray-500' },
-  auctions: { name: 'Aste', color: 'bg-red-500' },
-  user_reported: { name: 'Segnalazione utente', color: 'bg-orange-500' },
-  free_deals: { name: 'Gratis', color: 'bg-green-600' },
-};
 
 const reportReasons = [
   { id: 'fraud', label: 'Possibile truffa' },
@@ -235,8 +225,27 @@ export const OpportunityDetail = ({ opportunity, open, onClose }) => {
   }, [opportunity?.images]);
 
   const category = useMemo(() => {
-    return categoryConfig[opportunity?.category] || categoryConfig.user_reported;
+    const categoryData = getCategoryById(opportunity?.category);
+
+    return {
+      name:
+        categoryData?.shortName ||
+        categoryData?.name ||
+        'Altra categoria',
+    };
   }, [opportunity?.category]);
+
+  const contentType = useMemo(
+    () => inferOpportunityContentType(opportunity),
+    [opportunity]
+  );
+
+  const typeConfig = useMemo(
+    () => getContentTypeConfig(contentType),
+    [contentType]
+  );
+
+  const TypeIcon = typeConfig.icon;
 
   const goToPreviousImage = useCallback(() => {
     if (images.length <= 1) return;
@@ -917,9 +926,8 @@ if (existingConversation) {
   };
 
   const TrustIcon = authorTrust.level === 'risky' ? AlertTriangle : ShieldCheck;
-  const isJobOffer =
-    opportunity.content_type === 'job' || opportunity.category === 'job_offers';
-  const isDeal = opportunity.content_type === 'deal';
+  const isJobOffer = contentType === 'job';
+  const isDeal = contentType === 'deal';
   const isExplicitlyFree = isExplicitlyFreeOpportunity(opportunity);
   const displayedPrice = formatOpportunityPrice(opportunity);
   const shouldShowPricingSection =
@@ -1006,7 +1014,17 @@ if (existingConversation) {
 
             <div className="space-y-2">
               <div className="flex w-full max-w-full gap-2 overflow-x-auto pb-2 whitespace-nowrap">
-                <Badge className={`${category.color} border-0 text-white`}>
+                <Badge
+                  className={`${typeConfig.chipColor} border-0 text-white`}
+                >
+                  <TypeIcon className="mr-1 h-3 w-3" />
+                  {typeConfig.label}
+                </Badge>
+
+                <Badge
+                  variant="outline"
+                  className={`${typeConfig.softChipColor} ${typeConfig.softTextColor} ${typeConfig.borderColor}`}
+                >
                   {category.name}
                 </Badge>
 
