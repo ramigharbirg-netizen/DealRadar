@@ -45,7 +45,10 @@ import {
   getRealEstateRentPeriodLabel,
   getRealEstateRentPeriodOptions,
   getWizardCategoryLabel,
+  getWizardEntryChildren,
+  getWizardParentEntryForChild,
   getWizardSubcategories,
+  isWizardEntryGroup,
   publicationTypes,
 } from '../../data/opportunityWizardCatalog';
 
@@ -104,21 +107,28 @@ const WizardProgress = ({ step }) => (
   </div>
 );
 
-const PublicationTypeStep = ({ value, onSelect }) => (
+const PublicationTypeStep = ({ value, onSelect, locked = false }) => (
   <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
     {publicationTypes.map((type) => {
       const Icon = type.icon;
       const selected = value === type.id;
+      const disabled = locked && !selected;
 
       return (
         <button
           key={type.id}
           type="button"
-          onClick={() => onSelect(type)}
-          className={`group relative flex min-h-[205px] flex-col items-center rounded-[26px] border bg-white px-3 py-5 text-center transition-all duration-200 active:scale-[0.98] sm:min-h-[230px] sm:px-5 sm:py-6 ${
+          onClick={() => {
+            if (!disabled) onSelect(type);
+          }}
+          disabled={disabled}
+          aria-disabled={disabled}
+          className={`group relative flex min-h-[205px] flex-col items-center rounded-[26px] border bg-white px-3 py-5 text-center transition-all duration-200 sm:min-h-[230px] sm:px-5 sm:py-6 ${
             selected
               ? type.selectedClass
-              : 'border-gray-200 hover:-translate-y-0.5 hover:border-orange-200 hover:shadow-xl'
+              : disabled
+                ? 'cursor-not-allowed border-gray-200 bg-gray-50 opacity-45'
+                : 'border-gray-200 hover:-translate-y-0.5 hover:border-orange-200 hover:shadow-xl active:scale-[0.98]'
           }`}
         >
           {selected && (
@@ -139,12 +149,55 @@ const PublicationTypeStep = ({ value, onSelect }) => (
         </button>
       );
     })}
+    {locked && (
+      <div className="col-span-2 rounded-2xl border border-orange-100 bg-orange-50 px-4 py-3 text-left text-sm leading-6 text-orange-900 lg:col-span-4">
+        <strong>Tipo bloccato:</strong> durante la modifica puoi cambiare categoria e dettagli, ma non trasformare la pubblicazione in un tipo diverso.
+      </div>
+    )}
   </div>
 );
 
-const CategoryStep = ({ publicationType, selectedEntry, onSelectEntry, subcategoryValue, onSelectSubcategory }) => {
+const CategoryStep = ({
+  publicationType,
+  selectedEntry,
+  onSelectEntry,
+  subcategoryValue,
+  onSelectSubcategory,
+}) => {
   const sections = getOpportunityWizardSections(publicationType);
   const subcategories = getWizardSubcategories(selectedEntry);
+  const selectedParentEntry = getWizardParentEntryForChild(
+    publicationType,
+    selectedEntry?.id
+  );
+
+  const [expandedGroupId, setExpandedGroupId] = React.useState(
+    selectedParentEntry?.id || ''
+  );
+
+  React.useEffect(() => {
+    if (selectedParentEntry?.id) {
+      setExpandedGroupId(selectedParentEntry.id);
+    }
+  }, [selectedParentEntry?.id]);
+
+  const topLevelEntries = sections.flatMap((section) => section.entries);
+  const expandedGroup = topLevelEntries.find(
+    (entry) => entry.id === expandedGroupId && isWizardEntryGroup(entry)
+  );
+  const groupChildren = getWizardEntryChildren(expandedGroup);
+
+  const handleTopLevelEntryClick = (entry) => {
+    if (isWizardEntryGroup(entry)) {
+      setExpandedGroupId((current) =>
+        current === entry.id ? '' : entry.id
+      );
+      return;
+    }
+
+    setExpandedGroupId('');
+    onSelectEntry(entry);
+  };
 
   return (
     <div className="space-y-8">
@@ -153,15 +206,19 @@ const CategoryStep = ({ publicationType, selectedEntry, onSelectEntry, subcatego
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
             {section.entries.map((entry) => {
               const Icon = entry.icon;
-              const selected = selectedEntry?.id === entry.id;
+              const isGroup = isWizardEntryGroup(entry);
+              const hasSelectedChild = selectedParentEntry?.id === entry.id;
+              const expanded = expandedGroupId === entry.id;
+              const selected = selectedEntry?.id === entry.id || hasSelectedChild;
 
               return (
                 <button
                   key={entry.id}
                   type="button"
-                  onClick={() => onSelectEntry(entry)}
+                  onClick={() => handleTopLevelEntryClick(entry)}
+                  aria-expanded={isGroup ? expanded : undefined}
                   className={`group relative min-h-[150px] rounded-[24px] border p-4 text-center transition-all duration-200 active:scale-[0.98] ${
-                    selected
+                    selected || expanded
                       ? 'border-orange-500 bg-orange-50 shadow-[0_12px_30px_rgba(249,115,22,0.14)]'
                       : 'border-gray-200 bg-white hover:-translate-y-0.5 hover:border-orange-200 hover:shadow-lg'
                   }`}
@@ -171,11 +228,40 @@ const CategoryStep = ({ publicationType, selectedEntry, onSelectEntry, subcatego
                       <Check className="h-4 w-4" />
                     </span>
                   )}
-                  <span className={`mx-auto flex h-14 w-14 items-center justify-center rounded-full ${entry.iconClass || 'bg-gray-100 text-gray-700'}`}>
+
+                  {isGroup && !selected && (
+                    <span className="absolute right-3 top-3 flex h-6 w-6 items-center justify-center rounded-full bg-gray-100 text-gray-500">
+                      <ChevronRight
+                        className={`h-4 w-4 transition-transform ${
+                          expanded ? 'rotate-90' : ''
+                        }`}
+                      />
+                    </span>
+                  )}
+
+                  <span
+                    className={`mx-auto flex h-14 w-14 items-center justify-center rounded-full ${
+                      entry.iconClass || 'bg-gray-100 text-gray-700'
+                    }`}
+                  >
                     <Icon className="h-7 w-7" strokeWidth={2.2} />
                   </span>
-                  <span className="mt-3 block font-extrabold leading-tight text-gray-950">{entry.name}</span>
-                  <span className="mt-1.5 block text-xs leading-5 text-gray-500">{entry.description}</span>
+                  <span className="mt-3 block font-extrabold leading-tight text-gray-950">
+                    {entry.name}
+                  </span>
+                  <span className="mt-1.5 block text-xs leading-5 text-gray-500">
+                    {entry.description}
+                  </span>
+                  {isGroup && (
+                    <span className="mt-2 inline-flex items-center gap-1 text-[11px] font-bold text-orange-600">
+                      {expanded ? 'Nascondi opzioni' : 'Scegli tipologia'}
+                      <ChevronRight
+                        className={`h-3.5 w-3.5 transition-transform ${
+                          expanded ? 'rotate-90' : ''
+                        }`}
+                      />
+                    </span>
+                  )}
                 </button>
               );
             })}
@@ -183,11 +269,68 @@ const CategoryStep = ({ publicationType, selectedEntry, onSelectEntry, subcatego
         </section>
       ))}
 
+      {expandedGroup && groupChildren.length > 0 && (
+        <section className="rounded-[26px] border border-orange-100 bg-orange-50/50 p-4 sm:p-6">
+          <div className="mb-4">
+            <h3 className="text-lg font-black text-gray-950">
+              {expandedGroup.childrenTitle || 'Scegli una tipologia'}
+            </h3>
+            <p className="mt-1 text-sm text-gray-500">
+              {expandedGroup.childrenDescription ||
+                'Seleziona l’opzione più precisa.'}
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            {groupChildren.map((child) => {
+              const ChildIcon = child.icon;
+              const selected = selectedEntry?.id === child.id;
+
+              return (
+                <button
+                  key={child.id}
+                  type="button"
+                  onClick={() => onSelectEntry(child)}
+                  className={`relative min-h-[132px] rounded-[22px] border bg-white p-4 text-left transition active:scale-[0.99] ${
+                    selected
+                      ? 'border-orange-500 shadow-[0_10px_25px_rgba(249,115,22,0.12)]'
+                      : 'border-orange-100 hover:border-orange-300 hover:shadow-md'
+                  }`}
+                >
+                  {selected && (
+                    <span className="absolute right-3 top-3 flex h-6 w-6 items-center justify-center rounded-full bg-orange-500 text-white">
+                      <Check className="h-4 w-4" />
+                    </span>
+                  )}
+                  <span
+                    className={`flex h-11 w-11 items-center justify-center rounded-xl ${
+                      child.iconClass || 'bg-gray-100 text-gray-700'
+                    }`}
+                  >
+                    <ChildIcon className="h-5 w-5" strokeWidth={2.2} />
+                  </span>
+                  <span className="mt-3 block pr-7 font-extrabold leading-tight text-gray-950">
+                    {child.name}
+                  </span>
+                  <span className="mt-1.5 block text-xs leading-5 text-gray-500">
+                    {child.description}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
       {selectedEntry && subcategories.length > 0 && (
         <section className="rounded-[26px] border border-orange-100 bg-orange-50/50 p-4 sm:p-6">
           <div className="mb-4">
-            <h3 className="text-lg font-black text-gray-950">Scegli una sottocategoria</h3>
-            <p className="mt-1 text-sm text-gray-500">Aggiungi un dettaglio per rendere la pubblicazione più precisa.</p>
+            <h3 className="text-lg font-black text-gray-950">
+              Scegli una sottocategoria
+            </h3>
+            <p className="mt-1 text-sm text-gray-500">
+              Aggiungi un dettaglio per rendere la pubblicazione più precisa.
+            </p>
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {subcategories.map((subcategory) => {
@@ -203,8 +346,14 @@ const CategoryStep = ({ publicationType, selectedEntry, onSelectEntry, subcatego
                       : 'border-orange-100 bg-white/80 hover:border-orange-300'
                   }`}
                 >
-                  <span className="font-bold text-gray-950">{subcategory.name}</span>
-                  {selected ? <Check className="h-5 w-5 text-orange-600" /> : <ChevronRight className="h-5 w-5 text-gray-300" />}
+                  <span className="font-bold text-gray-950">
+                    {subcategory.name}
+                  </span>
+                  {selected ? (
+                    <Check className="h-5 w-5 text-orange-600" />
+                  ) : (
+                    <ChevronRight className="h-5 w-5 text-gray-300" />
+                  )}
                 </button>
               );
             })}
@@ -214,13 +363,16 @@ const CategoryStep = ({ publicationType, selectedEntry, onSelectEntry, subcatego
 
       <div className="flex items-start gap-3 rounded-2xl bg-orange-50 px-4 py-3 text-sm text-orange-900">
         <span className="mt-0.5 text-lg">💡</span>
-        <p><strong>Consiglio:</strong> scegli la categoria più precisa per aiutare la community a trovare subito il contenuto giusto.</p>
+        <p>
+          <strong>Consiglio:</strong> scegli la categoria più precisa per
+          aiutare la community a trovare subito il contenuto giusto.
+        </p>
       </div>
     </div>
   );
 };
 
-const PhotosBlock = ({ images, uploadingImages, onOpenPhotoSource, onRemoveImage, cameraInputRef, fileInputRef, onImageUpload, maxImages, maxUploadMb, required }) => (
+const PhotosBlock = ({ images, uploadingImages, onOpenPhotoSource, onRemoveImage, cameraInputRef, fileInputRef, onImageUpload, maxImages, maxUploadMb, required, readOnly = false }) => (
   <div>
     <div className="mb-2 flex items-center justify-between gap-3">
       <Label>Foto {required ? '*' : ''}</Label>
@@ -230,19 +382,29 @@ const PhotosBlock = ({ images, uploadingImages, onOpenPhotoSource, onRemoveImage
       {images.map((img, index) => (
         <div key={img} className="relative flex-shrink-0">
           <img src={img} alt={`Foto caricata ${index + 1}`} className="h-28 w-28 rounded-2xl object-cover shadow-sm" />
-          <button type="button" onClick={() => onRemoveImage(index)} className="absolute -right-2 -top-2 flex h-7 w-7 items-center justify-center rounded-full bg-red-500 text-white shadow" aria-label={`Rimuovi foto ${index + 1}`}><X className="h-4 w-4" /></button>
+          {!readOnly && (
+            <button type="button" onClick={() => onRemoveImage(index)} className="absolute -right-2 -top-2 flex h-7 w-7 items-center justify-center rounded-full bg-red-500 text-white shadow" aria-label={`Rimuovi foto ${index + 1}`}><X className="h-4 w-4" /></button>
+          )}
         </div>
       ))}
-      {images.length < maxImages && (
+      {!readOnly && images.length < maxImages && (
         <button type="button" onClick={onOpenPhotoSource} disabled={uploadingImages} className="flex h-28 w-28 flex-shrink-0 flex-col items-center justify-center rounded-2xl border-2 border-dashed border-gray-300 text-gray-400 transition hover:border-orange-400 hover:bg-orange-50 hover:text-orange-600 disabled:opacity-50">
           {uploadingImages ? <Loader2 className="mb-2 h-6 w-6 animate-spin" /> : <Camera className="mb-2 h-6 w-6" />}
           <span className="text-xs font-semibold">{uploadingImages ? 'Carico...' : 'Aggiungi foto'}</span>
         </button>
       )}
-      <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={onImageUpload} className="hidden" />
-      <input ref={fileInputRef} type="file" accept="image/jpeg,image/jpg,image/png,image/webp" multiple onChange={onImageUpload} className="hidden" />
+      {!readOnly && (
+        <>
+          <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={onImageUpload} className="hidden" />
+          <input ref={fileInputRef} type="file" accept="image/jpeg,image/jpg,image/png,image/webp" multiple onChange={onImageUpload} className="hidden" />
+        </>
+      )}
     </div>
-    <p className="mt-2 text-xs leading-5 text-gray-500">Fino a {maxImages} foto JPG, PNG o WEBP. Massimo {maxUploadMb} MB per immagine; la compressione è automatica.</p>
+    <p className="mt-2 text-xs leading-5 text-gray-500">
+      {readOnly
+        ? 'Le foto esistenti vengono mantenute. La modifica delle immagini sarà aggiunta in un checkpoint Storage dedicato.'
+        : `Fino a ${maxImages} foto JPG, PNG o WEBP. Massimo ${maxUploadMb} MB per immagine; la compressione è automatica.`}
+    </p>
   </div>
 );
 
@@ -540,6 +702,9 @@ const OpportunityWizard = ({
   onExit,
   maxImages,
   maxUploadMb,
+  mode = 'create',
+  publicationTypeLocked = false,
+  imagesReadOnly = false,
 }) => {
   const subcategories = getWizardSubcategories(selectedEntry);
   const isDeal = publicationType === 'deal';
@@ -638,7 +803,7 @@ const OpportunityWizard = ({
         <div className="mx-auto max-w-6xl px-4 py-4 sm:px-6">
           <div className="mb-4 flex items-center justify-between gap-3">
             <button type="button" onClick={back} className="flex h-10 w-10 items-center justify-center rounded-full text-gray-700 transition hover:bg-gray-100" aria-label="Indietro"><ArrowLeft className="h-5 w-5" /></button>
-            <div className="text-center"><p className="text-sm font-black text-gray-950">Nuova pubblicazione</p><p className="text-xs font-medium text-orange-500">DealRadar</p></div>
+            <div className="text-center"><p className="text-sm font-black text-gray-950">{mode === 'edit' ? 'Modifica pubblicazione' : 'Nuova pubblicazione'}</p><p className="text-xs font-medium text-orange-500">DealRadar</p></div>
             <div className="h-10 w-10" />
           </div>
           <WizardProgress step={step} />
@@ -649,9 +814,9 @@ const OpportunityWizard = ({
         <div className="rounded-[30px] border border-gray-200 bg-white p-5 shadow-sm sm:p-8 lg:p-10">
           <StepHeader step={step} title={heading.title} accent={heading.accent} description={heading.description} />
           <div className="mt-8">
-            {step === 1 && <PublicationTypeStep value={publicationType} onSelect={onSelectPublicationType} />}
+            {step === 1 && <PublicationTypeStep value={publicationType} onSelect={onSelectPublicationType} locked={publicationTypeLocked} />}
             {step === 2 && <CategoryStep publicationType={publicationType} selectedEntry={selectedEntry} onSelectEntry={onSelectEntry} subcategoryValue={formData.subcategory} onSelectSubcategory={onSelectSubcategory} />}
-            {step === 3 && <DetailsStep publicationType={publicationType} formData={formData} images={images} uploadingImages={uploadingImages} loading={loading} onChange={onChange} onAttributesChange={(attributes) => setFormData((prev) => ({ ...prev, attributes }))} onOpenPhotoSource={() => setPhotoSourceOpen(true)} onRemoveImage={onRemoveImage} cameraInputRef={cameraInputRef} fileInputRef={fileInputRef} onImageUpload={onImageUpload} maxImages={maxImages} maxUploadMb={maxUploadMb} />}
+            {step === 3 && <DetailsStep publicationType={publicationType} formData={formData} images={images} uploadingImages={uploadingImages} loading={loading} onChange={onChange} onAttributesChange={(attributes) => setFormData((prev) => ({ ...prev, attributes }))} onOpenPhotoSource={() => setPhotoSourceOpen(true)} onRemoveImage={onRemoveImage} cameraInputRef={cameraInputRef} fileInputRef={fileInputRef} onImageUpload={onImageUpload} maxImages={maxImages} maxUploadMb={maxUploadMb} readOnly={imagesReadOnly} />}
             {step === 4 && <LocationStep publicationType={publicationType} formData={formData} onChange={onChange} onAttributesChange={(attributes) => setFormData((prev) => ({ ...prev, attributes }))} useCurrentLocation={useCurrentLocation} positionConfirmed={positionConfirmed} authenticityDeclared={authenticityDeclared} setAuthenticityDeclared={setAuthenticityDeclared} hasCounterfeitRisk={hasCounterfeitRisk} />}
             {step === 5 && <PreviewStep publicationType={publicationType} formData={formData} images={images} selectedEntry={selectedEntry} />}
           </div>
@@ -664,14 +829,20 @@ const OpportunityWizard = ({
               <Button type="button" onClick={next} disabled={!canContinue || uploadingImages} className="h-12 flex-[1.4] rounded-xl bg-orange-500 font-bold hover:bg-orange-600">Avanti<ChevronRight className="ml-2 h-4 w-4" /></Button>
             ) : (
               <Button type="button" onClick={(event) => { event.preventDefault(); onSubmit(event); }} disabled={loading || authLoading || uploadingImages} className="h-12 flex-[1.4] rounded-xl bg-orange-500 font-bold hover:bg-orange-600">
-                {loading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Pubblicazione...</> : <><Check className="mr-2 h-4 w-4" />{publicationType === 'deal' ? 'Pubblica affare' : 'Pubblica annuncio'}</>}
+                {loading ? (
+                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" />{mode === 'edit' ? 'Salvataggio...' : 'Pubblicazione...'}</>
+                ) : (
+                  <><Check className="mr-2 h-4 w-4" />{mode === 'edit' ? 'Salva modifiche' : publicationType === 'deal' ? 'Pubblica affare' : 'Pubblica annuncio'}</>
+                )}
               </Button>
             )}
           </div>
         </div>
       </form>
 
-      <PhotoDialog open={photoSourceOpen} setOpen={setPhotoSourceOpen} cameraInputRef={cameraInputRef} fileInputRef={fileInputRef} />
+      {!imagesReadOnly && (
+        <PhotoDialog open={photoSourceOpen} setOpen={setPhotoSourceOpen} cameraInputRef={cameraInputRef} fileInputRef={fileInputRef} />
+      )}
     </div>
   );
 };

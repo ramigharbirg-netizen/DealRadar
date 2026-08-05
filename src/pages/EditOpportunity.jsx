@@ -1,55 +1,200 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Loader2, Save } from 'lucide-react';
-import { Button } from '../components/ui/button';
-import { Input } from '../components/ui/input';
-import { Textarea } from '../components/ui/textarea';
-import { Label } from '../components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '../components/ui/select';
+import { Loader2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { useLocation } from '../contexts/LocationContext';
 import { supabase } from '../lib/supabase';
 import { toast } from 'sonner';
-import { categories } from '../data/categories';
+import OpportunityWizard from '../components/opportunity-wizard/OpportunityWizard';
+import {
+  getSubcategories,
+  getSubcategoryAttributes,
+  optionalLocationCategoryIds,
+} from '../data/categories';
+import {
+  applyWizardEntry,
+  applyWizardSubcategory,
+  getRealEstateRentPeriodOptions,
+  getWizardEntryById,
+  getWizardEntryForValue,
+} from '../data/opportunityWizardCatalog';
+
+const MAX_IMAGES = 5;
+const MAX_UPLOAD_IMAGE_SIZE_MB = 15;
+
+const COUNTERFEIT_RISK_TERMS = [
+  'replica',
+  'repliche',
+  'fake',
+  'falso',
+  'falsa',
+  'falsi',
+  'false',
+  'contraffatto',
+  'contraffatta',
+  'contraffatti',
+  'contraffatte',
+  'imitazione',
+  'imitazioni',
+  'clone',
+  'cloni',
+  'tarocco',
+  'tarocca',
+  'tarocchi',
+  'tarocche',
+  'non originale',
+  'non autentico',
+  'non autentica',
+  '1:1',
+  'mirror quality',
+];
+
+const detectCounterfeitRiskTerms = (title = '', description = '') => {
+  const text = `${title} ${description}`.toLowerCase();
+  return COUNTERFEIT_RISK_TERMS.filter((term) => text.includes(term));
+};
+
+const inferLegacyContentType = (category) => {
+  if (category === 'job_offers') return 'job';
+  if (category === 'rental_homes') return 'real_estate';
+  return 'sale';
+};
+
+const sanitizeCategoryAttributes = (
+  categoryId,
+  subcategoryId,
+  rawAttributes
+) => {
+  if (
+    !categoryId ||
+    !subcategoryId ||
+    !rawAttributes ||
+    typeof rawAttributes !== 'object'
+  ) {
+    return {};
+  }
+
+  const definitions = getSubcategoryAttributes(categoryId, subcategoryId);
+  const sanitized = {};
+
+  definitions.forEach((definition) => {
+    const rawValue = rawAttributes[definition.id];
+    const allowedOptionIds = new Set(
+      definition.options.map((option) => option.id)
+    );
+
+    if (definition.type === 'single_select') {
+      if (typeof rawValue === 'string' && allowedOptionIds.has(rawValue)) {
+        sanitized[definition.id] = rawValue;
+      }
+      return;
+    }
+
+    if (definition.type === 'multi_select' && Array.isArray(rawValue)) {
+      const cleanValues = Array.from(
+        new Set(
+          rawValue.filter(
+            (value) =>
+              typeof value === 'string' && allowedOptionIds.has(value)
+          )
+        )
+      );
+
+      if (cleanValues.length > 0) {
+        sanitized[definition.id] = cleanValues;
+      }
+    }
+  });
+
+  return sanitized;
+};
+
+const parseOptionalNonNegativeNumber = (value, label) => {
+  if (value === '' || value === null || value === undefined) return null;
+
+  const number = Number(value);
+
+  if (!Number.isFinite(number) || number < 0) {
+    throw new Error(`${label} non valido`);
+  }
+
+  return number;
+};
 
 const EditOpportunity = () => {
   const { id } = useParams();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
+  const { requestLocation } = useLocation();
   const navigate = useNavigate();
+
+  const cameraInputRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-
-  const [originalLocation, setOriginalLocation] = useState({
-  address: '',
-  latitude: null,
-  longitude: null,
-});
+  const [step, setStep] = useState(1);
+  const [publicationType, setPublicationType] = useState('');
+  const [wizardEntryId, setWizardEntryId] = useState('');
+  const [images, setImages] = useState([]);
+  const [positionConfirmed, setPositionConfirmed] = useState(false);
+  const [authenticityDeclared, setAuthenticityDeclared] = useState(false);
+  const [photoSourceOpen, setPhotoSourceOpen] = useState(false);
 
   const [formData, setFormData] = useState({
     title: '',
     description: '',
     category: '',
+    subcategory: '',
+    attributes: {},
+    latitude: null,
+    longitude: null,
     address: '',
     estimated_price: '',
     estimated_resale_value: '',
     contact_phone: '',
     contact_email: '',
     contact_link: '',
+    merchant_name: '',
   });
 
+  const selectedWizardEntry = wizardEntryId
+    ? getWizardEntryById(wizardEntryId, publicationType)
+    : getWizardEntryForValue(
+        publicationType,
+        formData.category,
+        formData.attributes,
+        formData.subcategory
+      );
+
+  const detectedCounterfeitTerms = useMemo(
+    () =>
+      detectCounterfeitRiskTerms(formData.title, formData.description),
+    [formData.title, formData.description]
+  );
+
+  const hasCounterfeitRisk = detectedCounterfeitTerms.length > 0;
+
   useEffect(() => {
+    if (authLoading) return;
+
+    if (!user?.id) {
+      toast.error('Devi fare login per modificare una pubblicazione');
+      navigate('/login');
+      return;
+    }
+
+    if (!id) {
+      toast.error('Pubblicazione non valida');
+      navigate('/profile');
+      return;
+    }
+
+    let cancelled = false;
+
     const loadOpportunity = async () => {
-      if (!user?.id || !id) return;
+      setLoading(true);
 
       try {
-        setLoading(true);
-
         const { data, error } = await supabase
           .from('opportunities')
           .select('*')
@@ -58,14 +203,50 @@ const EditOpportunity = () => {
           .single();
 
         if (error) throw error;
+        if (cancelled) return;
+
+        const resolvedType =
+          data.content_type || inferLegacyContentType(data.category);
+        const resolvedAttributes =
+          data.attributes && typeof data.attributes === 'object'
+            ? data.attributes
+            : {};
+        const resolvedSubcategory = data.subcategory || '';
+        const resolvedEntry = getWizardEntryForValue(
+          resolvedType,
+          data.category || '',
+          resolvedAttributes,
+          resolvedSubcategory
+        );
+
+        setPublicationType(resolvedType);
+        setWizardEntryId(resolvedEntry?.id || '');
+        setImages(Array.isArray(data.images) ? data.images.filter(Boolean) : []);
+        setPositionConfirmed(
+          data.latitude !== null &&
+            data.latitude !== undefined &&
+            data.longitude !== null &&
+            data.longitude !== undefined
+        );
 
         setFormData({
           title: data.title || '',
           description: data.description || '',
           category: data.category || '',
+          subcategory: resolvedSubcategory,
+          attributes: resolvedAttributes,
+          latitude:
+            data.latitude !== null && data.latitude !== undefined
+              ? Number(data.latitude)
+              : null,
+          longitude:
+            data.longitude !== null && data.longitude !== undefined
+              ? Number(data.longitude)
+              : null,
           address: data.address || '',
           estimated_price:
-            data.estimated_price !== null && data.estimated_price !== undefined
+            data.estimated_price !== null &&
+            data.estimated_price !== undefined
               ? String(data.estimated_price)
               : '',
           estimated_resale_value:
@@ -76,153 +257,318 @@ const EditOpportunity = () => {
           contact_phone: data.contact_phone || '',
           contact_email: data.contact_email || '',
           contact_link: data.contact_link || '',
+          merchant_name: data.merchant_name || '',
         });
-
-        setOriginalLocation({
-  address: data.address || '',
-  latitude:
-    data.latitude !== null && data.latitude !== undefined
-      ? Number(data.latitude)
-      : null,
-  longitude:
-    data.longitude !== null && data.longitude !== undefined
-      ? Number(data.longitude)
-      : null,
-});
-
-      } catch (err) {
-        console.error('Load opportunity error:', err);
-        toast.error('Opportunità non trovata o non modificabile');
+      } catch (error) {
+        console.error('Load opportunity error:', error);
+        toast.error('Pubblicazione non trovata o non modificabile');
         navigate('/profile');
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
 
     loadOpportunity();
-  }, [id, user?.id, navigate]);
 
-  const updateField = (field, value) => {
-    setFormData((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
+    return () => {
+      cancelled = true;
+    };
+  }, [authLoading, id, navigate, user?.id]);
+
+  const handlePublicationTypeSelect = (type) => {
+    if (!type?.id || type.id !== publicationType) return;
+  };
+
+  const handleWizardEntrySelect = (entry) => {
+    if (!entry?.id) return;
+
+    setWizardEntryId(entry.id);
+    setAuthenticityDeclared(false);
+
+    setFormData((previous) => {
+      const nextFormData = applyWizardEntry(entry, previous);
+      const isFreeDeal = entry.categoryId === 'free_deals';
+
+      if (publicationType === 'deal') {
+        return {
+          ...nextFormData,
+          estimated_price: '',
+          estimated_resale_value: '',
+          contact_phone: '',
+          contact_email: '',
+          contact_link: '',
+        };
+      }
+
+      if (publicationType === 'job') {
+        return {
+          ...nextFormData,
+          merchant_name: '',
+          estimated_price: '',
+          estimated_resale_value: '',
+        };
+      }
+
+      if (publicationType === 'real_estate') {
+        return {
+          ...nextFormData,
+          merchant_name: '',
+          attributes: {
+            ...nextFormData.attributes,
+            rental_period:
+              entry.preferredSubcategory === 'casa_vacanze'
+                ? ''
+                : 'monthly',
+          },
+          estimated_resale_value: '',
+        };
+      }
+
+      return {
+        ...nextFormData,
+        merchant_name: '',
+        estimated_price: isFreeDeal ? '' : previous.estimated_price,
+        estimated_resale_value: isFreeDeal
+          ? ''
+          : previous.estimated_resale_value,
+      };
+    });
+  };
+
+  const handleWizardSubcategorySelect = (subcategoryId) => {
+    setFormData((previous) =>
+      applyWizardSubcategory(
+        selectedWizardEntry,
+        subcategoryId,
+        previous
+      )
+    );
+  };
+
+  const handleChange = (event) => {
+    const { name, value } = event.target;
+
+    if (name === 'address') {
+      setPositionConfirmed(false);
+      setFormData((previous) => ({
+        ...previous,
+        address: value,
+        latitude: null,
+        longitude: null,
+      }));
+      return;
+    }
+
+    setFormData((previous) => ({ ...previous, [name]: value }));
+  };
+
+  const useCurrentLocation = async () => {
+    try {
+      const position = await requestLocation();
+
+      if (!position) {
+        toast.error('Impossibile ottenere la tua posizione');
+        return;
+      }
+
+      setFormData((previous) => ({
+        ...previous,
+        address: '',
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+      }));
+      setPositionConfirmed(true);
+      toast.success('Posizione attuale selezionata');
+    } catch (error) {
+      console.error('Use current location error:', error);
+      toast.error('Impossibile ottenere la tua posizione');
+    }
   };
 
   const geocodeAddress = async (address) => {
-  const params = new URLSearchParams({
-    q: address,
-    format: 'jsonv2',
-    limit: '1',
-    countrycodes: 'it',
-    addressdetails: '1',
-  });
+    const params = new URLSearchParams({
+      q: address,
+      format: 'jsonv2',
+      limit: '1',
+      countrycodes: 'it',
+      addressdetails: '1',
+    });
 
-  const response = await fetch(
-    `https://nominatim.openstreetmap.org/search?${params.toString()}`,
-    {
-      method: 'GET',
-      headers: {
-        Accept: 'application/json',
-      },
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/search?${params.toString()}`,
+      {
+        method: 'GET',
+        headers: { Accept: 'application/json' },
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`Ricerca indirizzo non riuscita (${response.status})`);
     }
-  );
 
-  if (!response.ok) {
-    throw new Error(`Ricerca indirizzo non riuscita (${response.status})`);
-  }
+    const results = await response.json();
 
-  const results = await response.json();
+    if (!Array.isArray(results) || results.length === 0) return null;
 
-  if (!Array.isArray(results) || results.length === 0) {
-    return null;
-  }
+    const latitude = Number(results[0].lat);
+    const longitude = Number(results[0].lon);
 
-  const latitude = Number(results[0].lat);
-  const longitude = Number(results[0].lon);
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
 
-  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
-    return null;
-  }
-
-  return {
-    lat: latitude,
-    lng: longitude,
-    displayName: results[0].display_name,
+    return {
+      latitude,
+      longitude,
+      displayName: results[0].display_name,
+    };
   };
-};
 
   const handleSubmit = async (event) => {
     event.preventDefault();
 
-    if (!user?.id || !id) return;
+    if (saving || loading || authLoading || !user?.id || !id) return;
 
-    if (!formData.title.trim()) {
-      toast.error('Inserisci un titolo');
+    const title = formData.title.trim();
+    const description = formData.description.trim();
+    const category = formData.category;
+    const subcategory = formData.subcategory;
+    const merchantName = formData.merchant_name.trim();
+    const isDeal = publicationType === 'deal';
+    const isJob = publicationType === 'job';
+    const isRealEstate = publicationType === 'real_estate';
+    const isFreeDeal = category === 'free_deals';
+    const locationOptional =
+      !isDeal && optionalLocationCategoryIds.includes(category);
+
+    if (!publicationType || !title || !description || !category) {
+      toast.error('Compila tutti i campi obbligatori');
       return;
     }
 
-    if (!formData.description.trim()) {
-      toast.error('Inserisci una descrizione');
+    if (getSubcategories(category).length > 0 && !subcategory) {
+      toast.error('Seleziona una sottocategoria');
       return;
     }
 
-    if (!formData.category) {
-      toast.error('Seleziona una categoria');
+    if (isDeal && (merchantName.length < 2 || merchantName.length > 120)) {
+      toast.error('Inserisci un nome del negozio valido');
+      return;
+    }
+
+    if (isDeal && images.length === 0) {
+      toast.error('Un affare deve avere almeno una foto');
+      return;
+    }
+
+    if (hasCounterfeitRisk && !authenticityDeclared) {
+      toast.error('Conferma la dichiarazione di autenticità');
+      return;
+    }
+
+    const sanitizedAttributes = sanitizeCategoryAttributes(
+      category,
+      subcategory,
+      formData.attributes
+    );
+
+    const allowedRentPeriods = new Set(
+      getRealEstateRentPeriodOptions(subcategory).map((option) => option.id)
+    );
+    const selectedRentPeriod = formData.attributes?.rental_period;
+    const attributes =
+      isRealEstate &&
+      typeof selectedRentPeriod === 'string' &&
+      allowedRentPeriods.has(selectedRentPeriod)
+        ? {
+            ...sanitizedAttributes,
+            rental_period: selectedRentPeriod,
+          }
+        : sanitizedAttributes;
+
+    if (
+      isRealEstate &&
+      formData.estimated_price !== '' &&
+      !attributes.rental_period
+    ) {
+      toast.error('Seleziona il periodo del canone di affitto');
       return;
     }
 
     setSaving(true);
 
     try {
-  const newAddress = formData.address.trim();
-  const previousAddress = String(originalLocation.address || '').trim();
+      let finalAddress = formData.address.trim() || null;
+      let finalLatitude = formData.latitude;
+      let finalLongitude = formData.longitude;
 
-  let finalAddress = newAddress || null;
-  let finalLatitude = originalLocation.latitude;
-  let finalLongitude = originalLocation.longitude;
+      if (formData.address.trim() && (!finalLatitude || !finalLongitude)) {
+        const geocoded = await geocodeAddress(formData.address.trim());
 
-  const addressChanged = newAddress !== previousAddress;
+        if (!geocoded) {
+          toast.error('Indirizzo non trovato. Prova a scriverlo meglio.');
+          return;
+        }
 
-  if (addressChanged) {
-    if (newAddress) {
-      const geocoded = await geocodeAddress(newAddress);
+        finalAddress = geocoded.displayName || formData.address.trim();
+        finalLatitude = geocoded.latitude;
+        finalLongitude = geocoded.longitude;
+      }
 
-      if (!geocoded) {
-        toast.error('Indirizzo non trovato. Prova a scriverlo meglio.');
+      const hasLocation = Boolean(
+        finalAddress ||
+          (Number.isFinite(Number(finalLatitude)) &&
+            Number.isFinite(Number(finalLongitude)))
+      );
+
+      if (!locationOptional && !hasLocation) {
+        toast.error('Inserisci un indirizzo oppure usa la posizione attuale');
         return;
       }
 
-      finalAddress = geocoded.displayName || newAddress;
-      finalLatitude = geocoded.lat;
-      finalLongitude = geocoded.lng;
-    } else {
-      finalAddress = null;
-      finalLatitude = null;
-      finalLongitude = null;
-    }
-  }
+      const estimatedPrice =
+        isDeal || isJob || isFreeDeal
+          ? null
+          : parseOptionalNonNegativeNumber(
+              formData.estimated_price,
+              isRealEstate ? 'Canone' : 'Prezzo'
+            );
+      const estimatedResaleValue =
+        isDeal || isJob || isRealEstate || isFreeDeal
+          ? null
+          : parseOptionalNonNegativeNumber(
+              formData.estimated_resale_value,
+              'Valore stimato'
+            );
 
-  const payload = {
-    title: formData.title.trim(),
-    description: formData.description.trim(),
-    category: formData.category,
-    address: finalAddress,
-    latitude: finalLatitude,
-    longitude: finalLongitude,
-    estimated_price:
-      formData.estimated_price === ''
-        ? null
-        : Number(formData.estimated_price),
-    estimated_resale_value:
-      formData.estimated_resale_value === ''
-        ? null
-        : Number(formData.estimated_resale_value),
-    contact_phone: formData.contact_phone.trim() || null,
-    contact_email: formData.contact_email.trim() || null,
-    contact_link: formData.contact_link.trim() || null,
-    updated_at: new Date().toISOString(),
-  };
+      const payload = {
+        title,
+        description,
+        content_type: publicationType,
+        category,
+        subcategory: subcategory || null,
+        attributes,
+        merchant_name: isDeal ? merchantName : null,
+        address: finalAddress,
+        latitude:
+          finalLatitude !== null && finalLatitude !== undefined
+            ? Number(finalLatitude)
+            : null,
+        longitude:
+          finalLongitude !== null && finalLongitude !== undefined
+            ? Number(finalLongitude)
+            : null,
+        estimated_price: estimatedPrice,
+        estimated_resale_value: estimatedResaleValue,
+        contact_phone: isDeal
+          ? null
+          : formData.contact_phone.trim() || null,
+        contact_email: isDeal
+          ? null
+          : formData.contact_email.trim() || null,
+        contact_link: isDeal
+          ? null
+          : formData.contact_link.trim() || null,
+        updated_at: new Date().toISOString(),
+      };
 
       const { error } = await supabase
         .from('opportunities')
@@ -232,182 +578,59 @@ const EditOpportunity = () => {
 
       if (error) throw error;
 
-      toast.success('Opportunità aggiornata');
+      toast.success('Pubblicazione aggiornata');
       navigate('/profile');
-    } catch (err) {
-      console.error('Update opportunity error:', err);
-      toast.error('Impossibile aggiornare l’opportunità');
+    } catch (error) {
+      console.error('Update opportunity error:', error);
+      toast.error(error?.message || 'Impossibile aggiornare la pubblicazione');
     } finally {
       setSaving(false);
     }
   };
 
-  if (loading) {
+  if (loading || authLoading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <Loader2 className="h-7 w-7 animate-spin text-orange-500" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background pb-24">
-      <div className="sticky top-0 z-20 border-b border-gray-100 bg-white px-4 py-4">
-        <div className="mx-auto flex max-w-3xl items-center gap-3">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => navigate(-1)}
-            className="rounded-full"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-
-          <div>
-            <h1 className="text-xl font-bold text-gray-900">
-              Modifica opportunità
-            </h1>
-            <p className="text-sm text-gray-500">
-              Aggiorna le informazioni pubblicate
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <form
-        onSubmit={handleSubmit}
-        className="mx-auto max-w-3xl space-y-5 p-4"
-      >
-        <div className="space-y-2">
-          <Label>Titolo *</Label>
-          <Input
-            value={formData.title}
-            onChange={(e) => updateField('title', e.target.value)}
-            placeholder="Titolo opportunità"
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label>Descrizione *</Label>
-          <Textarea
-            value={formData.description}
-            onChange={(e) => updateField('description', e.target.value)}
-            placeholder="Descrivi l'opportunità"
-            className="min-h-[120px]"
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label>Categoria *</Label>
-          <Select
-            value={formData.category}
-            onValueChange={(value) => updateField('category', value)}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Seleziona categoria" />
-            </SelectTrigger>
-
-            <SelectContent>
-              {categories.map((cat) => (
-                <SelectItem key={cat.id} value={cat.id}>
-                  {cat.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="space-y-2">
-          <Label>Indirizzo</Label>
-          <Input
-            value={formData.address}
-            onChange={(e) => updateField('address', e.target.value)}
-            placeholder="Indirizzo opportunità"
-          />
-        </div>
-
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
-            <Label>Prezzo stimato</Label>
-            <Input
-              type="number"
-              value={formData.estimated_price}
-              onChange={(e) => updateField('estimated_price', e.target.value)}
-              placeholder="0"
-            />
-          </div>
-
-          <div className="space-y-2">
-  <Label>
-    Valore stimato
-    <span className="ml-1 text-xs font-normal text-gray-500">
-      (facoltativo)
-    </span>
-  </Label>
-
-  <Input
-    type="number"
-    min="0"
-    value={formData.estimated_resale_value}
-    onChange={(e) =>
-      updateField('estimated_resale_value', e.target.value)
-    }
-    placeholder="0"
-  />
-
-  <p className="text-xs text-gray-500">
-    Se non conosci il valore, puoi lasciare questo campo vuoto.
-  </p>
-</div>
-        </div>
-
-        <div className="space-y-2">
-          <Label>Telefono</Label>
-          <Input
-            value={formData.contact_phone}
-            onChange={(e) => updateField('contact_phone', e.target.value)}
-            placeholder="Numero opzionale"
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label>Email contatto</Label>
-          <Input
-            type="email"
-            value={formData.contact_email}
-            onChange={(e) => updateField('contact_email', e.target.value)}
-            placeholder="Email opzionale"
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label>Link</Label>
-          <Input
-            value={formData.contact_link}
-            onChange={(e) => updateField('contact_link', e.target.value)}
-            placeholder="Link opzionale"
-          />
-        </div>
-
-        <Button
-          type="submit"
-          disabled={saving}
-          className="h-12 w-full rounded-xl bg-primary"
-        >
-          {saving ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Salvataggio...
-            </>
-          ) : (
-            <>
-              <Save className="mr-2 h-4 w-4" />
-              Salva modifiche
-            </>
-          )}
-        </Button>
-      </form>
-    </div>
+    <OpportunityWizard
+      step={step}
+      setStep={setStep}
+      publicationType={publicationType}
+      onSelectPublicationType={handlePublicationTypeSelect}
+      selectedEntry={selectedWizardEntry}
+      onSelectEntry={handleWizardEntrySelect}
+      onSelectSubcategory={handleWizardSubcategorySelect}
+      formData={formData}
+      setFormData={setFormData}
+      images={images}
+      uploadingImages={false}
+      loading={saving}
+      authLoading={authLoading}
+      photoSourceOpen={photoSourceOpen}
+      setPhotoSourceOpen={setPhotoSourceOpen}
+      cameraInputRef={cameraInputRef}
+      fileInputRef={fileInputRef}
+      onImageUpload={() => {}}
+      onRemoveImage={() => {}}
+      onChange={handleChange}
+      useCurrentLocation={useCurrentLocation}
+      positionConfirmed={positionConfirmed}
+      authenticityDeclared={authenticityDeclared}
+      setAuthenticityDeclared={setAuthenticityDeclared}
+      hasCounterfeitRisk={hasCounterfeitRisk}
+      onSubmit={handleSubmit}
+      onExit={() => navigate(-1)}
+      maxImages={MAX_IMAGES}
+      maxUploadMb={MAX_UPLOAD_IMAGE_SIZE_MB}
+      mode="edit"
+      publicationTypeLocked
+      imagesReadOnly
+    />
   );
 };
 

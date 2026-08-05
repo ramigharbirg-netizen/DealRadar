@@ -3,6 +3,7 @@ import {
   Baby,
   Boxes,
   BriefcaseBusiness,
+  Building2,
   Car,
   Dumbbell,
   Flame,
@@ -15,9 +16,12 @@ import {
   ShoppingBasket,
   ShoppingCart,
   Smartphone,
+  Store,
   Sparkles,
   Tag,
+  Package,
   UtensilsCrossed,
+  Wrench,
 } from 'lucide-react';
 
 import { getCategoryById, getSubcategories } from './categories';
@@ -126,6 +130,14 @@ const dealEntries = [
     locksSubcategory: true,
   },
   {
+    id: 'deal_liquidation',
+    name: 'Liquidazioni e svendite',
+    description: 'Chiusure attività, fine serie, saldi straordinari e svendite',
+    icon: Store,
+    iconClass: 'bg-red-100 text-red-600',
+    categoryId: 'store_liquidation',
+  },
+  {
     id: 'deal_other',
     name: 'Altro',
     description: 'Un affare che non rientra nelle altre categorie',
@@ -193,6 +205,41 @@ const saleEntries = [
     categoryId: 'clothing',
     preferredSubcategory: 'bambino',
     locksSubcategory: true,
+  },
+  {
+    id: 'sale_professional_group',
+    name: 'Attività e professionale',
+    description: 'Attività commerciali, stock, macchinari e attrezzature',
+    icon: Building2,
+    iconClass: 'bg-slate-100 text-slate-700',
+    childrenTitle: 'Che cosa vuoi pubblicare?',
+    childrenDescription: 'Scegli la tipologia professionale più adatta.',
+    children: [
+      {
+        id: 'sale_business',
+        name: 'Attività in vendita',
+        description: 'Negozi, bar, ristoranti, aziende e altre attività',
+        icon: Building2,
+        iconClass: 'bg-purple-100 text-purple-700',
+        categoryId: 'business_sale',
+      },
+      {
+        id: 'sale_stock',
+        name: 'Stock di prodotti',
+        description: 'Lotti, rimanenze, scorte e quantità di merce',
+        icon: Package,
+        iconClass: 'bg-amber-100 text-amber-700',
+        categoryId: 'product_stock',
+      },
+      {
+        id: 'sale_equipment',
+        name: 'Attrezzature e macchinari',
+        description: 'Strumenti professionali, macchinari e impianti',
+        icon: Wrench,
+        iconClass: 'bg-blue-100 text-blue-700',
+        categoryId: 'equipment',
+      },
+    ],
   },
   {
     id: 'sale_free',
@@ -285,6 +332,34 @@ export const opportunityWizardEntriesByType = {
   real_estate: realEstateEntries,
 };
 
+const flattenWizardEntries = (entries = []) =>
+  entries.flatMap((entry) =>
+    Array.isArray(entry.children) && entry.children.length > 0
+      ? entry.children
+      : [entry]
+  );
+
+export const getWizardEntryChildren = (entry) =>
+  Array.isArray(entry?.children) ? entry.children : [];
+
+export const isWizardEntryGroup = (entry) =>
+  getWizardEntryChildren(entry).length > 0;
+
+export const getWizardParentEntryForChild = (
+  publicationTypeId,
+  childEntryId
+) => {
+  const entries = opportunityWizardEntriesByType[publicationTypeId] || [];
+
+  return (
+    entries.find((entry) =>
+      getWizardEntryChildren(entry).some(
+        (child) => child.id === childEntryId
+      )
+    ) || null
+  );
+};
+
 export const getOpportunityWizardSections = (publicationTypeId) => {
   const entries = opportunityWizardEntriesByType[publicationTypeId] || [];
 
@@ -311,11 +386,21 @@ export const getOpportunityWizardSections = (publicationTypeId) => {
 };
 
 export const getWizardEntryById = (entryId, publicationTypeId = '') => {
-  const entries = publicationTypeId
+  const topLevelEntries = publicationTypeId
     ? opportunityWizardEntriesByType[publicationTypeId] || []
     : Object.values(opportunityWizardEntriesByType).flat();
 
-  return entries.find((entry) => entry.id === entryId) || null;
+  const directMatch = topLevelEntries.find(
+    (entry) => entry.id === entryId
+  );
+
+  if (directMatch) return directMatch;
+
+  return (
+    flattenWizardEntries(topLevelEntries).find(
+      (entry) => entry.id === entryId
+    ) || null
+  );
 };
 
 const inferPublicationType = (categoryId) => {
@@ -333,13 +418,24 @@ export const getWizardEntryForValue = (
   if (!categoryId) return null;
 
   const resolvedType = publicationTypeId || inferPublicationType(categoryId);
-  const entries = opportunityWizardEntriesByType[resolvedType] || [];
+  const entries = flattenWizardEntries(
+    opportunityWizardEntriesByType[resolvedType] || []
+  );
+
+  const exactPreferredMatch = entries.find(
+    (entry) =>
+      entry.categoryId === categoryId &&
+      entry.preferredSubcategory &&
+      entry.preferredSubcategory === subcategoryId
+  );
+
+  if (exactPreferredMatch) return exactPreferredMatch;
 
   return (
     entries.find(
       (entry) =>
         entry.categoryId === categoryId &&
-        (!entry.preferredSubcategory || entry.preferredSubcategory === subcategoryId)
+        !entry.preferredSubcategory
     ) ||
     entries.find((entry) => entry.categoryId === categoryId) ||
     null
