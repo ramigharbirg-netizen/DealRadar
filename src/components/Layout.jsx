@@ -103,9 +103,10 @@ const handleSubmitClick = async (event) => {
 };
 
   const hideNav =
-    location.pathname === '/login' ||
-    location.pathname === '/register' ||
-    location.pathname === '/submit';
+  location.pathname === '/login' ||
+  location.pathname === '/register' ||
+  location.pathname === '/submit' ||
+  /^\/opportunities\/[^/]+\/edit$/.test(location.pathname);
 
   return (
     <div className="min-h-screen bg-background" data-testid="app-layout">
