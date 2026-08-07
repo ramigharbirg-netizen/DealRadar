@@ -2168,7 +2168,7 @@ export const categories = [
 
 
 // Categorie aggiuntive introdotte dal nuovo flusso di pubblicazione.
-// Gli ID sono stabili e possono essere usati da filtri, mappa, notifiche e Bounty.
+// Gli ID sono stabili e possono essere usati da filtri, mappa e notifiche.
 if (!categories.some((category) => category.id === 'entertainment')) {
   categories.splice(categories.findIndex((category) => category.id === 'other'), 0, {
     id: 'entertainment',

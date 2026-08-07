@@ -150,42 +150,6 @@
 .marker-other { background-color: #6B7280; } /* Gray - Other */
 .marker-free_deals { background-color: #16A34A; } /* Green - Gift */
 
-/* Bounty marker styles */
-.bounty-marker {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 44px;
-    height: 44px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, #F59E0B 0%, #EA580C 100%);
-    border: 3px solid white;
-    box-shadow: 0 4px 16px rgba(245, 158, 11, 0.5);
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-    cursor: pointer;
-    animation: bounty-pulse 2s ease-in-out infinite;
-}
-
-.bounty-marker:hover {
-    transform: scale(1.15);
-    box-shadow: 0 6px 20px rgba(245, 158, 11, 0.6);
-}
-
-.bounty-marker svg {
-    width: 20px;
-    height: 20px;
-    color: white;
-}
-
-@keyframes bounty-pulse {
-    0%, 100% {
-        box-shadow: 0 4px 16px rgba(245, 158, 11, 0.5);
-    }
-    50% {
-        box-shadow: 0 4px 24px rgba(245, 158, 11, 0.8);
-    }
-}
-
 /* User location marker */
 .user-location-marker {
     position: relative;

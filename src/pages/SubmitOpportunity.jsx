@@ -326,6 +326,14 @@ export const SubmitOpportunity = () => {
 
   const [authenticityDeclared, setAuthenticityDeclared] = useState(false);
 
+  useEffect(() => {
+  if (authLoading) return;
+
+  if (!user) {
+    navigate('/login', { replace: true });
+  }
+}, [authLoading, user, navigate]);
+
   const detectedCounterfeitTerms = detectCounterfeitRiskTerms(
   formData.title,
   formData.description
@@ -698,72 +706,6 @@ if (!validDimensions) {
     };
   };
 
-  const createAutomaticBountyMatches = async (opportunity) => {
-    try {
-      const { data: activeBounties, error: bountyError } = await supabase
-        .from('bounties')
-        .select('*')
-        .eq('status', 'active')
-        .neq('user_id', user.id);
-
-      if (bountyError) throw bountyError;
-
-      const text = `${opportunity.title} ${opportunity.description}`.toLowerCase();
-
-      const matches = (activeBounties || [])
-        .map((bounty) => {
-          let score = 0;
-
-          if (bounty.category === opportunity.category) {
-            score += 50;
-          }
-
-          const bountyWords = `${bounty.title} ${bounty.description}`
-            .toLowerCase()
-            .split(/\s+/)
-            .filter((word) => word.length > 3);
-
-          const commonWords = bountyWords.filter((word) => text.includes(word));
-
-          score += Math.min(commonWords.length * 10, 30);
-
-          if (
-            bounty.max_price &&
-            opportunity.estimated_price &&
-            Number(opportunity.estimated_price) <= Number(bounty.max_price)
-          ) {
-            score += 20;
-          }
-
-          return {
-            bounty_id: bounty.id,
-            opportunity_id: opportunity.id,
-            hunter_id: user.id,
-            match_score: score,
-            status: 'suggested',
-          };
-        })
-        .filter((match) => match.match_score >= 50);
-
-      if (matches.length === 0) {
-        return 0;
-      }
-
-      const { error: matchError } = await supabase
-        .from('bounty_matches')
-        .upsert(matches, {
-          onConflict: 'bounty_id,opportunity_id',
-        });
-
-      if (matchError) throw matchError;
-
-      return matches.length;
-    } catch (err) {
-      console.error('Auto match error:', err);
-      return 0;
-    }
-  };
-
   const validateImagesBeforeSubmit = () => {
     if (!Array.isArray(images)) {
       toast.error('Errore immagini: formato non valido');
@@ -1036,7 +978,6 @@ if (counterfeitRiskFlag) {
   }
 }
 
-const matchesCount = await createAutomaticBountyMatches(createdOpportunity);
       await trackEvent({
         userId: user.id,
         eventName: 'create_opportunity',
@@ -1052,17 +993,10 @@ const matchesCount = await createAutomaticBountyMatches(createdOpportunity);
           attributes: createdOpportunity.attributes,
           estimated_price: createdOpportunity.estimated_price,
           estimated_resale_value: createdOpportunity.estimated_resale_value,
-          matches_count: matchesCount,
         },
       });
 
-      if (matchesCount > 0) {
-        toast.success(
-          `Opportunità pubblicata! Trovate ${matchesCount} possibili richieste compatibili.`
-        );
-      } else {
-        toast.success('Opportunità pubblicata con successo!');
-      }
+      toast.success('Opportunità pubblicata con successo!');
 
       navigate('/feed');
     } catch (err) {
@@ -1102,6 +1036,14 @@ const matchesCount = await createAutomaticBountyMatches(createdOpportunity);
       toast.error('Impossibile ottenere la tua posizione');
     }
   };
+
+  if (authLoading || !user) {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-background">
+      <Loader2 className="h-6 w-6 animate-spin text-primary" />
+    </div>
+  );
+}
 
   return (
     <OpportunityWizard

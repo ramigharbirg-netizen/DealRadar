@@ -52,10 +52,10 @@ export const Register = () => {
     !authLoading;
 
   useEffect(() => {
-    if (!authLoading && user) {
-      navigate('/', { replace: true });
-    }
-  }, [authLoading, user, navigate]);
+  if (!authLoading && user) {
+    navigate('/', { replace: true });
+  }
+}, [authLoading, user, navigate]);
 
   useEffect(() => {
     if (!turnstileSiteKey) return;
@@ -192,12 +192,18 @@ export const Register = () => {
       });
 
       if (!newUser) {
-        toast.success('Account creato. Controlla la tua email per confermare.');
-      } else {
-        toast.success('Account creato! Inizia a cercare occasioni! 🎯');
-      }
+  toast.success(
+    'Account creato. Controlla la tua email e clicca sul link di conferma prima di accedere.',
+    { duration: 8000 }
+  );
 
-      navigate('/', { replace: true });
+  navigate('/login', { replace: true });
+  return;
+}
+
+toast.success('Account creato! 🎯');
+navigate('/', { replace: true });
+
     } catch (err) {
       console.error('Register error:', err);
       toast.error(err?.message || 'Registrazione non riuscita');
@@ -358,7 +364,7 @@ export const Register = () => {
               />
               <span>
                 Accetto i{' '}
-                <Link to="/terms" className="font-semibold text-primary underline">
+                <Link to="/terms-of-service" className="font-semibold text-primary underline">
                   Termini e Condizioni
                 </Link>{' '}
                 di DealRadar. <span className="font-medium">(obbligatorio)</span>
@@ -400,9 +406,12 @@ export const Register = () => {
 
         <p className="text-center mt-6 text-gray-600">
           Hai già un account?{' '}
-          <Link to="/login" className="text-primary font-semibold hover:underline">
-            Accedi
-          </Link>
+          <Link
+  to="/login"
+  className="text-primary font-semibold hover:underline"
+>
+  Accedi
+</Link>
         </p>
 
         <div className="mt-8 p-4 bg-primary/5 rounded-xl border border-primary/20">

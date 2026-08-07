@@ -19,8 +19,6 @@ import Profile from "./pages/Profile";
 import Favorites from "./pages/Favorites";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
-import BountiesView from "./pages/BountiesView";
-import CreateBounty from "./pages/CreateBounty";
 import ChatsView from "./pages/ChatsView";
 import ChatDetail from "./pages/ChatDetail";
 import PrivacySettings from './pages/PrivacySettings';
@@ -59,13 +57,13 @@ function AppRoutesWithBackHandler() {
         const code = parsedUrl.searchParams.get("code");
 
         if (code) {
-          const { error } = await supabase.auth.exchangeCodeForSession(code);
+  const { error } = await supabase.auth.exchangeCodeForSession(code);
 
-          if (error) throw error;
+  if (error) throw error;
 
-          toast.success("Accesso Google effettuato");
-          navigate("/", { replace: true });
-        }
+  toast.success("Accesso Google effettuato");
+  navigate("/", { replace: true });
+}
       } catch (err) {
         console.error("Google deep link error:", err);
         toast.error("Accesso Google non completato");
@@ -131,8 +129,6 @@ if (currentPath !== "/") {
         <Routes>
           <Route path="/" element={<MapView />} />
           <Route path="/feed" element={<FeedView />} />
-          <Route path="/bounties" element={<BountiesView />} />
-          <Route path="/bounties/create" element={<CreateBounty />} />
           <Route path="/submit" element={<SubmitOpportunity />} />
           <Route path="/opportunities/:id/edit" element={<EditOpportunity />} />
           <Route path="/profile" element={<Profile />} />

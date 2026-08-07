@@ -31,11 +31,6 @@ export const Terms = () => {
           DealRadar non garantisce completezza, disponibilità, convenienza, veridicità o aggiornamento delle opportunità pubblicate. L’utente deve svolgere le proprie verifiche prima di contattare terzi o concludere accordi.
         </p>
 
-        <h2 className="text-xl font-bold">6. Bounty e ricompense</h2>
-        <p>
-          Eventuali richieste, bounty o ricompense sono accordi tra utenti. DealRadar può facilitare la segnalazione ma non garantisce pagamento, qualità della segnalazione o conclusione della transazione, salvo diversa disciplina futura.
-        </p>
-
         <h2 className="text-xl font-bold">7. Uso vietato</h2>
         <p>
           È vietato usare DealRadar per frodi, spam, scraping non autorizzato, pubblicazione di contenuti illegali, violazione di proprietà intellettuale, raccolta abusiva di dati, molestie o attività contrarie alla legge.

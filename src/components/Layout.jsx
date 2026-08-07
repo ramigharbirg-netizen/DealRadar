@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { Map, Newspaper, MessageCircle, User, Plus } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 export const Layout = ({ children }) => {
   const location = useLocation();
+    const navigate = useNavigate();
   const [chatCount, setChatCount] = useState(0);
 
   const refreshUnreadCount = async () => {
@@ -86,6 +87,21 @@ export const Layout = ({ children }) => {
     };
   }, []);
 
+const handleSubmitClick = async (event) => {
+  event.preventDefault();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (user?.id) {
+    navigate('/submit');
+    return;
+  }
+
+  navigate('/login');
+};
+
   const hideNav =
     location.pathname === '/login' ||
     location.pathname === '/register' ||
@@ -127,9 +143,10 @@ export const Layout = ({ children }) => {
           </NavLink>
 
           <NavLink
-            to="/submit"
-            className="relative -mt-5 flex items-center justify-center"
-          >
+  to="/submit"
+  onClick={handleSubmitClick}
+  className="relative -mt-5 flex items-center justify-center"
+>
             <div className="h-14 w-14 rounded-full bg-primary text-white shadow-lg flex items-center justify-center border-4 border-white">
               <Plus className="w-6 h-6" />
             </div>

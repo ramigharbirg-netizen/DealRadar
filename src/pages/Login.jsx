@@ -12,7 +12,7 @@ import { Browser } from '@capacitor/browser';
 
 export const Login = () => {
   const { login, user, loading: authLoading } = useAuth();
-  const navigate = useNavigate();
+const navigate = useNavigate();
 
   const [formData, setFormData] = useState({
     email: '',
@@ -24,10 +24,10 @@ export const Login = () => {
   const [googleLoading, setGoogleLoading] = useState(false);
 
   useEffect(() => {
-    if (!authLoading && user) {
-      navigate('/', { replace: true });
-    }
-  }, [authLoading, user, navigate]);
+  if (!authLoading && user) {
+    navigate('/', { replace: true });
+  }
+}, [authLoading, user, navigate]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -87,8 +87,9 @@ export const Login = () => {
 
     try {
       await login(email, password);
-      toast.success('Bentornato!');
-      navigate('/', { replace: true });
+
+toast.success('Bentornato!');
+navigate('/', { replace: true });
     } catch (err) {
   console.error('Login error:', err);
 
@@ -250,9 +251,12 @@ export const Login = () => {
 
         <p className="text-center mt-6 text-gray-600">
           Non hai un account?{' '}
-          <Link to="/register" className="text-primary font-semibold hover:underline">
-            Registrati
-          </Link>
+          <Link
+  to="/register"
+  className="text-primary font-semibold hover:underline"
+>
+  Registrati
+</Link>
         </p>
       </div>
     </div>

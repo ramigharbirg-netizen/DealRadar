@@ -175,6 +175,21 @@ const CategoryStep = ({
     selectedParentEntry?.id || ''
   );
 
+  const groupChildrenSectionRef = React.useRef(null);
+const subcategorySectionRef = React.useRef(null);
+const pendingScrollTargetRef = React.useRef(null);
+
+const scrollToSection = React.useCallback((ref) => {
+  window.requestAnimationFrame(() => {
+    window.requestAnimationFrame(() => {
+      ref.current?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      });
+    });
+  });
+}, []);
+
   React.useEffect(() => {
     if (selectedParentEntry?.id) {
       setExpandedGroupId(selectedParentEntry.id);
@@ -187,17 +202,59 @@ const CategoryStep = ({
   );
   const groupChildren = getWizardEntryChildren(expandedGroup);
 
-  const handleTopLevelEntryClick = (entry) => {
-    if (isWizardEntryGroup(entry)) {
-      setExpandedGroupId((current) =>
-        current === entry.id ? '' : entry.id
-      );
-      return;
-    }
+  React.useEffect(() => {
+  if (
+    pendingScrollTargetRef.current === 'group' &&
+    expandedGroup &&
+    groupChildren.length > 0
+  ) {
+    pendingScrollTargetRef.current = null;
+    scrollToSection(groupChildrenSectionRef);
+  }
+}, [expandedGroup, groupChildren.length, scrollToSection]);
 
-    setExpandedGroupId('');
-    onSelectEntry(entry);
-  };
+React.useEffect(() => {
+  if (
+    pendingScrollTargetRef.current === 'subcategory' &&
+    selectedEntry &&
+    subcategories.length > 0
+  ) {
+    pendingScrollTargetRef.current = null;
+    scrollToSection(subcategorySectionRef);
+  }
+}, [
+  selectedEntry,
+  subcategories.length,
+  scrollToSection,
+]);
+
+  const handleTopLevelEntryClick = (entry) => {
+  if (isWizardEntryGroup(entry)) {
+    const willExpand = expandedGroupId !== entry.id;
+
+    pendingScrollTargetRef.current = willExpand ? 'group' : null;
+    setExpandedGroupId(willExpand ? entry.id : '');
+    return;
+  }
+
+  setExpandedGroupId('');
+
+  pendingScrollTargetRef.current =
+    getWizardSubcategories(entry).length > 0
+      ? 'subcategory'
+      : null;
+
+  onSelectEntry(entry);
+};
+
+const handleChildEntryClick = (entry) => {
+  pendingScrollTargetRef.current =
+    getWizardSubcategories(entry).length > 0
+      ? 'subcategory'
+      : null;
+
+  onSelectEntry(entry);
+};
 
   return (
     <div className="space-y-8">
@@ -270,7 +327,10 @@ const CategoryStep = ({
       ))}
 
       {expandedGroup && groupChildren.length > 0 && (
-        <section className="rounded-[26px] border border-orange-100 bg-orange-50/50 p-4 sm:p-6">
+        <section
+  ref={groupChildrenSectionRef}
+  className="scroll-mt-32 rounded-[26px] border border-orange-100 bg-orange-50/50 p-4 sm:p-6"
+>
           <div className="mb-4">
             <h3 className="text-lg font-black text-gray-950">
               {expandedGroup.childrenTitle || 'Scegli una tipologia'}
@@ -290,7 +350,7 @@ const CategoryStep = ({
                 <button
                   key={child.id}
                   type="button"
-                  onClick={() => onSelectEntry(child)}
+                  onClick={() => handleChildEntryClick(child)}
                   className={`relative min-h-[132px] rounded-[22px] border bg-white p-4 text-left transition active:scale-[0.99] ${
                     selected
                       ? 'border-orange-500 shadow-[0_10px_25px_rgba(249,115,22,0.12)]'
@@ -323,7 +383,10 @@ const CategoryStep = ({
       )}
 
       {selectedEntry && subcategories.length > 0 && (
-        <section className="rounded-[26px] border border-orange-100 bg-orange-50/50 p-4 sm:p-6">
+        <section
+  ref={subcategorySectionRef}
+  className="scroll-mt-32 rounded-[26px] border border-orange-100 bg-orange-50/50 p-4 sm:p-6"
+>
           <div className="mb-4">
             <h3 className="text-lg font-black text-gray-950">
               Scegli una sottocategoria
