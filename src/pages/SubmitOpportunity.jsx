@@ -706,6 +706,45 @@ if (!validDimensions) {
     };
   };
 
+  const reverseGeocodeCoordinates = async (latitude, longitude) => {
+  const params = new URLSearchParams({
+    lat: String(latitude),
+    lon: String(longitude),
+    format: 'jsonv2',
+    addressdetails: '1',
+    zoom: '18',
+    'accept-language': 'it',
+  });
+
+  const response = await fetch(
+    `https://nominatim.openstreetmap.org/reverse?${params.toString()}`,
+    {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+      },
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      `Reverse geocoding non riuscito (${response.status})`
+    );
+  }
+
+  const result = await response.json();
+
+  if (!result || !result.display_name) {
+    return null;
+  }
+
+  return {
+    lat: Number(result.lat),
+    lng: Number(result.lon),
+    displayName: result.display_name,
+  };
+};
+
   const validateImagesBeforeSubmit = () => {
     if (!Array.isArray(images)) {
       toast.error('Errore immagini: formato non valido');
@@ -866,23 +905,44 @@ if ((recentOpportunitiesCount || 0) >= maxAllowedOpportunities) {
       let finalLongitude = null;
       let finalAddress = address || null;
 
-      if (finalAddress) {
-        const geocoded = await geocodeAddress(finalAddress);
+      if (
+  positionConfirmed &&
+  formData.latitude &&
+  formData.longitude
+) {
+  finalLatitude = Number(formData.latitude);
+  finalLongitude = Number(formData.longitude);
+  finalAddress = address || null;
 
-        if (!geocoded) {
-          toast.error('Indirizzo non trovato. Prova a scriverlo meglio.');
-          setLoading(false);
-          return;
-        }
+  if (!finalAddress) {
+    const reverseGeocoded = await reverseGeocodeCoordinates(
+      finalLatitude,
+      finalLongitude
+    );
 
-        finalLatitude = geocoded.lat;
-        finalLongitude = geocoded.lng;
-        finalAddress = geocoded.displayName || finalAddress;
-      } else if (positionConfirmed && formData.latitude && formData.longitude) {
-        finalLatitude = Number(formData.latitude);
-        finalLongitude = Number(formData.longitude);
-        finalAddress = 'Posizione attuale';
-      }
+    if (!reverseGeocoded) {
+      toast.error(
+        'Posizione rilevata, ma non è stato possibile ricavare l’indirizzo.'
+      );
+      setLoading(false);
+      return;
+    }
+
+    finalAddress = reverseGeocoded.displayName;
+  }
+} else if (finalAddress) {
+  const geocoded = await geocodeAddress(finalAddress);
+
+  if (!geocoded) {
+    toast.error('Indirizzo non trovato. Prova a scriverlo meglio.');
+    setLoading(false);
+    return;
+  }
+
+  finalLatitude = geocoded.lat;
+  finalLongitude = geocoded.lng;
+  finalAddress = geocoded.displayName || finalAddress;
+}
 
       if (
   !locationOptional &&
@@ -1022,15 +1082,30 @@ if (counterfeitRiskFlag) {
         return;
       }
 
-      setFormData((prev) => ({
-        ...prev,
-        address: '',
-        latitude: position.coords.latitude,
-        longitude: position.coords.longitude,
-      }));
+      const latitude = position.coords.latitude;
+const longitude = position.coords.longitude;
 
-      setPositionConfirmed(true);
-      toast.success('Posizione attuale selezionata');
+const reverseGeocoded = await reverseGeocodeCoordinates(
+  latitude,
+  longitude
+);
+
+if (!reverseGeocoded) {
+  toast.error(
+    'Posizione rilevata, ma non è stato possibile ricavare l’indirizzo.'
+  );
+  return;
+}
+
+setFormData((prev) => ({
+  ...prev,
+  address: reverseGeocoded.displayName,
+  latitude,
+  longitude,
+}));
+
+setPositionConfirmed(true);
+toast.success('Posizione attuale selezionata');
     } catch (err) {
       console.error('Use current location error:', err);
       toast.error('Impossibile ottenere la tua posizione');

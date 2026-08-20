@@ -371,14 +371,30 @@ const EditOpportunity = () => {
         return;
       }
 
-      setFormData((previous) => ({
-        ...previous,
-        address: '',
-        latitude: position.coords.latitude,
-        longitude: position.coords.longitude,
-      }));
-      setPositionConfirmed(true);
-      toast.success('Posizione attuale selezionata');
+      const latitude = position.coords.latitude;
+const longitude = position.coords.longitude;
+
+const reverseGeocoded = await reverseGeocodeCoordinates(
+  latitude,
+  longitude
+);
+
+if (!reverseGeocoded) {
+  toast.error(
+    'Posizione rilevata, ma non è stato possibile ricavare l’indirizzo.'
+  );
+  return;
+}
+
+setFormData((previous) => ({
+  ...previous,
+  address: reverseGeocoded.displayName,
+  latitude,
+  longitude,
+}));
+
+setPositionConfirmed(true);
+toast.success('Posizione attuale selezionata');
     } catch (error) {
       console.error('Use current location error:', error);
       toast.error('Impossibile ottenere la tua posizione');
@@ -421,6 +437,45 @@ const EditOpportunity = () => {
       displayName: results[0].display_name,
     };
   };
+
+  const reverseGeocodeCoordinates = async (latitude, longitude) => {
+  const params = new URLSearchParams({
+    lat: String(latitude),
+    lon: String(longitude),
+    format: 'jsonv2',
+    addressdetails: '1',
+    zoom: '18',
+    'accept-language': 'it',
+  });
+
+  const response = await fetch(
+    `https://nominatim.openstreetmap.org/reverse?${params.toString()}`,
+    {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+      },
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      `Reverse geocoding non riuscito (${response.status})`
+    );
+  }
+
+  const result = await response.json();
+
+  if (!result || !result.display_name) {
+    return null;
+  }
+
+  return {
+    latitude: Number(result.lat),
+    longitude: Number(result.lon),
+    displayName: result.display_name,
+  };
+};
 
   const handleSubmit = async (event) => {
     event.preventDefault();
