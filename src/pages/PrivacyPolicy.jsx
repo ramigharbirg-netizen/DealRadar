@@ -143,7 +143,7 @@ export const PrivacyPolicy = () => {
         </section>
 
         <p className="text-sm text-gray-500">
-          Versione 1.0 - Data: [INSERISCI DATA]
+          Versione 1.0 - Data: 20 agosto 2026
         </p>
       </div>
     </div>
