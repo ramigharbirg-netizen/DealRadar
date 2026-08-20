@@ -1,0 +1,31 @@
+# Credenziali e file locali
+local.properties
+
+# Chiavi e certificati
+*.keystore
+*.jks
+*.p12
+*.pem
+*.key
+
+# Service account / credenziali Firebase
+*firebase-adminsdk*.json
+*service-account*.json
+*service_account*.json
+
+# Variabili d'ambiente
+.env
+.env.*
+**/.env
+**/.env.*
+
+# Signing
+keystore.properties
+signing.properties
+
+# Log
+*.log
+
+# File generati
+.gradle/
+**/build/
