@@ -62,8 +62,6 @@ const MAX_STORED_IMAGE_SIZE_BYTES = MAX_STORED_IMAGE_SIZE_MB * 1024 * 1024;
 const COMPRESSED_IMAGE_MAX_WIDTH = 1400;
 const COMPRESSED_IMAGE_MAX_HEIGHT = 1400;
 const COMPRESSED_IMAGE_QUALITY = 0.78;
-const MAX_IMAGE_WIDTH = 4000;
-const MAX_IMAGE_HEIGHT = 4000;
 const DEFAULT_MAX_OPPORTUNITIES_PER_24H = 20;
 const NEW_USER_MAX_OPPORTUNITIES_PER_24H = 20;
 
@@ -203,34 +201,6 @@ const compressImageFile = async (file, extension) => {
     image.onerror = () => {
       URL.revokeObjectURL(objectUrl);
       reject(new Error('Compressione immagine non riuscita'));
-    };
-
-    image.src = objectUrl;
-  });
-};
-
-const validateImageDimensions = async (file) => {
-  return new Promise((resolve) => {
-    const image = new Image();
-    const objectUrl = URL.createObjectURL(file);
-
-    image.onload = () => {
-      URL.revokeObjectURL(objectUrl);
-
-      if (
-        image.width > MAX_IMAGE_WIDTH ||
-        image.height > MAX_IMAGE_HEIGHT
-      ) {
-        resolve(false);
-        return;
-      }
-
-      resolve(true);
-    };
-
-    image.onerror = () => {
-      URL.revokeObjectURL(objectUrl);
-      resolve(false);
     };
 
     image.src = objectUrl;
@@ -458,14 +428,6 @@ const hasCounterfeitRisk = detectedCounterfeitTerms.length > 0;
       return null;
     }
 
-const validDimensions = await validateImageDimensions(file);
-
-if (!validDimensions) {
-  toast.error(
-    `${file.name} ha dimensioni troppo grandi. Max ${MAX_IMAGE_WIDTH}x${MAX_IMAGE_HEIGHT}px`
-  );
-  return null;
-}
     const fingerprint = getImageFingerprint(file);
 
     if (uploadedFingerprintsRef.current.has(fingerprint)) {
