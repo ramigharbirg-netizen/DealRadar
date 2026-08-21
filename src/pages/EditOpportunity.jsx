@@ -18,6 +18,11 @@ import {
   getWizardEntryById,
   getWizardEntryForValue,
 } from '../data/opportunityWizardCatalog';
+import {
+  getDefaultDealCustomExpiry,
+  resolveDealExpiryIso,
+  toLocalDateTimeInputValue,
+} from '../utils/opportunityLifecycle';
 
 const MAX_IMAGES = 5;
 const MAX_UPLOAD_IMAGE_SIZE_MB = 15;
@@ -155,6 +160,8 @@ const EditOpportunity = () => {
     contact_email: '',
     contact_link: '',
     merchant_name: '',
+    deal_expiry_option: 'custom',
+    custom_expires_at: getDefaultDealCustomExpiry(),
   });
 
   const selectedWizardEntry = wizardEntryId
@@ -258,6 +265,10 @@ const EditOpportunity = () => {
           contact_email: data.contact_email || '',
           contact_link: data.contact_link || '',
           merchant_name: data.merchant_name || '',
+          deal_expiry_option: 'custom',
+          custom_expires_at:
+            toLocalDateTimeInputValue(data.expires_at) ||
+            getDefaultDealCustomExpiry(),
         });
       } catch (error) {
         console.error('Load opportunity error:', error);
@@ -594,6 +605,13 @@ toast.success('Posizione attuale selezionata');
               'Valore stimato'
             );
 
+      const dealExpiresAt = isDeal
+        ? resolveDealExpiryIso(
+            formData.deal_expiry_option,
+            formData.custom_expires_at
+          )
+        : null;
+
       const payload = {
         title,
         description,
@@ -602,6 +620,7 @@ toast.success('Posizione attuale selezionata');
         subcategory: subcategory || null,
         attributes,
         merchant_name: isDeal ? merchantName : null,
+        ...(isDeal ? { expires_at: dealExpiresAt } : {}),
         address: finalAddress,
         latitude:
           finalLatitude !== null && finalLatitude !== undefined

@@ -14,6 +14,7 @@ import {
   getContentTypeConfig,
   inferOpportunityContentType,
 } from '../data/contentTypeCatalog';
+import { getOpportunityExpirySummary } from '../utils/opportunityLifecycle';
 
 const formatDistance = (km) => {
   if (km === null || km === undefined) return null;
@@ -61,6 +62,14 @@ export const OpportunityCard = ({
   const isVerified = opportunity.is_verified === true;
   const isDeal = contentType === 'deal';
   const isJobOffer = contentType === 'job';
+  const expirySummary = getOpportunityExpirySummary(opportunity);
+  const expiryMs = opportunity.expires_at
+    ? new Date(opportunity.expires_at).getTime() - Date.now()
+    : null;
+  const showExpiryBadge =
+    expirySummary &&
+    (expirySummary.expired ||
+      (Number.isFinite(expiryMs) && expiryMs <= 7 * 24 * 60 * 60 * 1000));
 
   const displayedPrice = formatOpportunityPrice(opportunity);
   const isExplicitlyFree = isExplicitlyFreeOpportunity(opportunity);
@@ -91,6 +100,20 @@ export const OpportunityCard = ({
       >
         {categoryName}
       </Badge>
+
+      {showExpiryBadge && (
+        <Badge
+          variant="outline"
+          className={`flex-shrink-0 px-2 py-0.5 text-[9px] font-bold ${
+            expirySummary.expired
+              ? 'border-amber-300 bg-amber-50 text-amber-700'
+              : 'border-orange-200 bg-orange-50 text-orange-700'
+          }`}
+        >
+          <Clock className="mr-1 h-3 w-3" />
+          {expirySummary.label}
+        </Badge>
+      )}
     </div>
   );
 

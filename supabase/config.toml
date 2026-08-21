@@ -42,3 +42,9 @@ entrypoint = "./functions/notify-chat-message/index.ts"
 # Specifies static files to be bundled with the function. Supports glob patterns.
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/notify-chat-message/*.html" ]
+
+[functions.process-opportunity-lifecycle]
+enabled = true
+verify_jwt = false
+import_map = "./functions/process-opportunity-lifecycle/deno.json"
+entrypoint = "./functions/process-opportunity-lifecycle/index.ts"

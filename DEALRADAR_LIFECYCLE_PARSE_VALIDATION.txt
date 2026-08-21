@@ -1,0 +1,1 @@
+Parsed 99 JS/JSX/TS/TSX files; syntax parse errors: 0

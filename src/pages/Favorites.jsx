@@ -6,6 +6,7 @@ import { supabase } from '../lib/supabase';
 import { OpportunityCard } from '../components/OpportunityCard';
 import { OpportunityDetail } from '../components/OpportunityDetail';
 import { toast } from 'sonner';
+import { isOpportunityPubliclyActive } from '../utils/opportunityLifecycle';
 import { useNavigate } from 'react-router-dom';
 
 export const Favorites = () => {
@@ -58,7 +59,7 @@ export const Favorites = () => {
 
       const validFavorites = (data || [])
         .map((fav) => fav.opportunities)
-        .filter((opp) => opp && opp.is_hidden !== true);
+        .filter((opp) => isOpportunityPubliclyActive(opp));
 
       setFavorites(validFavorites);
     } catch (err) {

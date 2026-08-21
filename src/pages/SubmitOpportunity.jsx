@@ -51,6 +51,10 @@ import {
   getWizardEntryById,
   getWizardEntryForValue,
 } from '../data/opportunityWizardCatalog';
+import {
+  getDefaultDealCustomExpiry,
+  resolveDealExpiryIso,
+} from '../utils/opportunityLifecycle';
 
 const MAX_IMAGES = 5;
 const MAX_UPLOAD_IMAGE_SIZE_MB = 15;
@@ -284,6 +288,8 @@ export const SubmitOpportunity = () => {
     contact_email: '',
     contact_link: '',
     merchant_name: '',
+    deal_expiry_option: '7d',
+    custom_expires_at: getDefaultDealCustomExpiry(),
   });
 
   const [images, setImages] = useState([]);
@@ -946,9 +952,17 @@ const estimatedResaleValue =
   return;
 }
 
+      const dealExpiresAt = isDeal
+        ? resolveDealExpiryIso(
+            formData.deal_expiry_option,
+            formData.custom_expires_at
+          )
+        : null;
+
       const payload = {
         content_type: publicationType,
         merchant_name: isDeal ? merchantName : null,
+        ...(isDeal ? { expires_at: dealExpiresAt } : {}),
         title,
         description,
         category,

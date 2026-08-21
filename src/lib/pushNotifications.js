@@ -3,6 +3,7 @@ import { PushNotifications } from '@capacitor/push-notifications';
 import { supabase } from './supabase';
 
 const CHAT_NOTIFICATION_CHANNEL_ID = 'chat_messages';
+const OPPORTUNITY_NOTIFICATION_CHANNEL_ID = 'opportunity_updates';
 
 export const registerPushNotifications = async (userId) => {
   if (!userId) return;
@@ -26,6 +27,18 @@ export const registerPushNotifications = async (userId) => {
         name: 'Messaggi chat',
         description: 'Notifiche per i nuovi messaggi ricevuti in chat',
         importance: 5,
+        visibility: 1,
+        sound: 'default',
+        vibration: true,
+        lights: true,
+      });
+
+
+      await PushNotifications.createChannel({
+        id: OPPORTUNITY_NOTIFICATION_CHANNEL_ID,
+        name: 'Scadenze opportunità',
+        description: 'Promemoria per opportunità e annunci in scadenza',
+        importance: 4,
         visibility: 1,
         sound: 'default',
         vibration: true,

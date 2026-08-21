@@ -18,6 +18,8 @@ import {
   Camera,
   Loader2,
   Pencil,
+  RotateCcw,
+  CalendarClock,
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -46,6 +48,11 @@ import { OpportunityCard } from '../components/OpportunityCard';
 import { OpportunityDetail } from '../components/OpportunityDetail';
 import { toast } from 'sonner';
 import { categories } from '../data/categories';
+import {
+  isOpportunityExpired,
+  shouldOfferStandardRenewal,
+  shouldOfferDealRenewal,
+} from '../utils/opportunityLifecycle';
 
 const createPasswordCheckClient = () => {
   const supabaseUrl = process.env.REACT_APP_SUPABASE_URL;
@@ -252,8 +259,7 @@ export const Profile = () => {
           trust_score,
           reputation_level,
           total_opportunities,
-          verified_deals,
-          hidden_deals
+          verified_deals
         `)
         .order('points', { ascending: false })
         .limit(leaderboardLimit);
@@ -457,6 +463,45 @@ const handleDisplayNameUpdate = async (event) => {
   }
 };
 
+  const handleRenewOpportunity = async (opportunity, event) => {
+    event?.stopPropagation?.();
+
+    if (!opportunity?.id) return;
+
+    if (opportunity.content_type === 'deal') {
+      navigate(`/opportunities/${opportunity.id}/edit`);
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase.rpc('renew_my_opportunity', {
+        p_opportunity_id: opportunity.id,
+      });
+
+      if (error) throw error;
+
+      const renewed = data || {};
+      setMyOpportunities((previous) =>
+        previous.map((item) =>
+          item.id === opportunity.id
+            ? {
+                ...item,
+                ...renewed,
+                lifecycle_status: 'active',
+                expired_at: null,
+                purge_after: null,
+              }
+            : item
+        )
+      );
+
+      toast.success('Annuncio rinnovato per 90 giorni');
+    } catch (error) {
+      console.error('Renew opportunity error:', error);
+      toast.error(error?.message || 'Impossibile rinnovare l’annuncio');
+    }
+  };
+
   const handleLogout = async () => {
     await logout();
     toast.success('Logout effettuato con successo');
@@ -617,6 +662,12 @@ const handleDisplayNameUpdate = async (event) => {
   'Utente DealRadar';
   const displayAvatar = avatarUrl;
   const displayInitial = (displayName || user.email || 'U').charAt(0).toUpperCase();
+  const activeOpportunities = myOpportunities.filter(
+    (opportunity) => !isOpportunityExpired(opportunity)
+  );
+  const expiredOpportunities = myOpportunities.filter((opportunity) =>
+    isOpportunityExpired(opportunity)
+  );
 
   return (
     <div className="min-h-screen bg-background pb-20" data-testid="profile-page">
@@ -857,9 +908,14 @@ const handleDisplayNameUpdate = async (event) => {
       </div>
 
       <div className="max-w-6xl mx-auto px-4 mt-8">
-        <h3 className="text-lg font-bold text-gray-900 mb-4">
-          Le mie opportunità
-        </h3>
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <h3 className="text-lg font-bold text-gray-900">Le mie opportunità attive</h3>
+          {!loading && (
+            <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-bold text-gray-600">
+              {activeOpportunities.length}
+            </span>
+          )}
+        </div>
 
         {loading ? (
           <div className="space-y-4">
@@ -867,39 +923,103 @@ const handleDisplayNameUpdate = async (event) => {
               <div key={i} className="skeleton h-32 rounded-xl" />
             ))}
           </div>
-        ) : myOpportunities.length === 0 ? (
+        ) : activeOpportunities.length === 0 ? (
           <Card className="border-dashed">
             <CardContent className="p-6 text-center">
               <MapPin className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-
-              <p className="text-gray-500 mb-4">
-                Non hai ancora pubblicato opportunità
-              </p>
-
+              <p className="text-gray-500 mb-4">Non hai opportunità attive</p>
               <Button
                 onClick={() => navigate('/submit')}
                 variant="outline"
                 className="rounded-xl"
               >
-                Invia la tua prima opportunità
+                Pubblica una nuova opportunità
               </Button>
             </CardContent>
           </Card>
         ) : (
           <div className="space-y-4">
-            {myOpportunities.map((opp) => (
-              <OpportunityCard
-                key={opp.id}
-                opportunity={opp}
-                onClick={() => {
-                  setSelectedOpportunity(opp);
-                  setDetailOpen(true);
-                }}
-              />
+            {activeOpportunities.map((opp) => (
+              <div key={opp.id} className="overflow-hidden rounded-xl border border-gray-100">
+                <OpportunityCard
+                  opportunity={opp}
+                  onClick={() => {
+                    setSelectedOpportunity(opp);
+                    setDetailOpen(true);
+                  }}
+                />
+                {(shouldOfferStandardRenewal(opp) || shouldOfferDealRenewal(opp)) && (
+                  <div className="flex items-center justify-between gap-3 border-t border-orange-100 bg-orange-50/60 px-3 py-2.5">
+                    <p className="text-xs font-medium text-orange-800">
+                      {opp.content_type === 'deal'
+                        ? 'La scadenza è vicina. Scegli una nuova durata per mantenere attivo l’affare.'
+                        : 'La scadenza è vicina. Puoi rinnovare ora per altri 90 giorni.'}
+                    </p>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={(event) => handleRenewOpportunity(opp, event)}
+                      className="flex-shrink-0 rounded-xl bg-orange-500 hover:bg-orange-600"
+                    >
+                      <RotateCcw className="mr-1.5 h-4 w-4" />
+                      {opp.content_type === 'deal' ? 'Modifica scadenza' : 'Rinnova'}
+                    </Button>
+                  </div>
+                )}
+              </div>
             ))}
           </div>
         )}
       </div>
+
+      {!loading && expiredOpportunities.length > 0 && (
+        <div className="max-w-6xl mx-auto px-4 mt-8">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div>
+              <h3 className="flex items-center gap-2 text-lg font-bold text-gray-900">
+                <CalendarClock className="h-5 w-5 text-amber-500" />
+                Opportunità scadute
+              </h3>
+              <p className="mt-1 text-xs leading-5 text-gray-500">
+                Restano recuperabili per 30 giorni, poi vengono eliminate definitivamente.
+              </p>
+            </div>
+            <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-700">
+              {expiredOpportunities.length}
+            </span>
+          </div>
+
+          <div className="space-y-4">
+            {expiredOpportunities.map((opp) => (
+              <Card key={opp.id} className="overflow-hidden border-amber-200">
+                <OpportunityCard
+                  opportunity={opp}
+                  onClick={() => {
+                    setSelectedOpportunity(opp);
+                    setDetailOpen(true);
+                  }}
+                />
+                <CardContent className="flex items-center justify-between gap-3 border-t border-amber-100 bg-amber-50/70 p-3">
+                  <p className="text-xs text-amber-800">
+                    {opp.content_type === 'deal'
+                      ? 'Scegli una nuova scadenza per riattivare l’affare.'
+                      : 'Puoi rinnovare questo annuncio per altri 90 giorni.'}
+                  </p>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={(event) => handleRenewOpportunity(opp, event)}
+                    className="flex-shrink-0 rounded-xl bg-orange-500 hover:bg-orange-600"
+                  >
+                    <RotateCcw className="mr-1.5 h-4 w-4" />
+                    {opp.content_type === 'deal' ? 'Modifica e rinnova' : 'Rinnova'}
+                  </Button>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
 
 <div className="max-w-6xl mx-auto px-4 mt-6">
         <Card>

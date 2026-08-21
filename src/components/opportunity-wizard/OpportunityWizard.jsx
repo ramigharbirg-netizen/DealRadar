@@ -11,6 +11,7 @@ import {
   MapPin,
   Phone,
   ShieldCheck,
+  CalendarClock,
   X,
 } from 'lucide-react';
 
@@ -51,6 +52,11 @@ import {
   isWizardEntryGroup,
   publicationTypes,
 } from '../../data/opportunityWizardCatalog';
+import {
+  DEAL_EXPIRY_OPTIONS,
+  getDealCustomExpiryBounds,
+  resolveDealExpiryIso,
+} from '../../utils/opportunityLifecycle';
 
 const STEP_LABELS = ['Tipo', 'Categoria', 'Dettagli', 'Posizione', 'Anteprima'];
 
@@ -573,6 +579,58 @@ const LocationStep = ({ publicationType, formData, onChange, onAttributesChange,
         </p>
       </div>
 
+      {isDeal && (
+        <div className="rounded-3xl border border-orange-200 bg-orange-50/70 p-5">
+          <div className="flex items-start gap-3">
+            <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl bg-orange-500 text-white">
+              <CalendarClock className="h-5 w-5" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <Label>Quanto dura questo affare?</Label>
+              <Select
+                value={formData.deal_expiry_option || '7d'}
+                onValueChange={(value) =>
+                  onChange({
+                    target: { name: 'deal_expiry_option', value },
+                  })
+                }
+              >
+                <SelectTrigger className="mt-2 h-12 rounded-xl border-orange-200 bg-white">
+                  <SelectValue placeholder="Seleziona la durata" />
+                </SelectTrigger>
+                <SelectContent>
+                  {DEAL_EXPIRY_OPTIONS.map((option) => (
+                    <SelectItem key={option.id} value={option.id}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {formData.deal_expiry_option === 'custom' && (
+                <div className="mt-3">
+                  <Label htmlFor="custom_expires_at">Data e ora di scadenza</Label>
+                  <Input
+                    id="custom_expires_at"
+                    name="custom_expires_at"
+                    type="datetime-local"
+                    value={formData.custom_expires_at || ''}
+                    min={getDealCustomExpiryBounds().min}
+                    max={getDealCustomExpiryBounds().max}
+                    onChange={onChange}
+                    className="mt-1.5 h-12 rounded-xl border-orange-200 bg-white"
+                  />
+                </div>
+              )}
+
+              <p className="mt-3 text-xs leading-5 text-orange-800">
+                Alla scadenza l’affare sparirà da feed e mappa. Avrai poi 30 giorni per rinnovarlo prima della cancellazione definitiva.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showPrice && (
         <div className="rounded-3xl border border-gray-200 bg-white p-5">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -715,6 +773,30 @@ const PreviewStep = ({ publicationType, formData, images, selectedEntry }) => {
             <div><span className="block text-xs font-semibold uppercase tracking-wide text-gray-400">Negozio</span><span className="mt-1 block font-semibold text-gray-800">{formData.merchant_name || 'Non indicato'}</span></div>
           )}
           <div><span className="block text-xs font-semibold uppercase tracking-wide text-gray-400">Posizione</span><span className="mt-1 block font-semibold text-gray-800">{formData.address || (formData.latitude ? 'Posizione attuale' : 'Non indicata')}</span></div>
+          {publicationType === 'deal' && (() => {
+            try {
+              const expiry = resolveDealExpiryIso(
+                formData.deal_expiry_option || '7d',
+                formData.custom_expires_at
+              );
+              return (
+                <div>
+                  <span className="block text-xs font-semibold uppercase tracking-wide text-gray-400">Scadenza</span>
+                  <span className="mt-1 block font-semibold text-gray-800">
+                    {new Date(expiry).toLocaleString('it-IT', {
+                      day: '2-digit',
+                      month: '2-digit',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </span>
+                </div>
+              );
+            } catch {
+              return null;
+            }
+          })()}
           <div><span className="block text-xs font-semibold uppercase tracking-wide text-gray-400">Contatto</span><span className="mt-1 block font-semibold text-gray-800">{publicationType === 'deal' ? 'Segnalato alla community' : formData.contact_phone || formData.contact_email || 'Tramite DealRadar'}</span></div>
         </div>
       </div>
@@ -779,6 +861,17 @@ const OpportunityWizard = ({
   const hasValidRentPeriod = validRentPeriodIds.has(
     formData.attributes?.rental_period
   );
+  let hasValidDealExpiry = true;
+  if (isDeal) {
+    try {
+      resolveDealExpiryIso(
+        formData.deal_expiry_option || '7d',
+        formData.custom_expires_at
+      );
+    } catch {
+      hasValidDealExpiry = false;
+    }
+  }
 
   const canContinue = (() => {
     if (step === 1) return Boolean(publicationType);
@@ -806,6 +899,7 @@ const OpportunityWizard = ({
       return (
         (locationOptional || hasLocation) &&
         rentPeriodIsValid &&
+        hasValidDealExpiry &&
         (!hasCounterfeitRisk || authenticityDeclared)
       );
     }

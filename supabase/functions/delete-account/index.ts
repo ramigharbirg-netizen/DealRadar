@@ -78,6 +78,7 @@ const {
     await adminClient.from('comments').delete().eq('user_id', userId);
     await adminClient.from('reports').delete().eq('reporter_id', userId);
     await adminClient.from('conversation_reads').delete().eq('user_id', userId);
+    await adminClient.from('reputation_events').delete().eq('user_id', userId);
 
     await adminClient
       .from('conversation_messages')
@@ -104,6 +105,12 @@ const {
     avatar_url: null,
     city: null,
     country: null,
+    points: 0,
+    trust_score: 0,
+    total_opportunities: 0,
+    verified_deals: 0,
+    hidden_deals: 0,
+    reputation_level: 'new_member',
     is_premium: false,
     premium_until: null,
   })

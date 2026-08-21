@@ -507,6 +507,8 @@ useEffect(() => {
     )
   `)
         .eq('is_hidden', false)
+  .eq('lifecycle_status', 'active')
+  .gt('expires_at', new Date().toISOString())
         .order('created_at', { ascending: false })
         .limit(100);
 

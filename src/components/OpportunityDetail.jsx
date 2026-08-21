@@ -46,6 +46,10 @@ import {
   formatOpportunityPrice,
   isExplicitlyFreeOpportunity,
 } from '../utils/opportunityPricing';
+import {
+  getOpportunityExpirySummary,
+  isOpportunityExpired,
+} from '../utils/opportunityLifecycle';
 
 const COMMENT_MIN_LENGTH = 3;
 const COMMENT_MAX_LENGTH = 500;
@@ -109,74 +113,6 @@ const cleanCommentText = (text) => {
   return text.replace(/\s+/g, ' ').trim();
 };
 
-const calculateAuthorTrust = (opportunities = []) => {
-  const totalOpportunities = opportunities.length;
-  const verifiedOpportunities = opportunities.filter((opp) => opp.is_verified === true).length;
-  const hiddenOpportunities = opportunities.filter((opp) => opp.is_hidden === true).length;
-  const reportsReceived = opportunities.reduce(
-    (sum, opp) => sum + Number(opp.reports || 0),
-    0
-  );
-
-  const score = Math.max(
-    0,
-    totalOpportunities * 2 +
-      verifiedOpportunities * 20 -
-      hiddenOpportunities * 25 -
-      reportsReceived * 5
-  );
-
-  if (hiddenOpportunities >= 2 || reportsReceived >= 6) {
-    return {
-      score,
-      totalOpportunities,
-      verifiedOpportunities,
-      hiddenOpportunities,
-      reportsReceived,
-      level: 'risky',
-      label: 'Autore da monitorare',
-      description: 'Ha ricevuto diverse segnalazioni',
-    };
-  }
-
-  if (verifiedOpportunities >= 3 && score >= 40) {
-    return {
-      score,
-      totalOpportunities,
-      verifiedOpportunities,
-      hiddenOpportunities,
-      reportsReceived,
-      level: 'trusted',
-      label: 'Autore affidabile',
-      description: 'Più opportunità verificate dalla community',
-    };
-  }
-
-  if (verifiedOpportunities >= 1 || score >= 15) {
-    return {
-      score,
-      totalOpportunities,
-      verifiedOpportunities,
-      hiddenOpportunities,
-      reportsReceived,
-      level: 'growing',
-      label: 'Autore in crescita',
-      description: 'Ha già segnali positivi dalla community',
-    };
-  }
-
-  return {
-    score,
-    totalOpportunities,
-    verifiedOpportunities,
-    hiddenOpportunities,
-    reportsReceived,
-    level: 'new',
-    label: 'Nuovo autore',
-    description: 'Autore ancora da valutare',
-  };
-};
-
 export const OpportunityDetail = ({ opportunity, open, onClose }) => {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -214,6 +150,7 @@ export const OpportunityDetail = ({ opportunity, open, onClose }) => {
 
   const canSubmitComment =
     !!user &&
+    !isOpportunityExpired(opportunity) &&
     !sendingComment &&
     cleanedComment.length >= COMMENT_MIN_LENGTH &&
     cleanedComment.length <= COMMENT_MAX_LENGTH;
@@ -361,68 +298,79 @@ export const OpportunityDetail = ({ opportunity, open, onClose }) => {
 
     try {
       const { data, error } = await supabase
-        .from('opportunities')
-        .select('id, is_verified, is_hidden, reports')
+        .from('public_user_profiles')
+        .select(
+          'trust_score, total_opportunities, verified_deals, reputation_level'
+        )
         .eq('user_id', opportunity.user_id)
-        .limit(500);
+        .maybeSingle();
 
       if (error) throw error;
 
-      setAuthorTrust(calculateAuthorTrust(Array.isArray(data) ? data : []));
+      if (!data) {
+        setAuthorTrust(defaultAuthorTrust);
+        return;
+      }
+
+      const score = Number(data.trust_score || 0);
+      const level =
+        score >= 80
+          ? 'trusted'
+          : score >= 40
+            ? 'growing'
+            : 'new';
+
+      setAuthorTrust({
+        score,
+        totalOpportunities: Number(data.total_opportunities || 0),
+        verifiedOpportunities: Number(data.verified_deals || 0),
+        hiddenOpportunities: 0,
+        reportsReceived: 0,
+        level,
+        label:
+          level === 'trusted'
+            ? 'Autore affidabile'
+            : level === 'growing'
+              ? 'Autore in crescita'
+              : 'Nuovo autore',
+        description:
+          level === 'trusted'
+            ? 'Ha costruito una buona reputazione su DealRadar'
+            : level === 'growing'
+              ? 'Sta costruendo la propria reputazione'
+              : 'Autore ancora da valutare',
+      });
     } catch (err) {
       console.error('Author trust check failed:', err);
       setAuthorTrust(defaultAuthorTrust);
     }
   }, [opportunity?.user_id]);
 
-    const handleDeleteOpportunity = async () => {
-  if (!user?.id || !opportunity?.id) return;
+  const handleDeleteOpportunity = async () => {
+    if (!user?.id || !opportunity?.id) return;
 
-  const confirmed = window.confirm(
-    'Vuoi davvero eliminare questa opportunità? Questa azione non può essere annullata.'
-  );
+    const confirmed = window.confirm(
+      'Vuoi davvero eliminare questa opportunità? Questa azione non può essere annullata.'
+    );
 
-  if (!confirmed) return;
+    if (!confirmed) return;
 
-  try {
-    // Elimina tutte le immagini dello storage
-    if (Array.isArray(opportunity.images) && opportunity.images.length > 0) {
-      const paths = opportunity.images
-        .map((url) => {
-          const parts = url.split('/opportunity-images/');
-          return parts.length > 1 ? decodeURIComponent(parts[1]) : null;
-        })
-        .filter(Boolean);
+    try {
+      const { data, error } = await supabase.rpc('delete_my_opportunity', {
+        p_opportunity_id: opportunity.id,
+      });
 
-      if (paths.length > 0) {
-        const { error: storageError } = await supabase.storage
-          .from('opportunity-images')
-          .remove(paths);
+      if (error) throw error;
+      if (data !== true) throw new Error('Eliminazione non completata');
 
-        if (storageError) {
-          console.error('Storage delete error:', storageError);
-        }
-      }
+      toast.success('Opportunità eliminata');
+      onClose(false);
+      window.location.reload();
+    } catch (err) {
+      console.error('Delete opportunity error:', err);
+      toast.error(err?.message || 'Impossibile eliminare questa opportunità');
     }
-
-    // Elimina il record dal database
-    const { error } = await supabase
-      .from('opportunities')
-      .delete()
-      .eq('id', opportunity.id)
-      .eq('user_id', user.id);
-
-    if (error) throw error;
-
-    toast.success('Opportunità eliminata');
-
-    onClose(false);
-    window.location.reload();
-  } catch (err) {
-    console.error('Delete opportunity error:', err);
-    toast.error('Impossibile eliminare questa opportunità');
-  }
-};
+  };
 
   useEffect(() => {
     if (!opportunity?.id || !open) return;
@@ -532,6 +480,10 @@ export const OpportunityDetail = ({ opportunity, open, onClose }) => {
 
   const handleFavorite = async () => {
     if (!opportunity?.id) return;
+    if (isOpportunityExpired(opportunity)) {
+      toast.error('Questa opportunità è scaduta');
+      return;
+    }
 
     if (!user) {
       toast.error('Devi fare login per salvare le opportunità');
@@ -572,6 +524,10 @@ export const OpportunityDetail = ({ opportunity, open, onClose }) => {
 
   const handleReport = async () => {
     if (!opportunity?.id) return;
+    if (isOpportunityExpired(opportunity)) {
+      toast.error('Questa opportunità è scaduta');
+      return;
+    }
 
     if (!user) {
       toast.error('Devi fare login per segnalare un contenuto');
@@ -669,6 +625,11 @@ export const OpportunityDetail = ({ opportunity, open, onClose }) => {
   };
 
   const handleVerifyOpportunity = async () => {
+    if (isOpportunityExpired(opportunity)) {
+      toast.error('Questa opportunità è scaduta');
+      return;
+    }
+
     if (!user) {
       toast.error('Devi fare login');
       navigate('/login');
@@ -715,6 +676,11 @@ export const OpportunityDetail = ({ opportunity, open, onClose }) => {
 
   const handleComment = async (e) => {
     e.preventDefault();
+
+    if (isOpportunityExpired(opportunity)) {
+      toast.error('Questa opportunità è scaduta');
+      return;
+    }
 
     if (!opportunity?.id) return;
 
@@ -834,6 +800,11 @@ export const OpportunityDetail = ({ opportunity, open, onClose }) => {
   const handlePickupRequest = async () => {
     if (!opportunity?.id) return;
 
+    if (isOpportunityExpired(opportunity)) {
+      toast.error('Questa opportunità è scaduta');
+      return;
+    }
+
     if (!user) {
       toast.error('Devi fare login per richiedere il ritiro');
       navigate('/login');
@@ -918,13 +889,6 @@ if (existingConversation) {
 
   if (!opportunity) return null;
 
-  const trustBadgeClasses = {
-    trusted: 'bg-emerald-50 text-emerald-700',
-    growing: 'bg-blue-50 text-blue-700',
-    risky: 'bg-orange-50 text-orange-700',
-    new: 'bg-gray-100 text-gray-600',
-  };
-
   const TrustIcon = authorTrust.level === 'risky' ? AlertTriangle : ShieldCheck;
   const isJobOffer = contentType === 'job';
   const isDeal = contentType === 'deal';
@@ -935,6 +899,8 @@ if (existingConversation) {
     !isJobOffer &&
     !isExplicitlyFree &&
     displayedPrice !== null;
+  const opportunityExpired = isOpportunityExpired(opportunity);
+  const expirySummary = getOpportunityExpirySummary(opportunity);
 
   return (
     <Sheet open={open} onOpenChange={onClose}>
@@ -961,7 +927,14 @@ if (existingConversation) {
                   variant="ghost"
                   size="icon"
                   className="h-9 w-9 rounded-full bg-gray-100"
-                  onClick={() => setReportOpen(true)}
+                  onClick={() => {
+                    if (opportunityExpired) {
+                      toast.error('Questa opportunità è scaduta');
+                      return;
+                    }
+                    setReportOpen(true);
+                  }}
+                  disabled={opportunityExpired}
                   data-testid="report-btn"
                 >
                   <Flag className="h-4 w-4" />
@@ -984,7 +957,7 @@ if (existingConversation) {
                     isFavorite ? 'bg-red-500 text-white' : 'bg-gray-100'
                   }`}
                   onClick={handleFavorite}
-                  disabled={loadingFavoriteState}
+                  disabled={loadingFavoriteState || opportunityExpired}
                   data-testid="favorite-btn"
                 >
                   <Heart className={`h-4 w-4 ${isFavorite ? 'fill-current' : ''}`} />
@@ -993,7 +966,7 @@ if (existingConversation) {
                 {String(opportunity.user_id) !== String(user?.id) && (
                   <Button
                     onClick={handleVerifyOpportunity}
-                    disabled={verifying || verifiedByUser}
+                    disabled={verifying || verifiedByUser || opportunityExpired}
                     variant={verifiedByUser ? 'secondary' : 'outline'}
                     className="h-9 rounded-full px-3 text-xs"
                   >
@@ -1044,6 +1017,19 @@ if (existingConversation) {
                   </Badge>
                 )}
 
+                {expirySummary && (
+                  <Badge
+                    className={`border-0 ${
+                      expirySummary.expired
+                        ? 'bg-amber-100 text-amber-800'
+                        : 'bg-orange-50 text-orange-700'
+                    }`}
+                  >
+                    <Clock className="mr-1 h-3 w-3" />
+                    {expirySummary.label}
+                  </Badge>
+                )}
+
               </div>
 
               <SheetHeader className="space-y-1 p-0 text-left">
@@ -1067,6 +1053,12 @@ if (existingConversation) {
                     <span className="flex items-center gap-1">
                       <Clock className="h-4 w-4" />
                       {formatDate(opportunity.created_at)}
+                    </span>
+                  )}
+
+                  {expirySummary?.detail && (
+                    <span className={`font-medium ${expirySummary.expired ? 'text-amber-700' : 'text-orange-600'}`}>
+                      {expirySummary.detail}
                     </span>
                   )}
                 </div>
