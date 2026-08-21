@@ -17,8 +17,11 @@ import {
   Shield,
   Camera,
   Loader2,
+  Pencil,
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
+import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Switch } from '../components/ui/switch';
 import { Badge } from '../components/ui/badge';
@@ -63,7 +66,12 @@ const createPasswordCheckClient = () => {
 };
 
 export const Profile = () => {
-  const { user, logout, loading: authLoading } = useAuth();
+  const {
+  user,
+  logout,
+  updateDisplayName,
+  loading: authLoading,
+} = useAuth();
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
 
@@ -78,6 +86,10 @@ export const Profile = () => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [deletingAccount, setDeletingAccount] = useState(false);
+  const [profileDisplayName, setProfileDisplayName] = useState('');
+  const [nameEditorOpen, setNameEditorOpen] = useState(false);
+  const [editedName, setEditedName] = useState('');
+  const [savingName, setSavingName] = useState(false);
 
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [notificationCategories, setNotificationCategories] = useState([]);
@@ -96,6 +108,7 @@ export const Profile = () => {
       const { data: profileData, error: profileError } = await supabase
         .from('user_profiles')
         .select(`
+          display_name,
           avatar_url,
           points,
           trust_score,
@@ -113,6 +126,9 @@ export const Profile = () => {
       }
 
       setAvatarUrl(profileData?.avatar_url || null);
+      setProfileDisplayName(
+  profileData?.display_name || user.name || ''
+);
 
       const { data: myOpps, error: oppsError } = await supabase
         .from('opportunities')
@@ -340,6 +356,107 @@ setLeaderboard(cleanLeaderboard);
   }
 };
 
+const openNameEditor = () => {
+  const currentName =
+    profileDisplayName ||
+    user?.name ||
+    '';
+
+  setEditedName(currentName);
+  setNameEditorOpen(true);
+};
+
+const closeNameEditor = () => {
+  if (savingName) return;
+
+  setNameEditorOpen(false);
+  setEditedName('');
+};
+
+const handleDisplayNameUpdate = async (event) => {
+  event.preventDefault();
+
+  if (savingName) return;
+
+  const cleanedName = String(editedName || '')
+    .trim()
+    .replace(/\s+/g, ' ');
+
+  if (cleanedName.length < 2) {
+    toast.error('Inserisci un nome valido');
+    return;
+  }
+
+  if (cleanedName.length > 80) {
+    toast.error('Il nome non può superare 80 caratteri');
+    return;
+  }
+
+  const currentName =
+    profileDisplayName ||
+    user?.name ||
+    '';
+
+  if (cleanedName === currentName) {
+    setNameEditorOpen(false);
+    return;
+  }
+
+  try {
+    setSavingName(true);
+
+    const updatedUser = await updateDisplayName(cleanedName);
+
+    if (!updatedUser) {
+      throw new Error('Aggiornamento nome non riuscito');
+    }
+
+    // Aggiorna immediatamente la pagina senza attendere un nuovo fetch.
+    setProfileDisplayName(cleanedName);
+
+    setMyOpportunities((previous) =>
+      previous.map((opportunity) => ({
+        ...opportunity,
+        user_name: cleanedName,
+      }))
+    );
+
+    setSelectedOpportunity((previous) =>
+      previous
+        ? {
+            ...previous,
+            user_name: cleanedName,
+          }
+        : previous
+    );
+
+    setLeaderboard((previous) =>
+      previous.map((profile) =>
+        profile.user_id === user.id
+          ? {
+              ...profile,
+              display_name: cleanedName,
+            }
+          : profile
+      )
+    );
+
+    setNameEditorOpen(false);
+    setEditedName('');
+
+    toast.success('Nome aggiornato');
+  } catch (err) {
+    console.error('Display name update error:', err);
+
+    toast.error(
+      err?.message ||
+        'Impossibile aggiornare il nome'
+    );
+  } finally {
+    setSavingName(false);
+  }
+};
+
   const handleLogout = async () => {
     await logout();
     toast.success('Logout effettuato con successo');
@@ -494,7 +611,10 @@ setLeaderboard(cleanLeaderboard);
     );
   }
 
-  const displayName = user.name || 'Utente DealRadar';
+  const displayName =
+  profileDisplayName ||
+  user.name ||
+  'Utente DealRadar';
   const displayAvatar = avatarUrl;
   const displayInitial = (displayName || user.email || 'U').charAt(0).toUpperCase();
 
@@ -660,11 +780,26 @@ setLeaderboard(cleanLeaderboard);
           </div>
 
           <div className="min-w-0">
-            <h2 className="text-xl font-bold text-white truncate">
-              {displayName}
-            </h2>
-            <p className="text-white/80 text-sm truncate">{user.email}</p>
-          </div>
+  <div className="flex items-center gap-2">
+    <h2 className="text-xl font-bold text-white truncate">
+      {displayName}
+    </h2>
+
+    <button
+      type="button"
+      onClick={openNameEditor}
+      className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full text-white/90 transition hover:bg-white/20 hover:text-white"
+      aria-label="Modifica nome e cognome"
+      title="Modifica nome e cognome"
+    >
+      <Pencil className="h-3.5 w-3.5" />
+    </button>
+  </div>
+
+  <p className="text-white/80 text-sm truncate">
+    {user.email}
+  </p>
+</div>
         </div>
       </div>
 
@@ -998,6 +1133,92 @@ setLeaderboard(cleanLeaderboard);
         </div>
       </div>
 
+      {nameEditorOpen && (
+  <div
+    className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/40 px-4 backdrop-blur-[2px]"
+    onMouseDown={(event) => {
+      if (event.target === event.currentTarget) {
+        closeNameEditor();
+      }
+    }}
+  >
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="edit-name-title"
+      className="w-full max-w-sm rounded-3xl bg-white p-5 shadow-2xl"
+    >
+      <div className="mb-5">
+        <h2
+          id="edit-name-title"
+          className="text-lg font-bold text-gray-900"
+        >
+          Modifica nome e cognome
+        </h2>
+
+        <p className="mt-1 text-sm text-gray-500">
+          Il nuovo nome verrà mostrato sul tuo profilo e nelle tue attività su DealRadar.
+        </p>
+      </div>
+
+      <form
+        onSubmit={handleDisplayNameUpdate}
+        className="space-y-5"
+      >
+        <div>
+          <Label htmlFor="edit-display-name">
+            Nome completo
+          </Label>
+
+          <Input
+            id="edit-display-name"
+            value={editedName}
+            onChange={(event) =>
+              setEditedName(event.target.value)
+            }
+            placeholder="Mario Rossi"
+            autoComplete="name"
+            autoFocus
+            maxLength={80}
+            disabled={savingName}
+            className="mt-1.5 h-12 rounded-xl"
+          />
+
+          <p className="mt-1.5 text-xs text-gray-500">
+            Questo è il nome che gli altri utenti vedranno su DealRadar.
+          </p>
+        </div>
+
+        <div className="flex gap-3">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={closeNameEditor}
+            disabled={savingName}
+            className="h-11 flex-1 rounded-xl"
+          >
+            Annulla
+          </Button>
+
+          <Button
+            type="submit"
+            disabled={savingName}
+            className="h-11 flex-1 rounded-xl bg-primary"
+          >
+            {savingName ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Salvataggio...
+              </>
+            ) : (
+              'Salva'
+            )}
+          </Button>
+        </div>
+      </form>
+    </div>
+  </div>
+)}
 
       <OpportunityDetail
         opportunity={selectedOpportunity}

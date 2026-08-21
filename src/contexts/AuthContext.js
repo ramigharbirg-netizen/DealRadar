@@ -260,6 +260,92 @@ export const AuthProvider = ({ children }) => {
     [user, applySession]
   );
 
+    const updateDisplayName = useCallback(
+    async (newName) => {
+      if (!user) {
+        throw new Error('Utente non autenticato');
+      }
+
+      const cleanedName = String(newName || '')
+        .trim()
+        .replace(/\s+/g, ' ');
+
+      if (cleanedName.length < 2) {
+        throw new Error('Il nome deve contenere almeno 2 caratteri');
+      }
+
+      if (cleanedName.length > 80) {
+        throw new Error('Il nome non può superare 80 caratteri');
+      }
+
+      const previousName = user.name;
+
+      setLoading(true);
+
+      try {
+        // 1. Aggiorna il nome nei metadata ufficiali di Supabase Auth.
+        const { data: authData, error: authError } =
+          await supabase.auth.updateUser({
+            data: {
+              name: cleanedName,
+            },
+          });
+
+        if (authError) throw authError;
+
+        // 2. Sincronizza il nome pubblico in tutte le tabelle DealRadar.
+        const { data: rpcData, error: rpcError } = await supabase.rpc(
+          'update_my_display_name',
+          {
+            new_display_name: cleanedName,
+          }
+        );
+
+        if (rpcError || !rpcData?.success) {
+          // Se la sincronizzazione DB fallisce, proviamo a ripristinare
+          // anche il metadata Auth per non lasciare nomi incoerenti.
+          try {
+            await supabase.auth.updateUser({
+              data: {
+                name: previousName,
+              },
+            });
+          } catch (rollbackError) {
+            console.error(
+              'Display name Auth rollback error:',
+              rollbackError
+            );
+          }
+
+          throw rpcError || new Error('Aggiornamento nome non riuscito');
+        }
+
+        // 3. Aggiorna immediatamente l'utente nel Context.
+        const {
+          data: { session: currentSession },
+          error: sessionError,
+        } = await supabase.auth.getSession();
+
+        if (sessionError) throw sessionError;
+
+        if (currentSession?.user) {
+          return await applySession(currentSession);
+        }
+
+        if (authData?.user) {
+          const mapped = await mapSupabaseUser(authData.user);
+          setUser(mapped);
+          return mapped;
+        }
+
+        return null;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [user, applySession]
+  );
+
   return (
     <AuthContext.Provider
       value={{
@@ -270,6 +356,7 @@ export const AuthProvider = ({ children }) => {
         register,
         logout,
         updateUser,
+        updateDisplayName,
         refreshSession,
         isAuthenticated: !!user,
       }}

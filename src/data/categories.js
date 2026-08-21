@@ -16,6 +16,7 @@ import {
   Gamepad2,
   BookOpen,
   Clapperboard,
+  PawPrint,
 } from 'lucide-react';
 
 export const categories = [
@@ -1638,6 +1639,78 @@ export const categories = [
     attributes: [],
   },
 ],
+  },
+
+    {
+    id: 'animals',
+    name: 'Animali',
+    shortName: 'Animali',
+    icon: PawPrint,
+    color: '#10B981',
+    chipColor: 'bg-emerald-500',
+    optionalLocation: true,
+    subcategories: [
+      {
+        id: 'food_snacks',
+        name: 'Cibo e snack',
+        attributes: [],
+      },
+      {
+        id: 'toys',
+        name: 'Giochi',
+        attributes: [],
+      },
+      {
+        id: 'beds_kennels',
+        name: 'Cucce, letti e cuscini',
+        attributes: [],
+      },
+      {
+        id: 'collars_leashes_harnesses',
+        name: 'Collari, guinzagli e pettorine',
+        attributes: [],
+      },
+      {
+        id: 'carriers_travel',
+        name: 'Trasportini e viaggio',
+        attributes: [],
+      },
+      {
+        id: 'bowls_feeders',
+        name: 'Ciotole e distributori',
+        attributes: [],
+      },
+      {
+        id: 'hygiene_grooming',
+        name: 'Igiene e cura',
+        attributes: [],
+      },
+      {
+        id: 'cat_accessories',
+        name: 'Tiragraffi e accessori per gatti',
+        attributes: [],
+      },
+      {
+        id: 'aquariums',
+        name: 'Acquari e accessori',
+        attributes: [],
+      },
+      {
+        id: 'cages_habitats',
+        name: 'Gabbie, recinti e habitat',
+        attributes: [],
+      },
+      {
+        id: 'clothing_accessories',
+        name: 'Abbigliamento e accessori',
+        attributes: [],
+      },
+      {
+        id: 'other',
+        name: 'Altro per animali',
+        attributes: [],
+      },
+    ],
   },
 
   {

@@ -117,7 +117,10 @@ const getMarkerIconSvg = (categoryId) => {
     home:
       '<path d="M6 19v-7a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v7"/><path d="M6 19H4v-5a2 2 0 0 1 2-2"/><path d="M18 19h2v-5a2 2 0 0 0-2-2"/><path d="M8 19v3"/><path d="M16 19v3"/><path d="M9 10V6a3 3 0 0 1 6 0v4"/>',
 
-    vehicles:
+          animals:
+      '<circle cx="8" cy="7" r="2"/><circle cx="16" cy="7" r="2"/><circle cx="5" cy="12" r="2"/><circle cx="19" cy="12" r="2"/><path d="M12 11c-3 0-5.5 2.4-5.5 5.2 0 2.1 1.6 3.8 3.6 3.8.8 0 1.4-.3 1.9-.7.5.4 1.1.7 1.9.7 2 0 3.6-1.7 3.6-3.8C17.5 13.4 15 11 12 11Z"/>',
+    
+      vehicles:
       '<path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9L18.7 10l-1.4-3.5A2 2 0 0 0 15.4 5H8.6a2 2 0 0 0-1.9 1.5L5.3 10l-1.8 1.1C2.7 11.3 2 12.1 2 13v3c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/>',
 
     auctions:

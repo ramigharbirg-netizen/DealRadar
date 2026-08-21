@@ -38,6 +38,7 @@
         --electronics: 187 86% 53%;
         --clothing: 330 81% 60%;
         --home: 173 80% 40%;
+        --animals: 160 84% 39%;
         --vehicles: 215 19% 35%;
         --other: 220 9% 46%;
         --free-deals: 160 84% 39%;
@@ -146,6 +147,7 @@
 .marker-electronics { background-color: #06B6D4; } /* Cyan - Smartphone */
 .marker-clothing { background-color: #EC4899; } /* Pink - Shirt */
 .marker-home { background-color: #14B8A6; } /* Teal - Home */
+.marker-animals { background-color: #10B981; } /* Emerald - Paw */
 .marker-vehicles { background-color: #475569; } /* Slate - Car */
 .marker-other { background-color: #6B7280; } /* Gray - Other */
 .marker-free_deals { background-color: #16A34A; } /* Green - Gift */

@@ -20,6 +20,7 @@ import {
   Sparkles,
   Tag,
   Package,
+  PawPrint,
   UtensilsCrossed,
   Wrench,
 } from 'lucide-react';
@@ -84,6 +85,14 @@ const dealEntries = [
     icon: Armchair,
     iconClass: 'bg-green-100 text-green-700',
     categoryId: 'home',
+  },
+    {
+    id: 'deal_animals',
+    name: 'Animali',
+    description: 'Cibo, giochi, cucce e accessori per animali',
+    icon: PawPrint,
+    iconClass: 'bg-emerald-100 text-emerald-700',
+    categoryId: 'animals',
   },
   {
     id: 'deal_clothing',
@@ -163,6 +172,14 @@ const saleEntries = [
     icon: Armchair,
     iconClass: 'bg-green-100 text-green-700',
     categoryId: 'home',
+  },
+    {
+    id: 'sale_animals',
+    name: 'Animali',
+    description: 'Cibo, giochi, cucce e accessori per animali',
+    icon: PawPrint,
+    iconClass: 'bg-emerald-100 text-emerald-700',
+    categoryId: 'animals',
   },
   {
     id: 'sale_clothing',
