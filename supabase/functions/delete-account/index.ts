@@ -9,16 +9,19 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
+const jsonResponse = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  });
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
 
   if (req.method !== 'POST') {
-    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
-      status: 405,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return jsonResponse({ error: 'Method not allowed' }, 405);
   }
 
   try {
@@ -26,130 +29,102 @@ Deno.serve(async (req) => {
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
     if (!supabaseUrl || !serviceRoleKey) {
-      return new Response(
-        JSON.stringify({ error: 'Server configuration missing' }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        }
-      );
+      return jsonResponse({ error: 'Server configuration missing' }, 500);
     }
 
     const authHeader = req.headers.get('Authorization') || '';
-
     if (!authHeader.startsWith('Bearer ')) {
-      return new Response(JSON.stringify({ error: 'Missing authorization' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      return jsonResponse({ error: 'Missing authorization' }, 401);
     }
 
-    const adminClient = createClient(supabaseUrl, serviceRoleKey);
+    const token = authHeader.slice('Bearer '.length).trim();
+    const adminClient = createClient(supabaseUrl, serviceRoleKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
 
-const token = authHeader.replace('Bearer ', '');
-
-const {
-  data: { user },
-  error: userError,
-} = await adminClient.auth.getUser(token);
+    const {
+      data: { user },
+      error: userError,
+    } = await adminClient.auth.getUser(token);
 
     if (userError || !user) {
-      return new Response(JSON.stringify({ error: 'Invalid user' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      return jsonResponse({ error: 'Invalid user' }, 401);
     }
 
     const userId = user.id;
-    const userEmail = user.email || null;
 
-    await adminClient.from('privacy_requests').insert([
+    // Read/remove avatar BEFORE database erasure. If Storage fails, no database cleanup has begun.
+    const { data: profile, error: profileReadError } = await adminClient
+      .from('user_profiles')
+      .select('avatar_url')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (profileReadError) {
+      throw new Error(`user_profiles read failed: ${profileReadError.message}`);
+    }
+
+    const avatarUrl = profile?.avatar_url || null;
+    if (avatarUrl) {
+      const marker = '/avatars/';
+      const markerIndex = avatarUrl.indexOf(marker);
+      if (markerIndex >= 0) {
+        const avatarPath = decodeURIComponent(avatarUrl.slice(markerIndex + marker.length));
+        if (avatarPath && avatarPath.startsWith(`${userId}-`)) {
+          const { error: avatarDeleteError } = await adminClient.storage
+            .from('avatars')
+            .remove([avatarPath]);
+          if (avatarDeleteError) {
+            throw new Error(`avatar cleanup failed: ${avatarDeleteError.message}`);
+          }
+        }
+      }
+    }
+
+    // All database cleanup now runs inside one PostgreSQL function invocation / transaction.
+    // The RPC is executable only by service_role.
+    const { data: prepared, error: prepareError } = await adminClient.rpc(
+      'prepare_account_deletion',
+      { p_user_id: userId },
+    );
+
+    if (prepareError) {
+      throw new Error(`database cleanup failed: ${prepareError.message}`);
+    }
+
+    if (!prepared?.prepared) {
+      throw new Error('database cleanup did not confirm completion');
+    }
+
+    // Auth deletion is deliberately last. If it fails, this endpoint returns 500 and can be retried;
+    // the database preparation is designed to be idempotent.
+    const { error: deleteUserError } = await adminClient.auth.admin.deleteUser(userId);
+    if (deleteUserError) {
+      throw new Error(`auth deletion failed: ${deleteUserError.message}`);
+    }
+
+    // Non-identifying operational evidence that an erasure completed.
+    const { error: auditError } = await adminClient.from('privacy_requests').insert([
       {
-        user_id: userId,
-        email: userEmail,
+        user_id: null,
+        email: null,
         request_type: 'delete_account',
         status: 'completed',
-        notes: 'Account deleted automatically by Edge Function',
+        notes: 'Account deletion completed automatically; identifying fields minimized.',
         completed_at: new Date().toISOString(),
       },
     ]);
 
-    await adminClient.from('favorites').delete().eq('user_id', userId);
-    await adminClient.from('comments').delete().eq('user_id', userId);
-    await adminClient.from('reports').delete().eq('reporter_id', userId);
-    await adminClient.from('conversation_reads').delete().eq('user_id', userId);
-    await adminClient.from('reputation_events').delete().eq('user_id', userId);
-
-    await adminClient
-      .from('conversation_messages')
-      .update({
-        sender_name: 'Utente eliminato',
-        sender_email: null,
-        message: 'Messaggio rimosso',
-        sender_id: null,
-      })
-      .eq('sender_id', userId);
-
-    await adminClient
-      .from('opportunities')
-      .update({
-        user_name: 'Utente eliminato',
-        user_id: null,
-      })
-      .eq('user_id', userId);
-
-    await adminClient
-  .from('user_profiles')
-  .update({
-    display_name: 'Utente eliminato',
-    avatar_url: null,
-    city: null,
-    country: null,
-    points: 0,
-    trust_score: 0,
-    total_opportunities: 0,
-    verified_deals: 0,
-    hidden_deals: 0,
-    reputation_level: 'new_member',
-    is_premium: false,
-    premium_until: null,
-  })
-  .eq('user_id', userId);
-
-    const { error: deleteUserError } =
-      await adminClient.auth.admin.deleteUser(userId);
-
-    if (deleteUserError) {
-      return new Response(
-        JSON.stringify({ error: deleteUserError.message }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        }
-      );
+    if (auditError) {
+      console.error('Deletion audit insert failed:', auditError);
     }
 
-    return new Response(
-      JSON.stringify({
-        success: true,
-        message: 'Account deleted successfully',
-      }),
-      {
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
-    );
+    return jsonResponse({ success: true, message: 'Account deleted successfully' });
   } catch (err) {
     console.error('Delete account error:', err);
-
-    return new Response(
-      JSON.stringify({
-        error: err instanceof Error ? err.message : 'Unexpected server error',
-      }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
+    return jsonResponse(
+      { error: err instanceof Error ? err.message : 'Unexpected server error' },
+      500,
     );
   }
 });
