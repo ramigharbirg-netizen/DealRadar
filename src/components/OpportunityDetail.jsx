@@ -814,16 +814,9 @@ export const OpportunityDetail = ({ opportunity, open, onClose }) => {
     setSendingPickup(true);
 
     try {
-      const { error: pickupError } = await supabase.from('pickup_requests').insert([
-        {
-          opportunity_id: opportunity.id,
-          requester_name: user.name || user.email,
-          requester_email: user.email,
-          owner_name: opportunity.user_name || null,
-          owner_email: null,
-          status: 'pending',
-        },
-      ]);
+      const { error: pickupError } = await supabase.rpc('create_pickup_request', {
+  p_opportunity_id: opportunity.id,
+});
 
       if (pickupError) throw pickupError;
 

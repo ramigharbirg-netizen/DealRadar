@@ -85,7 +85,7 @@ Deno.serve(async (req) => {
     const { data: pickupRequestsData, error: pickupRequestsError } = await adminClient
   .from('pickup_requests')
   .select('*')
-  .or(`requester_email.eq.${user.email},owner_email.eq.${user.email}`);
+  .or(`requester_id.eq.${user.id},owner_id.eq.${user.id}`);
 
 const pickupRequests = {
   error: pickupRequestsError ? pickupRequestsError.message : null,
