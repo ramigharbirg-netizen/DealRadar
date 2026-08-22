@@ -54,6 +54,127 @@ import {
   shouldOfferDealRenewal,
 } from '../utils/opportunityLifecycle';
 
+
+const AVATAR_MAX_UPLOAD_SIZE_MB = 5;
+const AVATAR_MAX_UPLOAD_SIZE_BYTES = AVATAR_MAX_UPLOAD_SIZE_MB * 1024 * 1024;
+const AVATAR_MAX_STORED_SIZE_MB = 2;
+const AVATAR_MAX_STORED_SIZE_BYTES = AVATAR_MAX_STORED_SIZE_MB * 1024 * 1024;
+const AVATAR_MAX_WIDTH = 1024;
+const AVATAR_MAX_HEIGHT = 1024;
+const AVATAR_JPEG_QUALITY = 0.82;
+const AVATAR_WEBP_QUALITY = 0.82;
+const AVATAR_ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+const AVATAR_ALLOWED_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp'];
+
+const getAvatarFileExtension = (filename = '') => {
+  const parts = filename.toLowerCase().split('.');
+  if (parts.length < 2) return '';
+  return parts.pop();
+};
+
+const detectAvatarImageType = async (file) => {
+  const buffer = await file.slice(0, 12).arrayBuffer();
+  const bytes = new Uint8Array(buffer);
+
+  if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {
+    return { mime: 'image/jpeg', extension: 'jpg' };
+  }
+
+  if (
+    bytes[0] === 0x89 &&
+    bytes[1] === 0x50 &&
+    bytes[2] === 0x4e &&
+    bytes[3] === 0x47
+  ) {
+    return { mime: 'image/png', extension: 'png' };
+  }
+
+  if (
+    bytes[0] === 0x52 &&
+    bytes[1] === 0x49 &&
+    bytes[2] === 0x46 &&
+    bytes[3] === 0x46 &&
+    bytes[8] === 0x57 &&
+    bytes[9] === 0x45 &&
+    bytes[10] === 0x42 &&
+    bytes[11] === 0x50
+  ) {
+    return { mime: 'image/webp', extension: 'webp' };
+  }
+
+  return null;
+};
+
+const sanitizeAvatarImage = async (file, detectedType) => {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    const objectUrl = URL.createObjectURL(file);
+
+    image.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+
+      let { width, height } = image;
+      const ratio = Math.min(
+        1,
+        AVATAR_MAX_WIDTH / width,
+        AVATAR_MAX_HEIGHT / height
+      );
+
+      width = Math.max(1, Math.round(width * ratio));
+      height = Math.max(1, Math.round(height * ratio));
+
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        reject(new Error('Impossibile elaborare l’immagine'));
+        return;
+      }
+
+      ctx.drawImage(image, 0, 0, width, height);
+
+      const outputMime = detectedType.mime;
+      const quality =
+        outputMime === 'image/jpeg'
+          ? AVATAR_JPEG_QUALITY
+          : outputMime === 'image/webp'
+            ? AVATAR_WEBP_QUALITY
+            : undefined;
+
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) {
+            reject(new Error('Impossibile elaborare l’immagine'));
+            return;
+          }
+
+          resolve(
+            new File(
+              [blob],
+              `avatar.${detectedType.extension}`,
+              {
+                type: outputMime,
+                lastModified: Date.now(),
+              }
+            )
+          );
+        },
+        outputMime,
+        quality
+      );
+    };
+
+    image.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error('Immagine non valida'));
+    };
+
+    image.src = objectUrl;
+  });
+};
+
 const createPasswordCheckClient = () => {
   const supabaseUrl = process.env.REACT_APP_SUPABASE_URL;
   const supabaseAnonKey = process.env.REACT_APP_SUPABASE_ANON_KEY;
@@ -296,33 +417,57 @@ setLeaderboard(cleanLeaderboard);
 
   const handleAvatarUpload = async (event) => {
   try {
-    const file = event.target.files?.[0];
+    const selectedFile = event.target.files?.[0];
 
-    if (!file || !user?.id) return;
+    if (!selectedFile || !user?.id) return;
 
-    if (!file.type.startsWith('image/')) {
-      toast.error('Puoi caricare solo immagini');
+    if (
+      selectedFile.size <= 0 ||
+      selectedFile.size > AVATAR_MAX_UPLOAD_SIZE_BYTES
+    ) {
+      toast.error(
+        `Immagine troppo grande. Massimo ${AVATAR_MAX_UPLOAD_SIZE_MB} MB`
+      );
       return;
     }
 
-    const maxSizeMb = 5;
-    if (file.size > maxSizeMb * 1024 * 1024) {
-      toast.error(`Immagine troppo grande. Massimo ${maxSizeMb} MB`);
+    const extension = getAvatarFileExtension(selectedFile.name);
+    const declaredTypeAllowed = AVATAR_ALLOWED_MIME_TYPES.includes(selectedFile.type);
+    const extensionAllowed = AVATAR_ALLOWED_EXTENSIONS.includes(extension);
+    const detectedType = await detectAvatarImageType(selectedFile);
+
+    if (!declaredTypeAllowed || !extensionAllowed || !detectedType) {
+      toast.error('Formato non valido. Usa solo JPG, PNG o WEBP.');
+      return;
+    }
+
+    if (
+      detectedType.mime !== selectedFile.type &&
+      !(detectedType.mime === 'image/jpeg' && selectedFile.type === 'image/jpg')
+    ) {
+      toast.error('Il contenuto del file non corrisponde al formato dichiarato.');
       return;
     }
 
     setUploadingAvatar(true);
 
     const oldAvatarUrl = avatarUrl;
+    const sanitizedFile = await sanitizeAvatarImage(selectedFile, detectedType);
 
-    const fileExt = file.name.split('.').pop()?.toLowerCase() || 'jpg';
-    const fileName = `${user.id}-${Date.now()}.${fileExt}`;
+    if (sanitizedFile.size > AVATAR_MAX_STORED_SIZE_BYTES) {
+      toast.error(
+        `L’immagine resta troppo grande dopo l’elaborazione. Massimo ${AVATAR_MAX_STORED_SIZE_MB} MB.`
+      );
+      return;
+    }
+
+    const fileName = `${user.id}-${Date.now()}.${detectedType.extension}`;
 
     const { error: uploadError } = await supabase.storage
       .from('avatars')
-      .upload(fileName, file, {
+      .upload(fileName, sanitizedFile, {
         upsert: false,
-        contentType: file.type,
+        contentType: sanitizedFile.type,
       });
 
     if (uploadError) throw uploadError;

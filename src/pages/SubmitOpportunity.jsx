@@ -148,9 +148,7 @@ const detectImageTypeFromFile = async (file) => {
   return null;
 };
 
-const compressImageFile = async (file, extension) => {
-  if (extension === 'png') return file;
-
+const sanitizeImageFile = async (file, extension) => {
   return new Promise((resolve, reject) => {
     const image = new Image();
     const objectUrl = URL.createObjectURL(file);
@@ -183,22 +181,40 @@ const compressImageFile = async (file, extension) => {
 
       ctx.drawImage(image, 0, 0, width, height);
 
+      const outputMime =
+        extension === 'png'
+          ? 'image/png'
+          : extension === 'webp'
+            ? 'image/webp'
+            : 'image/jpeg';
+
+      const outputExtension =
+        outputMime === 'image/png'
+          ? 'png'
+          : outputMime === 'image/webp'
+            ? 'webp'
+            : 'jpg';
+
       canvas.toBlob(
         (blob) => {
           if (!blob) {
-            resolve(file);
+            reject(new Error('Sanitizzazione immagine non riuscita'));
             return;
           }
 
-          const compressedFile = new File([blob], file.name, {
-            type: 'image/jpeg',
-            lastModified: file.lastModified,
-          });
+          const sanitizedFile = new File(
+            [blob],
+            `immagine.${outputExtension}`,
+            {
+              type: outputMime,
+              lastModified: Date.now(),
+            }
+          );
 
-          resolve(compressedFile);
+          resolve({ file: sanitizedFile, extension: outputExtension });
         },
-        'image/jpeg',
-        COMPRESSED_IMAGE_QUALITY
+        outputMime,
+        outputMime === 'image/png' ? undefined : COMPRESSED_IMAGE_QUALITY
       );
     };
 
@@ -385,22 +401,67 @@ const hasCounterfeitRisk = detectedCounterfeitTerms.length > 0;
     );
   };
 
+  const cleanupPendingImageUploads = async ({ blockNavigationOnError = false } = {}) => {
+    if (submittedRef.current) return true;
+
+    const pathsToDelete = Array.from(uploadedImagePathsRef.current);
+
+    if (pathsToDelete.length === 0) return true;
+
+    const { error } = await supabase.storage
+      .from('opportunity-images')
+      .remove(pathsToDelete);
+
+    if (error) {
+      console.error('Cleanup orphan images error:', error);
+
+      if (blockNavigationOnError) {
+        toast.error(
+          'Non riesco a rimuovere le foto temporanee. Riprova tra qualche secondo.'
+        );
+      }
+
+      return false;
+    }
+
+    pathsToDelete.forEach((path) => {
+      uploadedImagePathsRef.current.delete(path);
+    });
+
+    return true;
+  };
+
+  const handleExit = async () => {
+    if (submittedRef.current) {
+      navigate(-1);
+      return;
+    }
+
+    const cleanupSucceeded = await cleanupPendingImageUploads({
+      blockNavigationOnError: true,
+    });
+
+    if (!cleanupSucceeded) return;
+
+    navigate(-1);
+  };
+
   useEffect(() => {
     return () => {
       if (submittedRef.current) return;
 
       const pathsToDelete = Array.from(uploadedImagePathsRef.current);
 
-      if (pathsToDelete.length > 0) {
-        supabase.storage
-          .from('opportunity-images')
-          .remove(pathsToDelete)
-          .then(({ error }) => {
-            if (error) {
-              console.error('Cleanup orphan images error:', error);
-            }
-          });
-      }
+      if (pathsToDelete.length === 0) return;
+
+      void supabase.storage
+        .from('opportunity-images')
+        .remove(pathsToDelete)
+        .then(({ error }) => {
+          if (error) {
+            console.error('Unmount orphan image cleanup error:', error);
+          }
+        });
     };
   }, []);
 
@@ -442,28 +503,28 @@ const hasCounterfeitRisk = detectedCounterfeitTerms.length > 0;
     }
 
     const extension = getFileExtension(file.name);
+    const declaredMime = file.type === 'image/jpg' ? 'image/jpeg' : file.type;
     const hasValidType = ALLOWED_IMAGE_TYPES.includes(file.type);
     const hasValidExtension = ALLOWED_IMAGE_EXTENSIONS.includes(extension);
-
-    if (hasValidType && hasValidExtension) {
-      return { file, extension, fingerprint };
-    }
-
     const detected = await detectImageTypeFromFile(file);
 
-    if (!detected) {
+    if (!hasValidType || !hasValidExtension || !detected) {
       toast.error(`Formato non valido: ${file.name}. Usa solo JPG, PNG o WEBP.`);
       return null;
     }
 
-    const cleanName = file.name || `immagine-${Date.now()}`;
-    const fixedFile = new File([file], `${cleanName}.${detected.extension}`, {
-      type: detected.mime,
-      lastModified: file.lastModified,
-    });
+    const extensionMatchesDetected =
+      detected.extension === 'jpg'
+        ? extension === 'jpg' || extension === 'jpeg'
+        : extension === detected.extension;
+
+    if (declaredMime !== detected.mime || !extensionMatchesDetected) {
+      toast.error(`Il contenuto di ${file.name} non corrisponde al formato dichiarato.`);
+      return null;
+    }
 
     return {
-      file: fixedFile,
+      file,
       extension: detected.extension,
       fingerprint,
     };
@@ -523,14 +584,13 @@ const hasCounterfeitRisk = detectedCounterfeitTerms.length > 0;
         const fingerprint = item.fingerprint;
 
         try {
-          const compressedFile = await compressImageFile(file, extension);
-
-          if (compressedFile.size < file.size) {
-            file = compressedFile;
-            extension = 'jpg';
-          }
-        } catch (compressionError) {
-          console.error('Compression error:', compressionError);
+          const sanitized = await sanitizeImageFile(file, extension);
+          file = sanitized.file;
+          extension = sanitized.extension;
+        } catch (sanitizationError) {
+          console.error('Image sanitization error:', sanitizationError);
+          toast.error(`Impossibile elaborare ${file.name}.`);
+          continue;
         }
 
         if (file.size > MAX_STORED_IMAGE_SIZE_BYTES) {
@@ -1124,7 +1184,7 @@ toast.success('Posizione attuale selezionata');
       setAuthenticityDeclared={setAuthenticityDeclared}
       hasCounterfeitRisk={hasCounterfeitRisk}
       onSubmit={handleSubmit}
-      onExit={() => navigate(-1)}
+      onExit={handleExit}
       maxImages={MAX_IMAGES}
       maxUploadMb={MAX_UPLOAD_IMAGE_SIZE_MB}
     />
