@@ -6,7 +6,10 @@ import React, {
   useCallback,
 } from 'react';
 import { supabase } from '../lib/supabase';
-import { registerPushNotifications } from '../lib/pushNotifications';
+import {
+  registerPushNotifications,
+  unregisterPushInstallation,
+} from '../lib/pushNotifications';
 
 const AuthContext = createContext(null);
 
@@ -110,6 +113,7 @@ export const AuthProvider = ({ children }) => {
 
   const logout = useCallback(async () => {
     try {
+      await unregisterPushInstallation();
       await supabase.auth.signOut();
     } catch (err) {
       console.error('Logout error:', err);
