@@ -36,10 +36,8 @@ type PurgeJob = {
   attempts: number;
 };
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-dealradar-secret",
+const responseHeaders = {
+  "Content-Type": "application/json",
 };
 
 const encoder = new TextEncoder();
@@ -177,14 +175,11 @@ function retryAt(attempts: number) {
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
-  }
 
   if (req.method !== "POST") {
     return Response.json(
       { error: "Method not allowed" },
-      { status: 405, headers: corsHeaders },
+      { status: 405, headers: responseHeaders },
     );
   }
 
@@ -194,7 +189,7 @@ Deno.serve(async (req) => {
   if (!expectedSecret || receivedSecret !== expectedSecret) {
     return Response.json(
       { error: "Unauthorized" },
-      { status: 401, headers: corsHeaders },
+      { status: 401, headers: responseHeaders },
     );
   }
 
@@ -221,17 +216,11 @@ Deno.serve(async (req) => {
 
     const nowIso = new Date().toISOString();
 
-    const { data: dueNotifications, error: notificationError } = await supabaseAdmin
-      .from("opportunity_expiry_notifications")
-      .select(
-        "id, opportunity_id, user_id, notification_type, expires_at_snapshot, scheduled_for, attempts",
-      )
-      .in("status", ["pending", "retry"])
-      .is("sent_at", null)
-      .lte("scheduled_for", nowIso)
-      .lte("next_attempt_at", nowIso)
-      .order("scheduled_for", { ascending: true })
-      .limit(100);
+    const { data: dueNotifications, error: notificationError } =
+      await supabaseAdmin.rpc("claim_due_expiry_notifications", {
+        p_limit: 100,
+        p_lease_minutes: 10,
+      });
 
     if (notificationError) throw notificationError;
 
@@ -262,6 +251,7 @@ Deno.serve(async (req) => {
             status: "skipped_obsolete",
             sent_at: nowIso,
             last_error: "Obsolete lifecycle cycle",
+            processing_started_at: null,
           })
           .eq("id", notification.id);
         notificationsSkipped += 1;
@@ -280,7 +270,8 @@ Deno.serve(async (req) => {
             status: "retry",
             attempts: notification.attempts + 1,
             next_attempt_at: retryAt(notification.attempts + 1),
-            last_error: tokensError.message,
+            last_error: tokensError.message.slice(0, 500),
+            processing_started_at: null,
           })
           .eq("id", notification.id);
         notificationFailures += 1;
@@ -294,6 +285,7 @@ Deno.serve(async (req) => {
             status: "skipped_no_token",
             sent_at: nowIso,
             last_error: "No push tokens",
+            processing_started_at: null,
           })
           .eq("id", notification.id);
         notificationsSkipped += 1;
@@ -311,7 +303,7 @@ Deno.serve(async (req) => {
       const body = `“${String(opportunity.title || "Pubblicazione").slice(0, 80)}” sta per scadere. Apri DealRadar per controllarlo o rinnovarlo.`;
 
       let sentToAtLeastOneToken = false;
-      const invalidTokenCodes = ["UNREGISTERED", "INVALID_ARGUMENT"];
+      const invalidTokenCodes = ["UNREGISTERED"];
       const errors: string[] = [];
 
       for (const token of tokens) {
@@ -349,7 +341,17 @@ Deno.serve(async (req) => {
         } else {
           errors.push(errorCode || fcmData.error?.message || `HTTP ${response.status}`);
           if (errorCode && invalidTokenCodes.includes(errorCode)) {
-            await supabaseAdmin.from("push_tokens").delete().eq("id", token.id);
+            const { error: deleteTokenError } = await supabaseAdmin
+              .from("push_tokens")
+              .delete()
+              .eq("id", token.id);
+
+            if (deleteTokenError) {
+              console.error(
+                "Invalid lifecycle push token cleanup failed:",
+                deleteTokenError,
+              );
+            }
           }
         }
       }
@@ -360,7 +362,8 @@ Deno.serve(async (req) => {
           .update({
             status: "sent",
             sent_at: new Date().toISOString(),
-            last_error: errors.length > 0 ? errors.join(" | ").slice(0, 1000) : null,
+            last_error: errors.length > 0 ? errors.join(" | ").slice(0, 500) : null,
+            processing_started_at: null,
           })
           .eq("id", notification.id);
         notificationsSent += 1;
@@ -371,20 +374,19 @@ Deno.serve(async (req) => {
             status: "retry",
             attempts: notification.attempts + 1,
             next_attempt_at: retryAt(notification.attempts + 1),
-            last_error: (errors.join(" | ") || "FCM delivery failed").slice(0, 1000),
+            last_error: (errors.join(" | ") || "FCM delivery failed").slice(0, 500),
+            processing_started_at: null,
           })
           .eq("id", notification.id);
         notificationFailures += 1;
       }
     }
 
-    const { data: purgeJobs, error: purgeError } = await supabaseAdmin
-      .from("opportunity_purge_queue")
-      .select("id, opportunity_id, image_urls, attempts")
-      .in("storage_status", ["pending", "retry"])
-      .lte("next_attempt_at", new Date().toISOString())
-      .order("created_at", { ascending: true })
-      .limit(50);
+    const { data: purgeJobs, error: purgeError } =
+      await supabaseAdmin.rpc("claim_due_purge_jobs", {
+        p_limit: 50,
+        p_lease_minutes: 10,
+      });
 
     if (purgeError) throw purgeError;
 
@@ -401,6 +403,7 @@ Deno.serve(async (req) => {
             storage_status: "completed",
             completed_at: new Date().toISOString(),
             last_error: null,
+            processing_started_at: null,
           })
           .eq("id", job.id);
         storageCompleted += 1;
@@ -418,6 +421,7 @@ Deno.serve(async (req) => {
             storage_status: "completed",
             completed_at: new Date().toISOString(),
             last_error: null,
+            processing_started_at: null,
           })
           .eq("id", job.id);
         storageCompleted += 1;
@@ -428,7 +432,8 @@ Deno.serve(async (req) => {
             storage_status: "retry",
             attempts: job.attempts + 1,
             next_attempt_at: retryAt(job.attempts + 1),
-            last_error: removeError.message.slice(0, 1000),
+            last_error: removeError.message.slice(0, 500),
+            processing_started_at: null,
           })
           .eq("id", job.id);
         storageFailures += 1;
@@ -449,7 +454,7 @@ Deno.serve(async (req) => {
           failed: storageFailures,
         },
       },
-      { status: 200, headers: corsHeaders },
+      { status: 200, headers: responseHeaders },
     );
   } catch (error) {
     console.error("Opportunity lifecycle worker error:", error);
@@ -458,7 +463,7 @@ Deno.serve(async (req) => {
         success: false,
         error: error instanceof Error ? error.message : "Unexpected error",
       },
-      { status: 500, headers: corsHeaders },
+      { status: 500, headers: responseHeaders },
     );
   }
 });
