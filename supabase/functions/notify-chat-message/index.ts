@@ -17,9 +17,8 @@ type ChatMessagePayload = {
   };
 };
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-dealradar-secret",
+const responseHeaders = {
+  "Content-Type": "application/json",
 };
 
 const encoder = new TextEncoder();
@@ -140,14 +139,10 @@ function previewMessage(message: string) {
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
-  }
-
   if (req.method !== "POST") {
     return Response.json(
       { error: "Method not allowed" },
-      { status: 405, headers: corsHeaders }
+      { status: 405, headers: responseHeaders }
     );
   }
 
@@ -157,7 +152,7 @@ Deno.serve(async (req) => {
   if (!expectedSecret || receivedSecret !== expectedSecret) {
     return Response.json(
       { error: "Unauthorized" },
-      { status: 401, headers: corsHeaders }
+      { status: 401, headers: responseHeaders }
     );
   }
 
@@ -183,7 +178,7 @@ Deno.serve(async (req) => {
     if (!messageId) {
       return Response.json(
         { error: "Missing message_id" },
-        { status: 400, headers: corsHeaders }
+        { status: 400, headers: responseHeaders }
       );
     }
 
@@ -197,14 +192,14 @@ Deno.serve(async (req) => {
       console.error("Message fetch error:", messageError);
       return Response.json(
         { error: "Message not found" },
-        { status: 404, headers: corsHeaders }
+        { status: 404, headers: responseHeaders }
       );
     }
 
     if (!message.sender_id) {
       return Response.json(
         { skipped: true, reason: "Missing sender_id" },
-        { status: 200, headers: corsHeaders }
+        { status: 200, headers: responseHeaders }
       );
     }
 
@@ -218,7 +213,7 @@ Deno.serve(async (req) => {
       console.error("Conversation fetch error:", conversationError);
       return Response.json(
         { error: "Conversation not found" },
-        { status: 404, headers: corsHeaders }
+        { status: 404, headers: responseHeaders }
       );
     }
 
@@ -233,14 +228,14 @@ Deno.serve(async (req) => {
     if (!recipientId) {
       return Response.json(
         { skipped: true, reason: "Recipient not found" },
-        { status: 200, headers: corsHeaders }
+        { status: 200, headers: responseHeaders }
       );
     }
 
     if (recipientId === message.sender_id) {
       return Response.json(
         { skipped: true, reason: "Sender is recipient" },
-        { status: 200, headers: corsHeaders }
+        { status: 200, headers: responseHeaders }
       );
     }
 
@@ -257,7 +252,7 @@ Deno.serve(async (req) => {
     if (!tokens || tokens.length === 0) {
       return Response.json(
         { skipped: true, reason: "No push tokens" },
-        { status: 200, headers: corsHeaders }
+        { status: 200, headers: responseHeaders }
       );
     }
 
@@ -291,8 +286,27 @@ const getFcmErrorCode = (fcmData: FcmResponseBody) => {
     null
   );
 };
+const sanitizeUnknownFcmError = (
+  errorCode: string | null,
+  errorMessage: string | null
+) => {
+  const knownCodes = new Set([
+    "UNREGISTERED",
+    "INVALID_ARGUMENT",
+    "SENDER_ID_MISMATCH",
+    "QUOTA_EXCEEDED",
+    "UNAVAILABLE",
+    "INTERNAL",
+  ]);
 
-    const invalidTokenCodes = ["UNREGISTERED", "INVALID_ARGUMENT"];
+  if (!errorMessage || (errorCode && knownCodes.has(errorCode))) {
+    return null;
+  }
+
+  return errorMessage.replace(/\s+/g, " ").trim().slice(0, 200) || null;
+};
+
+    const invalidTokenCodes = ["UNREGISTERED"];
 
     for (const item of tokens) {
       const fcmResponse = await fetch(
@@ -330,27 +344,47 @@ const getFcmErrorCode = (fcmData: FcmResponseBody) => {
 
       const fcmData = (await fcmResponse.json()) as FcmResponseBody;
       const errorCode = getFcmErrorCode(fcmData);
-      const errorMessage = fcmData?.error?.message || null;
+      const rawErrorMessage = fcmData?.error?.message || null;
+      const storedErrorMessage = sanitizeUnknownFcmError(
+        errorCode,
+        rawErrorMessage
+      );
 
-      await supabaseAdmin.from("push_notification_logs").insert({
-        message_id: message.id,
-        conversation_id: message.conversation_id,
-        recipient_id: recipientId,
-        token_id: item.id,
-        status: fcmResponse.ok ? "sent" : "failed",
-        fcm_status: fcmResponse.status,
-        error_code: errorCode,
-        error_message: errorMessage,
-      });
+      const { error: logError } = await supabaseAdmin
+        .from("push_notification_logs")
+        .insert({
+          message_id: message.id,
+          conversation_id: message.conversation_id,
+          recipient_id: recipientId,
+          token_id: item.id,
+          status: fcmResponse.ok ? "sent" : "failed",
+          fcm_status: fcmResponse.status,
+          error_code: errorCode,
+          error_message: storedErrorMessage,
+        });
+
+      if (logError) {
+        console.error("Push notification log insert failed:", logError);
+      }
 
       if (!fcmResponse.ok) {
-        console.error("FCM send error:", fcmData);
+        console.error("FCM send failed", {
+          status: fcmResponse.status,
+          errorCode,
+        });
 
         if (errorCode && invalidTokenCodes.includes(errorCode)) {
-          await supabaseAdmin
+          const { error: deleteTokenError } = await supabaseAdmin
             .from("push_tokens")
             .delete()
             .eq("id", item.id);
+
+          if (deleteTokenError) {
+            console.error(
+              "Invalid push token cleanup failed:",
+              deleteTokenError
+            );
+          }
         }
       }
 
@@ -372,7 +406,7 @@ const getFcmErrorCode = (fcmData: FcmResponseBody) => {
         failed: results.filter((result) => !result.ok).length,
         results,
       },
-      { headers: corsHeaders }
+      { headers: responseHeaders }
     );
   } catch (error) {
     console.error("notify-chat-message error:", error);
@@ -381,7 +415,7 @@ const getFcmErrorCode = (fcmData: FcmResponseBody) => {
       {
         error: error instanceof Error ? error.message : "Unknown error",
       },
-      { status: 500, headers: corsHeaders }
+      { status: 500, headers: responseHeaders }
     );
   }
 });
