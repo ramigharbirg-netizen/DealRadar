@@ -32,7 +32,6 @@ import Support from './pages/Support';
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import DeleteAccount from "./pages/DeleteAccount";
-import AppSplash from "./components/AppSplash";
 
 function AppRoutesWithBackHandler() {
   const navigate = useNavigate();
@@ -157,21 +156,10 @@ if (currentPath !== "/") {
 }
 
 function App() {
-  const [showSplash, setShowSplash] = React.useState(true);
-
-  React.useEffect(() => {
-    const timer = setTimeout(() => {
-      setShowSplash(false);
-    }, 2000);
-
-    return () => clearTimeout(timer);
-  }, []);
-
   return (
     <AuthProvider>
       <LocationProvider>
         <BrowserRouter>
-          {showSplash && <AppSplash />}
           <AppRoutesWithBackHandler />
           <ConsentBanner />
         </BrowserRouter>

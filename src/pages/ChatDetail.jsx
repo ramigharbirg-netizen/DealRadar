@@ -19,12 +19,17 @@ export const ChatDetail = () => {
   const [sending, setSending] = useState(false);
 
   const messagesEndRef = useRef(null);
+  const messagesContainerRef = useRef(null);
 
   const scrollToBottom = useCallback(() => {
-    setTimeout(() => {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, 50);
-  }, []);
+  requestAnimationFrame(() => {
+    const container = messagesContainerRef.current;
+
+    if (container) {
+      container.scrollTop = container.scrollHeight;
+    }
+  });
+}, []);
 
   const formatMessageTime = (dateString) => {
     if (!dateString) return '';
@@ -370,7 +375,10 @@ export const ChatDetail = () => {
           </div>
         )}
 
-        <div className="flex-1 min-h-0 overflow-y-auto bg-[#F5F5F5] px-3 py-3">
+        <div
+  ref={messagesContainerRef}
+  className="flex-1 min-h-0 overflow-y-auto bg-[#F5F5F5] px-3 py-3"
+>
           <div className="mx-auto w-full max-w-3xl space-y-3">
             {messages.length === 0 ? (
               <div className="py-10 text-center text-gray-500">

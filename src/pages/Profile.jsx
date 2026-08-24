@@ -1052,6 +1052,55 @@ const handleDisplayNameUpdate = async (event) => {
         </Card>
       </div>
 
+      {!loading && expiredOpportunities.length > 0 && (
+        <div className="max-w-6xl mx-auto px-4 mt-8">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div>
+              <h3 className="flex items-center gap-2 text-lg font-bold text-gray-900">
+                <CalendarClock className="h-5 w-5 text-amber-500" />
+                Opportunità scadute
+              </h3>
+              <p className="mt-1 text-xs leading-5 text-gray-500">
+                Restano recuperabili per 30 giorni, poi vengono eliminate definitivamente.
+              </p>
+            </div>
+            <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-700">
+              {expiredOpportunities.length}
+            </span>
+          </div>
+
+          <div className="space-y-4">
+            {expiredOpportunities.map((opp) => (
+              <Card key={opp.id} className="overflow-hidden border-amber-200">
+                <OpportunityCard
+                  opportunity={opp}
+                  onClick={() => {
+                    setSelectedOpportunity(opp);
+                    setDetailOpen(true);
+                  }}
+                />
+                <CardContent className="flex items-center justify-between gap-3 border-t border-amber-100 bg-amber-50/70 p-3">
+                  <p className="text-xs text-amber-800">
+                    {opp.content_type === 'deal'
+                      ? 'Scegli una nuova scadenza per riattivare l’affare.'
+                      : 'Puoi rinnovare questo annuncio per altri 90 giorni.'}
+                  </p>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={(event) => handleRenewOpportunity(opp, event)}
+                    className="flex-shrink-0 rounded-xl bg-orange-500 hover:bg-orange-600"
+                  >
+                    <RotateCcw className="mr-1.5 h-4 w-4" />
+                    {opp.content_type === 'deal' ? 'Modifica e rinnova' : 'Rinnova'}
+                  </Button>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="max-w-6xl mx-auto px-4 mt-8">
         <div className="mb-4 flex items-center justify-between gap-3">
           <h3 className="text-lg font-bold text-gray-900">Le mie opportunità attive</h3>
@@ -1117,54 +1166,6 @@ const handleDisplayNameUpdate = async (event) => {
         )}
       </div>
 
-      {!loading && expiredOpportunities.length > 0 && (
-        <div className="max-w-6xl mx-auto px-4 mt-8">
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <div>
-              <h3 className="flex items-center gap-2 text-lg font-bold text-gray-900">
-                <CalendarClock className="h-5 w-5 text-amber-500" />
-                Opportunità scadute
-              </h3>
-              <p className="mt-1 text-xs leading-5 text-gray-500">
-                Restano recuperabili per 30 giorni, poi vengono eliminate definitivamente.
-              </p>
-            </div>
-            <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-700">
-              {expiredOpportunities.length}
-            </span>
-          </div>
-
-          <div className="space-y-4">
-            {expiredOpportunities.map((opp) => (
-              <Card key={opp.id} className="overflow-hidden border-amber-200">
-                <OpportunityCard
-                  opportunity={opp}
-                  onClick={() => {
-                    setSelectedOpportunity(opp);
-                    setDetailOpen(true);
-                  }}
-                />
-                <CardContent className="flex items-center justify-between gap-3 border-t border-amber-100 bg-amber-50/70 p-3">
-                  <p className="text-xs text-amber-800">
-                    {opp.content_type === 'deal'
-                      ? 'Scegli una nuova scadenza per riattivare l’affare.'
-                      : 'Puoi rinnovare questo annuncio per altri 90 giorni.'}
-                  </p>
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={(event) => handleRenewOpportunity(opp, event)}
-                    className="flex-shrink-0 rounded-xl bg-orange-500 hover:bg-orange-600"
-                  >
-                    <RotateCcw className="mr-1.5 h-4 w-4" />
-                    {opp.content_type === 'deal' ? 'Modifica e rinnova' : 'Rinnova'}
-                  </Button>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
-      )}
 
 <div className="max-w-6xl mx-auto px-4 mt-6">
         <Card>

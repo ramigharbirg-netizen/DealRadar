@@ -851,6 +851,16 @@ const OpportunityWizard = ({
   publicationTypeLocked = false,
   imagesReadOnly = false,
 }) => {
+React.useEffect(() => {
+  window.requestAnimationFrame(() => {
+    window.scrollTo({
+      top: 0,
+      left: 0,
+      behavior: 'auto',
+    });
+  });
+}, [step]);
+
   const subcategories = getWizardSubcategories(selectedEntry);
   const isDeal = publicationType === 'deal';
   const isRealEstate = publicationType === 'real_estate';
@@ -907,18 +917,17 @@ const OpportunityWizard = ({
   })();
 
   const next = () => {
-    if (!canContinue) return;
-    setStep((current) => Math.min(current + 1, STEP_LABELS.length));
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
+  if (!canContinue) return;
+  setStep((current) => Math.min(current + 1, STEP_LABELS.length));
+};
 
   const back = () => {
-    if (step === 1) onExit();
-    else {
-      setStep((current) => Math.max(current - 1, 1));
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-  };
+  if (step === 1) {
+    onExit();
+  } else {
+    setStep((current) => Math.max(current - 1, 1));
+  }
+};
 
   const headings = {
     1: {
