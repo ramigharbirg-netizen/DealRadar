@@ -1,3 +1,5 @@
+import { supabase } from './supabase';
+
 export const PRIVACY_VERSION = '1.0';
 export const TERMS_VERSION = '1.0';
 export const CONSENT_VERSION = '1.0';
@@ -50,7 +52,7 @@ export const hasMarketingConsent = () => {
   return Boolean(consent?.marketing);
 };
 
-export const saveConsent = async ({ consent, user = null }) => {
+export const saveConsent = async ({ consent }) => {
   const fullConsent = {
     ...DEFAULT_CONSENT,
     ...consent,
@@ -61,17 +63,34 @@ export const saveConsent = async ({ consent, user = null }) => {
     saved_at: new Date().toISOString(),
   };
 
-  localStorage.setItem('dealradar_consent', JSON.stringify(fullConsent));
+  const {
+    data: { session },
+    error: sessionError,
+  } = await supabase.auth.getSession();
+
+  if (sessionError) {
+    console.error('Consent session lookup error:', sessionError);
+  }
+
+  const headers = {
+    'Content-Type': 'application/json',
+  };
+
+  if (session?.access_token) {
+    headers.Authorization = `Bearer ${session.access_token}`;
+  }
 
   const response = await fetch(SAVE_CONSENT_FUNCTION_URL, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers,
     body: JSON.stringify({
-      user_id: user?.id || null,
       session_id: getSessionId(),
-      consent: fullConsent,
+      consent: {
+        necessary: true,
+        analytics: Boolean(fullConsent.analytics),
+        marketing: Boolean(fullConsent.marketing),
+        geolocation: Boolean(fullConsent.geolocation),
+      },
       consent_version: CONSENT_VERSION,
       privacy_version: PRIVACY_VERSION,
       terms_version: TERMS_VERSION,
@@ -84,6 +103,7 @@ export const saveConsent = async ({ consent, user = null }) => {
     throw new Error('Errore durante il salvataggio del consenso');
   }
 
+  localStorage.setItem('dealradar_consent', JSON.stringify(fullConsent));
   window.dispatchEvent(new Event('dealradar-consent-updated'));
 
   return fullConsent;
