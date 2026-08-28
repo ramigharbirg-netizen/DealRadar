@@ -1,5 +1,13 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMap, Circle } from 'react-leaflet';
+import {
+  MapContainer,
+  TileLayer,
+  Marker,
+  Popup,
+  useMap,
+  useMapEvents,
+  Circle,
+} from 'react-leaflet';
 import L from 'leaflet';
 import {
   Search,
@@ -197,6 +205,34 @@ const MapController = ({ center, zoom, shouldRecenter, onRecenterDone }) => {
   return null;
 };
 
+const MapBoundsController = ({ onBoundsChange }) => {
+  const map = useMapEvents({
+    moveend: () => {
+      const bounds = map.getBounds();
+
+      onBoundsChange?.({
+        north: bounds.getNorth(),
+        south: bounds.getSouth(),
+        east: bounds.getEast(),
+        west: bounds.getWest(),
+      });
+    },
+  });
+
+  useEffect(() => {
+    const bounds = map.getBounds();
+
+    onBoundsChange?.({
+      north: bounds.getNorth(),
+      south: bounds.getSouth(),
+      east: bounds.getEast(),
+      west: bounds.getWest(),
+    });
+  }, [map, onBoundsChange]);
+
+  return null;
+};
+
 const MapInteractionController = ({ enabled }) => {
   const map = useMap();
 
@@ -365,6 +401,7 @@ export const MapView = () => {
   } = useLocation();
 
   const [allOpportunities, setAllOpportunities] = useState([]);
+  const [mapViewportOpportunities, setMapViewportOpportunities] = useState([]);
   const [selectedOpportunity, setSelectedOpportunity] = useState(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [contentType, setContentType] = useState('all');
@@ -380,10 +417,12 @@ export const MapView = () => {
   const [opportunitiesError, setOpportunitiesError] = useState('');
   const [debugError, setDebugError] = useState('');
   const [mapInteractive, setMapInteractive] = useState(false);
-const [filtersOpen, setFiltersOpen] = useState(false);
-const [homeSort, setHomeSort] = useState('recent');
-const [onlyVerified, setOnlyVerified] = useState(false);
-const [maxPrice, setMaxPrice] = useState('');
+  const [mapBounds, setMapBounds] = useState(null);
+  const mapViewportRequestIdRef = useRef(0);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [homeSort, setHomeSort] = useState('recent');
+  const [onlyVerified, setOnlyVerified] = useState(false);
+  const [maxPrice, setMaxPrice] = useState('');
 
 useEffect(() => {
   const handleHardwareBack = (event) => {
@@ -599,16 +638,53 @@ total_opportunities_profile:
   loadOpportunities({ silent: false });
 }, [loadOpportunities]);
 
-  const filteredOpportunities = useMemo(() => {
-    let filtered = [...allOpportunities];
+useEffect(() => {
+  if (!mapBounds) return;
 
-    filtered = filtered.filter((opp) =>
-      opportunityMatchesContentType(opp, contentType)
-    );
+  const requestId = ++mapViewportRequestIdRef.current;
 
-    if (category !== 'all') {
-      filtered = filtered.filter((opp) => opp.category === category);
+  const loadMapViewportOpportunities = async () => {
+    try {
+      const { data, error } = await supabase.rpc(
+        'get_map_opportunities',
+        {
+          p_content_type: contentType,
+          p_category: category,
+          p_north: mapBounds.north,
+          p_south: mapBounds.south,
+          p_east: mapBounds.east,
+          p_west: mapBounds.west,
+          p_limit: 500,
+          p_offset: 0,
+        }
+      );
+
+      if (error) throw error;
+
+      if (requestId !== mapViewportRequestIdRef.current) return;
+
+      const opportunities = (data || []).map((opp) => ({
+        ...opp,
+        latitude: Number(opp.latitude),
+        longitude: Number(opp.longitude),
+        profile_points: opp.points || 0,
+        total_opportunities_profile: opp.total_opportunities || 0,
+        approved_submissions: 0,
+      }));
+
+      setMapViewportOpportunities(opportunities);
+    } catch (err) {
+      if (requestId !== mapViewportRequestIdRef.current) return;
+
+      console.error('MAP VIEWPORT ERROR:', err);
     }
+  };
+
+  loadMapViewportOpportunities();
+}, [mapBounds, contentType, category]);
+
+  const filteredOpportunities = useMemo(() => {
+    let filtered = [...mapViewportOpportunities];
 
     filtered = filtered.map((opp) => ({
       ...opp,
@@ -626,12 +702,10 @@ total_opportunities_profile:
 
     return filtered;
   }, [
-    allOpportunities,
-    contentType,
-    category,
-    location?.lat,
-    location?.lng,
-  ]);
+  mapViewportOpportunities,
+  location?.lat,
+  location?.lng,
+]);
 
   const latestOpportunities = useMemo(() => {
   let items = [...allOpportunities];
@@ -941,6 +1015,8 @@ const featuredOpportunities = useMemo(() => {
         />
 
         <MapInteractionController enabled={mapInteractive} />
+
+        <MapBoundsController onBoundsChange={setMapBounds} />
 
         {isUsingUserLocation && location?.lat && location?.lng && (
           <UserLocationMarker position={[location.lat, location.lng]} />

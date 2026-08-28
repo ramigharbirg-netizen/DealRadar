@@ -27,8 +27,8 @@ export const Layout = ({ children }) => {
 };
 
   useEffect(() => {
-    refreshUnreadCount();
-  }, [location.pathname]);
+  refreshUnreadCount();
+}, []);
 
   useEffect(() => {
     const channel = supabase

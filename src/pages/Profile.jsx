@@ -237,53 +237,61 @@ export const Profile = () => {
     setLoading(true);
   }
 
-      const { data: profileData, error: profileError } = await supabase
-        .from('user_profiles')
-        .select(`
-  display_name,
-  avatar_url,
-  points,
-  trust_score,
-  reputation_level,
-  total_opportunities,
-  verified_deals,
-  hidden_deals,
-  is_premium
-`)
-        .eq('user_id', user.id)
-        .maybeSingle();
+      const [
+  { data: profileData, error: profileError },
+  { data: myOpps, error: oppsError },
+  { data: adminData, error: adminError },
+] = await Promise.all([
+  supabase
+    .from('user_profiles')
+    .select(`
+      display_name,
+      avatar_url,
+      points,
+      trust_score,
+      reputation_level,
+      total_opportunities,
+      verified_deals,
+      hidden_deals,
+      is_premium
+    `)
+    .eq('user_id', user.id)
+    .maybeSingle(),
 
-      if (profileError) {
-        console.error('Profile load error:', profileError);
-      }
+  supabase
+    .from('opportunities')
+    .select(`
+      *,
+      user_profiles (
+        avatar_url,
+        trust_score,
+        verified_deals,
+        points,
+        approved_submissions,
+        total_opportunities,
+        is_premium
+      )
+    `)
+    .eq('user_id', user.id)
+    .eq('is_hidden', false)
+    .order('created_at', { ascending: false })
+    .limit(100),
 
-      const { data: myOpps, error: oppsError } = await supabase
-        .from('opportunities')
-        .select(`
-          *,
-          user_profiles (
-            avatar_url,
-            trust_score,
-            verified_deals,
-            points,
-            approved_submissions,
-            total_opportunities,
-            is_premium
-          )
-        `)
-        .eq('user_id', user.id)
-        .eq('is_hidden', false)
-        .order('created_at', { ascending: false })
-        .limit(100);
+  supabase
+    .from('admin_roles')
+    .select('role')
+    .eq('user_id', user.id),
+]);
 
-      if (oppsError) throw oppsError;
+if (profileError) {
+  console.error('Profile load error:', profileError);
+}
 
-      const { data: adminData, error: adminError } = await supabase
-        .from('admin_roles')
-        .select('role')
-        .eq('user_id', user.id);
+if (oppsError) {
+  throw oppsError;
+}
 
-      if (adminError) {
+if (adminError) {
   console.error('Admin role check error:', adminError);
 }
 

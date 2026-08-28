@@ -123,45 +123,55 @@ return counts;
     ),
   ];
 
-  let profileMap = {};
-
-  if (otherUserIds.length > 0) {
-    const { data: profiles, error: profilesError } = await supabase
-      .from('public_user_profiles')
-      .select('user_id, display_name, avatar_url, is_premium')
-      .in('user_id', otherUserIds);
-
-    if (profilesError) {
-      console.error('Load chat user profiles error:', profilesError);
-    } else {
-      (profiles || []).forEach((profile) => {
-        profileMap[profile.user_id] = profile;
-      });
-    }
-  }
-
   const opportunityIds = [
-    ...new Set(convs.map((conv) => conv.opportunity_id).filter(Boolean)),
-  ];
+  ...new Set(convs.map((conv) => conv.opportunity_id).filter(Boolean)),
+];
 
-  let oppMap = {};
+const profilesPromise =
+  otherUserIds.length > 0
+    ? supabase
+        .from('public_user_profiles')
+        .select('user_id, display_name, avatar_url, is_premium')
+        .in('user_id', otherUserIds)
+    : Promise.resolve({ data: [], error: null });
 
-  if (opportunityIds.length > 0) {
-    const { data: opps, error: oppsError } = await supabase
-      .from('opportunities')
-      .select('id,title,images,address,category,user_id,user_name')
-      .in('id', opportunityIds);
+const opportunitiesPromise =
+  opportunityIds.length > 0
+    ? supabase
+        .from('opportunities')
+        .select('id,title,images,address,category,user_id,user_name')
+        .in('id', opportunityIds)
+    : Promise.resolve({ data: [], error: null });
 
-    if (oppsError) {
-      console.error('Load chat opportunities error:', oppsError);
-    } else {
-      (opps || []).forEach((opp) => {
-        oppMap[opp.id] = opp;
-      });
-    }
-  }
+const [
+  { data: profiles, error: profilesError },
+  { data: opps, error: oppsError },
+  counts,
+] = await Promise.all([
+  profilesPromise,
+  opportunitiesPromise,
+  refreshUnreadCounts(),
+]);
 
-  const counts = await refreshUnreadCounts();
+const profileMap = {};
+
+if (profilesError) {
+  console.error('Load chat user profiles error:', profilesError);
+} else {
+  (profiles || []).forEach((profile) => {
+    profileMap[profile.user_id] = profile;
+  });
+}
+
+const oppMap = {};
+
+if (oppsError) {
+  console.error('Load chat opportunities error:', oppsError);
+} else {
+  (opps || []).forEach((opp) => {
+    oppMap[opp.id] = opp;
+  });
+}
 
   const snapshot = {
     conversations: convs,
