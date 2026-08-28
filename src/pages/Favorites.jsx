@@ -49,8 +49,34 @@ export const Favorites = () => {
           id,
           opportunity_id,
           opportunities (
-            *
-          )
+  id,
+  created_at,
+  title,
+  description,
+  category,
+  subcategory,
+  content_type,
+  latitude,
+  longitude,
+  address,
+  estimated_price,
+  estimated_resale_value,
+  contact_phone,
+  contact_email,
+  contact_link,
+  images,
+  user_name,
+  user_id,
+  confirmations,
+  reports,
+  verified_count,
+  is_verified,
+  attributes,
+  merchant_name,
+  is_hidden,
+  expires_at,
+  lifecycle_status
+)
         `)
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });

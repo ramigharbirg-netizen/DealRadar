@@ -236,16 +236,16 @@ export const Profile = () => {
       const { data: profileData, error: profileError } = await supabase
         .from('user_profiles')
         .select(`
-          display_name,
-          avatar_url,
-          points,
-          trust_score,
-          reputation_level,
-          total_opportunities,
-          verified_deals,
-          hidden_deals,
-          is_premium
-        `)
+  display_name,
+  avatar_url,
+  points,
+  trust_score,
+  reputation_level,
+  total_opportunities,
+  verified_deals,
+  hidden_deals,
+  is_premium
+`)
         .eq('user_id', user.id)
         .maybeSingle();
 

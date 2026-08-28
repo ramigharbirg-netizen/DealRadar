@@ -20,6 +20,7 @@ export const ChatDetail = () => {
 
   const messagesEndRef = useRef(null);
   const messagesContainerRef = useRef(null);
+  const profilesCacheRef = useRef(new Map());
 
   const scrollToBottom = useCallback(() => {
   requestAnimationFrame(() => {
@@ -41,35 +42,73 @@ export const ChatDetail = () => {
   };
 
   const loadMessages = useCallback(async () => {
-    const { data, error } = await supabase
-      .from('conversation_messages')
-      .select('*')
-      .eq('conversation_id', id)
-      .order('created_at', { ascending: true });
+  const { data, error } = await supabase
+    .from('conversation_messages')
+    .select(
+      'id, conversation_id, sender_id, sender_name, sender_email, message, created_at'
+    )
+    .eq('conversation_id', id)
+    .order('created_at', { ascending: true });
 
-    if (error) {
-      console.error('Load messages error:', error);
-      return;
+  if (error) {
+    console.error('Load messages error:', error);
+    return;
+  }
+
+  const loadedMessages = data || [];
+
+  const senderIds = [
+    ...new Set(
+      loadedMessages
+        .map((msg) => msg.sender_id)
+        .filter(Boolean)
+    ),
+  ];
+
+  const missingSenderIds = senderIds.filter(
+    (senderId) => !profilesCacheRef.current.has(senderId)
+  );
+
+  if (missingSenderIds.length > 0) {
+    const { data: profiles, error: profilesError } = await supabase
+      .from('public_user_profiles')
+      .select('user_id, display_name, avatar_url, is_premium')
+      .in('user_id', missingSenderIds);
+
+    if (profilesError) {
+      console.error('Load message profiles error:', profilesError);
+    } else {
+      (profiles || []).forEach((profile) => {
+        profilesCacheRef.current.set(profile.user_id, {
+  display_name: profile.display_name || null,
+  avatar_url: profile.avatar_url || null,
+  is_premium: profile.is_premium || false,
+});
+      });
     }
 
-    const enrichedMessages = await Promise.all(
-      (data || []).map(async (msg) => {
-        const { data: profile } = await supabase
-          .from('public_user_profiles')
-          .select('avatar_url, is_premium')
-          .eq('user_id', msg.sender_id)
-          .maybeSingle();
+    missingSenderIds.forEach((senderId) => {
+      if (!profilesCacheRef.current.has(senderId)) {
+        profilesCacheRef.current.set(senderId, {
+          avatar_url: null,
+          is_premium: false,
+        });
+      }
+    });
+  }
 
-        return {
-          ...msg,
-          avatar_url: profile?.avatar_url || null,
-          is_premium: profile?.is_premium || false,
-        };
-      })
-    );
+  const enrichedMessages = loadedMessages.map((msg) => {
+    const profile = profilesCacheRef.current.get(msg.sender_id);
 
-    setMessages(enrichedMessages);
-  }, [id]);
+    return {
+      ...msg,
+      avatar_url: profile?.avatar_url || null,
+      is_premium: profile?.is_premium || false,
+    };
+  });
+
+  setMessages(enrichedMessages);
+}, [id]);
 
   const markConversationAsRead = useCallback(async () => {
     if (!user?.id || !id) return;
@@ -103,10 +142,10 @@ export const ChatDetail = () => {
     }
 
     const { data: opp, error: oppError } = await supabase
-      .from('opportunities')
-      .select('*')
-      .eq('id', conv.opportunity_id)
-      .single();
+  .from('opportunities')
+  .select('id, title, images, estimated_price, address')
+  .eq('id', conv.opportunity_id)
+  .single();
 
     if (oppError) {
       console.error('Load opportunity error:', oppError);
@@ -122,18 +161,29 @@ export const ChatDetail = () => {
       return;
     }
 
-    const { data: profile, error: profileError } = await supabase
-      .from('public_user_profiles')
-      .select('user_id, display_name, avatar_url, is_premium, trust_score')
-      .eq('user_id', otherUserId)
-      .maybeSingle();
+    let profile = profilesCacheRef.current.get(otherUserId);
 
-    if (profileError) {
-      console.error('Load chat user profile error:', profileError);
-      setChatUserProfile(null);
-    } else {
-      setChatUserProfile(profile || null);
-    }
+if (!profile?.display_name) {
+  const { data: profileData, error: profileError } = await supabase
+    .from('public_user_profiles')
+    .select('user_id, display_name, avatar_url, is_premium')
+    .eq('user_id', otherUserId)
+    .maybeSingle();
+
+  if (profileError) {
+    console.error('Load chat user profile error:', profileError);
+  } else if (profileData) {
+    profile = {
+      display_name: profileData.display_name || null,
+      avatar_url: profileData.avatar_url || null,
+      is_premium: profileData.is_premium || false,
+    };
+
+    profilesCacheRef.current.set(otherUserId, profile);
+  }
+}
+
+setChatUserProfile(profile || null);
   }, [id, user?.id]);
 
   useEffect(() => {
@@ -177,17 +227,32 @@ export const ChatDetail = () => {
         async (payload) => {
           const incoming = payload.new;
 
-          const { data: profile } = await supabase
-            .from('public_user_profiles')
-            .select('avatar_url, is_premium')
-            .eq('user_id', incoming.sender_id)
-            .maybeSingle();
+let profile = profilesCacheRef.current.get(incoming.sender_id);
 
-          const enrichedIncoming = {
-            ...incoming,
-            avatar_url: profile?.avatar_url || null,
-            is_premium: profile?.is_premium || false,
-          };
+if (!profile && incoming.sender_id) {
+  const { data: profileData, error: profileError } = await supabase
+    .from('public_user_profiles')
+    .select('user_id, avatar_url, is_premium')
+    .eq('user_id', incoming.sender_id)
+    .maybeSingle();
+
+  if (profileError) {
+    console.error('Load incoming message profile error:', profileError);
+  }
+
+  profile = {
+    avatar_url: profileData?.avatar_url || null,
+    is_premium: profileData?.is_premium || false,
+  };
+
+  profilesCacheRef.current.set(incoming.sender_id, profile);
+}
+
+const enrichedIncoming = {
+  ...incoming,
+  avatar_url: profile?.avatar_url || null,
+  is_premium: profile?.is_premium || false,
+};
 
           setMessages((prev) => {
             const exists = prev.some((msg) => msg.id === enrichedIncoming.id);
@@ -220,25 +285,45 @@ export const ChatDetail = () => {
     setSending(true);
     setNewMessage('');
 
-    const { data: myProfile } = await supabase
-      .from('public_user_profiles')
-      .select('avatar_url, is_premium')
-      .eq('user_id', user.id)
-      .maybeSingle();
+    let myProfile = profilesCacheRef.current.get(user.id);
+
+if (!myProfile?.display_name) {
+  const { data: profileData, error: profileError } = await supabase
+    .from('public_user_profiles')
+    .select('user_id, display_name, avatar_url, is_premium')
+    .eq('user_id', user.id)
+    .maybeSingle();
+
+  if (profileError) {
+    console.error('Load current user profile error:', profileError);
+  }
+
+  myProfile = {
+    display_name: profileData?.display_name || null,
+    avatar_url: profileData?.avatar_url || null,
+    is_premium: profileData?.is_premium || false,
+  };
+
+  profilesCacheRef.current.set(user.id, myProfile);
+}
 
     const tempId = `temp-${Date.now()}`;
 
     const optimisticMessage = {
-      id: tempId,
-      conversation_id: id,
-      sender_name: user.name || user.email,
-      sender_email: user.email,
-      sender_id: user.id,
-      message: messageText,
-      created_at: new Date().toISOString(),
-      avatar_url: myProfile?.avatar_url || null,
-      is_premium: myProfile?.is_premium || false,
-    };
+  id: tempId,
+  conversation_id: id,
+  sender_name:
+    myProfile?.display_name ||
+    user.name ||
+    user.email ||
+    'Utente',
+  sender_email: user.email,
+  sender_id: user.id,
+  message: messageText,
+  created_at: new Date().toISOString(),
+  avatar_url: myProfile?.avatar_url || null,
+  is_premium: myProfile?.is_premium || false,
+};
 
     setMessages((prev) => [...prev, optimisticMessage]);
     scrollToBottom();
@@ -247,12 +332,16 @@ export const ChatDetail = () => {
       .from('conversation_messages')
       .insert([
         {
-          conversation_id: id,
-          sender_name: user.name || user.email,
-          sender_email: user.email,
-          sender_id: user.id,
-          message: messageText,
-        },
+  conversation_id: id,
+  sender_name:
+    myProfile?.display_name ||
+    user.name ||
+    user.email ||
+    'Utente',
+  sender_email: user.email,
+  sender_id: user.id,
+  message: messageText,
+},
       ])
       .select()
       .single();

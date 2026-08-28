@@ -140,6 +140,7 @@ export const OpportunityDetail = ({ opportunity, open, onClose }) => {
   const touchStartYRef = useRef(null);
   const galleryTouchStartXRef = useRef(null);
   const galleryTouchStartYRef = useRef(null);
+  const commentProfilesCacheRef = useRef(new Map());
 
   const cleanedComment = useMemo(() => cleanCommentText(newComment), [newComment]);
 
@@ -384,26 +385,63 @@ export const OpportunityDetail = ({ opportunity, open, onClose }) => {
       try {
         const { data: commentsData, error: commentsError } = await supabase
           .from('comments')
-          .select('*')
+          .select('id, user_id, user_name, content, created_at')
           .eq('opportunity_id', opportunity.id)
           .order('created_at', { ascending: false });
 
         if (commentsError) throw commentsError;
-        const commentsWithProfiles = await Promise.all(
-  (commentsData || []).map(async (comment) => {
-    const { data: profile } = await supabase
-      .from('public_user_profiles')
-      .select('avatar_url, is_premium')
-      .eq('user_id', comment.user_id)
-      .single();
+        const loadedComments = commentsData || [];
 
-    return {
-      ...comment,
-      avatar_url: profile?.avatar_url || null,
-      is_premium: profile?.is_premium || false,
-    };
-  })
+const commentUserIds = [
+  ...new Set(
+    loadedComments
+      .map((comment) => comment.user_id)
+      .filter(Boolean)
+  ),
+];
+
+const missingCommentUserIds = commentUserIds.filter(
+  (userId) => !commentProfilesCacheRef.current.has(userId)
 );
+
+if (missingCommentUserIds.length > 0) {
+  const { data: profiles, error: profilesError } = await supabase
+  .from('public_user_profiles')
+  .select('user_id, display_name, avatar_url, is_premium')
+  .in('user_id', missingCommentUserIds);
+
+  if (profilesError) {
+    console.error('Error loading comment profiles:', profilesError);
+  } else {
+    (profiles || []).forEach((profile) => {
+      commentProfilesCacheRef.current.set(profile.user_id, {
+  display_name: profile.display_name || null,
+  avatar_url: profile.avatar_url || null,
+  is_premium: profile.is_premium || false,
+});
+    });
+  }
+
+  missingCommentUserIds.forEach((userId) => {
+    if (!commentProfilesCacheRef.current.has(userId)) {
+      commentProfilesCacheRef.current.set(userId, {
+  display_name: null,
+  avatar_url: null,
+  is_premium: false,
+});
+    }
+  });
+}
+
+const commentsWithProfiles = loadedComments.map((comment) => {
+  const profile = commentProfilesCacheRef.current.get(comment.user_id);
+
+  return {
+    ...comment,
+    avatar_url: profile?.avatar_url || null,
+    is_premium: profile?.is_premium || false,
+  };
+});
 
         if (!cancelled) {
           setComments(commentsWithProfiles);
@@ -674,6 +712,35 @@ export const OpportunityDetail = ({ opportunity, open, onClose }) => {
     }
   };
 
+  const handleDeleteComment = async (commentId) => {
+  if (!user?.id || !commentId) return;
+
+  const confirmed = window.confirm(
+    'Vuoi davvero eliminare questo commento?'
+  );
+
+  if (!confirmed) return;
+
+  try {
+    const { error } = await supabase
+      .from('comments')
+      .delete()
+      .eq('id', commentId)
+      .eq('user_id', user.id);
+
+    if (error) throw error;
+
+    setComments((prev) =>
+      prev.filter((comment) => comment.id !== commentId)
+    );
+
+    toast.success('Commento eliminato');
+  } catch (err) {
+    console.error('Delete comment error:', err);
+    toast.error('Impossibile eliminare il commento');
+  }
+};
+
   const handleComment = async (e) => {
     e.preventDefault();
 
@@ -725,13 +792,42 @@ export const OpportunityDetail = ({ opportunity, open, onClose }) => {
 
     setSendingComment(true);
 
-    try {
-      const payload = {
-        opportunity_id: opportunity.id,
-        user_id: user.id,
-        user_name: user.name || user.email || 'Utente',
-        content,
-      };
+try {
+  let myProfile = commentProfilesCacheRef.current.get(user.id);
+
+  if (!myProfile?.display_name) {
+    const { data: profileData, error: profileError } = await supabase
+      .from('public_user_profiles')
+      .select('user_id, display_name, avatar_url, is_premium')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    if (profileError) {
+      console.error(
+        'Error loading current user comment profile:',
+        profileError
+      );
+    }
+
+    myProfile = {
+      display_name: profileData?.display_name || null,
+      avatar_url: profileData?.avatar_url || null,
+      is_premium: profileData?.is_premium || false,
+    };
+
+    commentProfilesCacheRef.current.set(user.id, myProfile);
+  }
+
+  const payload = {
+    opportunity_id: opportunity.id,
+    user_id: user.id,
+    user_name:
+      myProfile?.display_name ||
+      user.name ||
+      user.email ||
+      'Utente',
+    content,
+  };
 
       const { data, error } = await supabase
         .from('comments')
@@ -744,12 +840,6 @@ export const OpportunityDetail = ({ opportunity, open, onClose }) => {
       localStorage.setItem(storageKey, String(now));
 
       if (data) {
-  const { data: myProfile } = await supabase
-    .from('public_user_profiles')
-    .select('avatar_url, is_premium')
-    .eq('user_id', user.id)
-    .single();
-
   setComments((prev) => [
     {
       ...data,
@@ -824,7 +914,7 @@ export const OpportunityDetail = ({ opportunity, open, onClose }) => {
 
 const { data: existingConversation, error: existingConvError } = await supabase
   .from('conversations')
-  .select('*')
+  .select('id')
   .eq('opportunity_id', opportunity.id)
   .eq('requester_id', user.id)
   .eq('owner_id', opportunity.user_id)
@@ -853,10 +943,37 @@ if (existingConversation) {
 }
 
       if (!existingConversation) {
+        let senderProfile = commentProfilesCacheRef.current.get(user.id);
+
+if (!senderProfile?.display_name) {
+  const { data: profileData, error: profileError } = await supabase
+    .from('public_user_profiles')
+    .select('display_name')
+    .eq('user_id', user.id)
+    .maybeSingle();
+
+  if (profileError) {
+    console.error(
+      'Error loading current user profile for pickup message:',
+      profileError
+    );
+  }
+
+  senderProfile = {
+    ...(senderProfile || {}),
+    display_name: profileData?.display_name || null,
+  };
+
+  commentProfilesCacheRef.current.set(user.id, senderProfile);
+}
   const { error: messageError } = await supabase.from('conversation_messages').insert([
     {
       conversation_id: conversationData.id,
-      sender_name: user.name || user.email,
+      sender_name:
+      senderProfile?.display_name ||
+      user.name ||
+      user.email ||
+      'Utente',
       sender_email: user.email,
       sender_id: user.id,
       message:
@@ -1505,9 +1622,24 @@ if (existingConversation) {
             </span>
           )}
 
-          <span className="text-xs text-gray-400">
-            {formatDate(comment.created_at)}
-          </span>
+          <div className="flex items-center gap-2">
+  <span className="text-xs text-gray-400">
+    {formatDate(comment.created_at)}
+  </span>
+
+  {String(comment.user_id) === String(user?.id) && (
+    <button
+      type="button"
+      onClick={() => handleDeleteComment(comment.id)}
+      className="inline-flex items-center gap-1 text-xs font-medium text-red-600 hover:text-red-700"
+      aria-label="Elimina commento"
+      title="Elimina commento"
+    >
+      <Trash2 className="h-3.5 w-3.5" />
+      Elimina
+    </button>
+  )}
+</div>
         </div>
 
         <p className="break-words text-sm leading-relaxed text-gray-700">

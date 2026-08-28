@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MessageCircle, ChevronRight } from 'lucide-react';
 import { supabase } from '../lib/supabase';
@@ -39,19 +39,55 @@ export const ChatsView = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [conversations, setConversations] = useState([]);
+  const conversationsRef = useRef([]);
   const [opportunitiesMap, setOpportunitiesMap] = useState({});
+  const [otherUsersMap, setOtherUsersMap] = useState({});
   const [unreadCountMap, setUnreadCountMap] = useState({});
 
-  const loadAll = async () => {
+useEffect(() => {
+  conversationsRef.current = conversations;
+}, [conversations]);
+  const refreshUnreadCounts = useCallback(async () => {
+  if (!user?.id) {
+    setUnreadCountMap({});
+    return;
+  }
+
+  const { data: unreadRows, error: unreadError } = await supabase.rpc(
+    'get_my_unread_conversation_counts'
+  );
+
+  if (unreadError) {
+    console.error(
+      'Load unread conversation counts error:',
+      unreadError
+    );
+    return;
+  }
+
+  const counts = {};
+
+  (unreadRows || []).forEach((row) => {
+    counts[row.conversation_id] = Number(row.unread_count || 0);
+  });
+
+  setUnreadCountMap(counts);
+}, [user?.id]);
+
+  const loadAll = useCallback(async () => {
     if (!user?.id) return;
   const { data: convs, error: convError } = await supabase
     .from('conversations')
     .select(`
-      *,
-      last_message,
-      last_message_at,
-      last_message_sender_id
-    `)
+  id,
+  opportunity_id,
+  owner_id,
+  requester_id,
+  created_at,
+  last_message,
+  last_message_at,
+  last_message_sender_id
+`)
     .order('last_message_at', { ascending: false });
 
   if (convError || !convs) {
@@ -60,6 +96,40 @@ export const ChatsView = () => {
   }
 
   setConversations(convs);
+
+  const otherUserIds = [
+  ...new Set(
+    convs
+      .map((conv) =>
+        conv.owner_id === user.id
+          ? conv.requester_id
+          : conv.owner_id
+      )
+      .filter(Boolean)
+  ),
+];
+
+if (otherUserIds.length > 0) {
+  const { data: profiles, error: profilesError } = await supabase
+    .from('public_user_profiles')
+    .select('user_id, display_name, avatar_url, is_premium')
+    .in('user_id', otherUserIds);
+
+  if (profilesError) {
+    console.error('Load chat user profiles error:', profilesError);
+    setOtherUsersMap({});
+  } else {
+    const profileMap = {};
+
+    (profiles || []).forEach((profile) => {
+      profileMap[profile.user_id] = profile;
+    });
+
+    setOtherUsersMap(profileMap);
+  }
+} else {
+  setOtherUsersMap({});
+}
 
   const opportunityIds = [
     ...new Set(convs.map((c) => c.opportunity_id).filter(Boolean)),
@@ -85,74 +155,78 @@ export const ChatsView = () => {
   }
 }
 
-  const { data: reads } = await supabase
-  .from('conversation_reads')
-  .select('conversation_id,last_read_at');
-
-const readMap = {};
-
-(reads || []).forEach((row) => {
-  readMap[row.conversation_id] = row.last_read_at;
-});
-
-const convIds = convs.map((c) => c.id);
-
-if (convIds.length > 0) {
-  const { data: unreadMessages } = await supabase
-    .from('conversation_messages')
-    .select('id,conversation_id,created_at,sender_id')
-    .in('conversation_id', convIds)
-    .neq('sender_id', user.id);
-
-  const counts = {};
-
-  (unreadMessages || []).forEach((msg) => {
-    const lastRead = readMap[msg.conversation_id];
-
-    if (!lastRead || new Date(msg.created_at) > new Date(lastRead)) {
-      counts[msg.conversation_id] =
-        (counts[msg.conversation_id] || 0) + 1;
-    }
-  });
-
-  setUnreadCountMap(counts);
-} else {
-  setUnreadCountMap({});
-}
-};
+await refreshUnreadCounts();
+}, [user?.id, refreshUnreadCounts]);
 
   useEffect(() => {
   if (user?.id) {
     loadAll();
   }
-}, [user?.id]);
+}, [user?.id, loadAll]);
 
   useEffect(() => {
   if (!user?.id) return;
 
   const channel = supabase
-    .channel('chats-view-realtime')
-    .on(
-      'postgres_changes',
-      {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'conversation_messages',
-      },
-      () => {
-        loadAll();
-      }
-    )
-    .subscribe();
+  .channel('chats-view-realtime')
+  .on(
+    'postgres_changes',
+    {
+      event: 'INSERT',
+      schema: 'public',
+      table: 'conversation_messages',
+    },
+    (payload) => {
+      const incoming = payload.new;
 
-  const handleReadUpdate = () => loadAll();
+      setConversations((prev) => {
+  const conversationExists = prev.some(
+    (conv) => conv.id === incoming.conversation_id
+  );
+
+  if (!conversationExists) {
+    return prev;
+  }
+
+  const updated = prev.map((conv) =>
+    conv.id === incoming.conversation_id
+      ? {
+          ...conv,
+          last_message: incoming.message,
+          last_message_at: incoming.created_at,
+          last_message_sender_id: incoming.sender_id,
+        }
+      : conv
+  );
+
+  return updated.sort(
+    (a, b) =>
+      new Date(b.last_message_at || b.created_at) -
+      new Date(a.last_message_at || a.created_at)
+  );
+});
+
+const conversationExists = conversationsRef.current.some(
+  (conv) => conv.id === incoming.conversation_id
+);
+
+if (!conversationExists) {
+  loadAll();
+}
+
+      refreshUnreadCounts();
+    }
+  )
+  .subscribe();
+
+  const handleReadUpdate = () => refreshUnreadCounts();
   window.addEventListener('chat-read-updated', handleReadUpdate);
 
   return () => {
     supabase.removeChannel(channel);
     window.removeEventListener('chat-read-updated', handleReadUpdate);
   };
-}, [user?.id]);
+}, [user?.id, loadAll, refreshUnreadCounts]);
 
   return (
     <div className="min-h-screen bg-background pb-20">
@@ -175,6 +249,15 @@ if (convIds.length > 0) {
           conversations.map((conv) => {
             const lastMessage = conv.last_message;
             const opp = opportunitiesMap[conv.opportunity_id];
+            const otherUserId =
+  conv.owner_id === user.id
+    ? conv.requester_id
+    : conv.owner_id;
+
+const otherUser = otherUsersMap[otherUserId];
+
+const otherUserName =
+  otherUser?.display_name || 'Utente DealRadar';
             const unreadCount = unreadCountMap[conv.id] || 0;
             const isUnread = unreadCount > 0;
 
@@ -200,9 +283,26 @@ if (convIds.length > 0) {
 
                     <div className="min-w-0 flex-1">
                       <div className="flex items-start justify-between gap-2">
-  <p className="font-semibold text-gray-900 truncate">
-    {opp?.title || 'Chat opportunità'}
+  <div className="min-w-0">
+  <div className="flex items-center gap-1.5">
+    <p className="font-semibold text-gray-900 truncate">
+      {otherUserName}
+    </p>
+
+    {otherUser?.is_premium && (
+      <span
+        title="Premium"
+        className="inline-flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-blue-600 text-[10px] font-black text-white"
+      >
+        ✓
+      </span>
+    )}
+  </div>
+
+  <p className="mt-0.5 text-xs font-medium text-orange-600 truncate">
+    {opp?.title || 'Opportunità'}
   </p>
+</div>
 
   <span className="text-xs text-gray-400 flex-shrink-0">
     {formatChatTime(conv.last_message_at || conv.created_at)}

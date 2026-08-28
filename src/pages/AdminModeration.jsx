@@ -43,7 +43,7 @@ export const AdminModeration = () => {
     try {
       const { data, error } = await supabase
         .from('admin_roles')
-        .select('*')
+        .select('role')
         .eq('user_id', user.id);
 
       if (error) throw error;

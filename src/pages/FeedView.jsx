@@ -7,7 +7,6 @@ import { supabase } from '../lib/supabase';
 import { OpportunityCard } from '../components/OpportunityCard';
 import { OpportunityDetail } from '../components/OpportunityDetail';
 import { CategoryFilter } from '../components/CategoryFilter';
-import { opportunityMatchesContentType } from '../data/contentTypeCatalog';
 
 const toRadians = (deg) => (deg * Math.PI) / 180;
 
@@ -95,78 +94,49 @@ export const FeedView = () => {
   const hasLoadedRef = useRef(false);
 
   const loadOpportunities = useCallback(async ({ silent = false } = {}) => {
-    if (!silent) {
-      setLoading(true);
-    }
+  if (!silent) {
+    setLoading(true);
+  }
 
-    setFeedError('');
-    setDebugError('');
+  setFeedError('');
+  setDebugError('');
 
-    try {
-      
-        const { data, error } = await supabase
-  .from('opportunities')
-  .select(`
-  *,
-  user_profiles (
-    trust_score,
-    verified_deals,
-    points,
-    approved_submissions,
-    total_opportunities,
-    avatar_url,
-    is_premium
-  )
-`)
-  .eq('is_hidden', false)
-  .eq('lifecycle_status', 'active')
-  .gt('expires_at', new Date().toISOString())
-  .order('created_at', { ascending: false })
-  .limit(100);
+  try {
+    const { data, error } = await supabase.rpc('get_smart_feed', {
+      p_content_type: contentType,
+      p_category: category,
+      p_limit: 100,
+      p_offset: 0,
+    });
 
-      if (error) throw error;
+    if (error) throw error;
 
-      const valid = (data || [])
-        .filter((opp) => {
-          if (!opp) return false;
+    const valid = (data || []).map((opp) => ({
+      ...opp,
+      latitude: Number(opp.latitude),
+      longitude: Number(opp.longitude),
+      avatar_url: opp.avatar_url || null,
+      is_premium: opp.is_premium || false,
+    }));
 
-          const lat = Number(opp.latitude);
-          const lng = Number(opp.longitude);
+    setAllOpportunities(valid);
+  } catch (err) {
+    console.error('FEED REAL ERROR:', err);
+    setAllOpportunities([]);
+    setFeedError('Feed non disponibile');
+    setDebugError(err?.message || JSON.stringify(err));
+  } finally {
+    if (!silent) setLoading(false);
+  }
+}, [contentType, category]);
 
-          return !Number.isNaN(lat) && !Number.isNaN(lng);
-        })
-    .map((opp) => ({
-  ...opp,
-  latitude: Number(opp.latitude),
-  longitude: Number(opp.longitude),
-
-  trust_score: opp.user_profiles?.trust_score || 0,
-  verified_deals: opp.user_profiles?.verified_deals || 0,
-  avatar_url: opp.user_profiles?.avatar_url || null,
-  is_premium: opp.user_profiles?.is_premium || false,
-  profile_points: opp.user_profiles?.points || 0,
-  approved_submissions:
-    opp.user_profiles?.approved_submissions || 0,
-  total_opportunities_profile:
-    opp.user_profiles?.total_opportunities || 0,
-}));
-
-      setAllOpportunities(valid);
-    } catch (err) {
-      console.error('FEED REAL ERROR:', err);
-      setAllOpportunities([]);
-      setFeedError('Feed non disponibile');
-      setDebugError(err?.message || JSON.stringify(err));
-    } finally {
-      if (!silent) setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (hasLoadedRef.current) return;
+useEffect(() => {
+  if (!hasLoadedRef.current) {
     hasLoadedRef.current = true;
-    loadOpportunities({ silent: false });
-  }, [loadOpportunities]);
+  }
+
+  loadOpportunities({ silent: false });
+}, [loadOpportunities]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -179,33 +149,18 @@ export const FeedView = () => {
   };
 
   const opportunities = useMemo(() => {
-    let filtered = [...allOpportunities];
-
-    filtered = filtered.filter((opp) =>
-      opportunityMatchesContentType(opp, contentType)
-    );
-
-    if (category !== 'all') {
-      filtered = filtered.filter((opp) => opp.category === category);
-    }
-
-    filtered = filtered.map((opp) => ({
-      ...opp,
-      distance_km:
-        location?.lat != null && location?.lng != null
-          ? distanceKm(location.lat, location.lng, opp.latitude, opp.longitude)
-          : null,
-    }));
-
-
-    return filtered;
-  }, [
-    allOpportunities,
-    contentType,
-    category,
-    location?.lat,
-    location?.lng,
-  ]);
+  return allOpportunities.map((opp) => ({
+    ...opp,
+    distance_km:
+      location?.lat != null && location?.lng != null
+        ? distanceKm(location.lat, location.lng, opp.latitude, opp.longitude)
+        : null,
+  }));
+}, [
+  allOpportunities,
+  location?.lat,
+  location?.lng,
+]);
 
   const todayOpportunities = useMemo(() => {
     return opportunities.filter((opp) => {

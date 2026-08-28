@@ -56,7 +56,34 @@ const PublicProfile = () => {
 
         const { data: oppsData, error: oppsError } = await supabase
           .from('opportunities')
-          .select('*')
+          .select(`
+  id,
+  created_at,
+  title,
+  description,
+  category,
+  subcategory,
+  content_type,
+  latitude,
+  longitude,
+  address,
+  estimated_price,
+  estimated_resale_value,
+  contact_phone,
+  contact_email,
+  contact_link,
+  images,
+  user_name,
+  user_id,
+  confirmations,
+  reports,
+  verified_count,
+  is_verified,
+  attributes,
+  merchant_name,
+  expires_at,
+  lifecycle_status
+`)
           .eq('user_id', userId)
           .eq('is_hidden', false)
   .eq('lifecycle_status', 'active')
