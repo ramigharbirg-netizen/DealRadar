@@ -193,6 +193,8 @@ const createPasswordCheckClient = () => {
   });
 };
 
+const profileCache = new Map();
+
 export const Profile = () => {
   const {
   user,
@@ -231,7 +233,9 @@ export const Profile = () => {
     }
 
     try {
-      setLoading(true);
+  if (!profileCache.has(user.id)) {
+    setLoading(true);
+  }
 
       const { data: profileData, error: profileError } = await supabase
         .from('user_profiles')
@@ -252,11 +256,6 @@ export const Profile = () => {
       if (profileError) {
         console.error('Profile load error:', profileError);
       }
-
-      setAvatarUrl(profileData?.avatar_url || null);
-      setProfileDisplayName(
-  profileData?.display_name || user.name || ''
-);
 
       const { data: myOpps, error: oppsError } = await supabase
         .from('opportunities')
@@ -285,14 +284,8 @@ export const Profile = () => {
         .eq('user_id', user.id);
 
       if (adminError) {
-        console.error('Admin role check error:', adminError);
-        setIsAdmin(false);
-      } else {
-        setIsAdmin(
-          Array.isArray(adminData) &&
-            adminData.some((row) => row.role === 'admin' || row.role === 'owner')
-        );
-      }
+  console.error('Admin role check error:', adminError);
+}
 
       const opportunities = myOpps || [];
 
@@ -326,17 +319,39 @@ export const Profile = () => {
   verifiedDeals * 10 -
   hiddenDeals * 10;
 
-      setStats({
-        total_deals: totalDeals,
-        free_deals: freeDeals,
-        points,
-        reputation: Number(profileData?.trust_score) || totalDeals,
-        opportunities_posted: totalDeals,
-        verified_deals: verifiedDeals,
-        hidden_deals: hiddenDeals,
-      });
+      const nextStats = {
+  total_deals: totalDeals,
+  free_deals: freeDeals,
+  points,
+  reputation: Number(profileData?.trust_score) || totalDeals,
+  opportunities_posted: totalDeals,
+  verified_deals: verifiedDeals,
+  hidden_deals: hiddenDeals,
+};
 
-      setMyOpportunities(enrichedOpportunities);
+const nextAvatarUrl = profileData?.avatar_url || null;
+const nextDisplayName =
+  profileData?.display_name || user.name || '';
+
+const nextIsAdmin =
+  Array.isArray(adminData) &&
+  adminData.some(
+    (row) => row.role === 'admin' || row.role === 'owner'
+  );
+
+profileCache.set(user.id, {
+  stats: nextStats,
+  avatarUrl: nextAvatarUrl,
+  profileDisplayName: nextDisplayName,
+  myOpportunities: enrichedOpportunities,
+  isAdmin: nextIsAdmin,
+});
+
+setStats(nextStats);
+setAvatarUrl(nextAvatarUrl);
+setProfileDisplayName(nextDisplayName);
+setMyOpportunities(enrichedOpportunities);
+setIsAdmin(nextIsAdmin);
 
       const savedPreferences = localStorage.getItem(
         'dealradar_notification_preferences'
@@ -407,7 +422,18 @@ setLeaderboard(cleanLeaderboard);
   useEffect(() => {
   if (authLoading) return;
 
-  if (user) {
+  if (user?.id) {
+    const cached = profileCache.get(user.id);
+
+    if (cached) {
+      setStats(cached.stats);
+      setAvatarUrl(cached.avatarUrl);
+      setProfileDisplayName(cached.profileDisplayName);
+      setMyOpportunities(cached.myOpportunities);
+      setIsAdmin(cached.isAdmin);
+      setLoading(false);
+    }
+
     loadUserData();
     loadLeaderboard();
   } else {

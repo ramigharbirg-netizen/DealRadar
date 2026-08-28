@@ -42,6 +42,8 @@ const distanceKm = (lat1, lon1, lat2, lon2) => {
   return R * c;
 };
 
+const feedCache = new Map();
+
 const calculateOpportunityScore = (opp) => {
   let score = 0;
 
@@ -91,7 +93,6 @@ export const FeedView = () => {
   };
 }, [detailOpen]);
 
-  const hasLoadedRef = useRef(false);
 
   const loadOpportunities = useCallback(async ({ silent = false } = {}) => {
   if (!silent) {
@@ -119,11 +120,21 @@ export const FeedView = () => {
       is_premium: opp.is_premium || false,
     }));
 
+        const cacheKey = `${contentType}:${category}`;
+
+    feedCache.set(cacheKey, valid);
     setAllOpportunities(valid);
   } catch (err) {
     console.error('FEED REAL ERROR:', err);
-    setAllOpportunities([]);
-    setFeedError('Feed non disponibile');
+
+    const cacheKey = `${contentType}:${category}`;
+    const cachedOpportunities = feedCache.get(cacheKey);
+
+    if (!cachedOpportunities) {
+      setAllOpportunities([]);
+      setFeedError('Feed non disponibile');
+    }
+
     setDebugError(err?.message || JSON.stringify(err));
   } finally {
     if (!silent) setLoading(false);
@@ -131,12 +142,18 @@ export const FeedView = () => {
 }, [contentType, category]);
 
 useEffect(() => {
-  if (!hasLoadedRef.current) {
-    hasLoadedRef.current = true;
+  const cacheKey = `${contentType}:${category}`;
+  const cachedOpportunities = feedCache.get(cacheKey);
+
+  if (cachedOpportunities) {
+    setAllOpportunities(cachedOpportunities);
+    setLoading(false);
+    loadOpportunities({ silent: true });
+    return;
   }
 
   loadOpportunities({ silent: false });
-}, [loadOpportunities]);
+}, [contentType, category, loadOpportunities]);
 
   const handleRefresh = async () => {
     setRefreshing(true);

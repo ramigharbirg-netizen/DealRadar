@@ -351,6 +351,9 @@ const estimatedValue =
     </button>
   );
 };
+
+let mapOpportunitiesCache = null;
+
 export const MapView = () => {
   const {
     location,
@@ -412,7 +415,6 @@ useEffect(() => {
 
   const mapRef = useRef(null);
   const opportunitiesScrollRef = useRef(null);
-  const hasLoadedOpportunitiesRef = useRef(false);
 
   useEffect(() => {
     let isCancelled = false;
@@ -486,8 +488,11 @@ useEffect(() => {
     };
   }, [placeQuery, location?.lat, location?.lng]);
 
-  const loadOpportunities = useCallback(async () => {
-    setLoading(true);
+  const loadOpportunities = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) {
+      setLoading(true);
+    }
+
     setOpportunitiesError('');
     setDebugError('');
 
@@ -565,22 +570,34 @@ total_opportunities_profile:
   opp.user_profiles?.total_opportunities || 0,
         }));
 
+      mapOpportunitiesCache = validOpportunities;
       setAllOpportunities(validOpportunities);
     } catch (err) {
       console.error('MAP REAL ERROR:', err);
-      setAllOpportunities([]);
-      setOpportunitiesError('Opportunità non disponibili');
+
+      if (!mapOpportunitiesCache) {
+        setAllOpportunities([]);
+        setOpportunitiesError('Opportunità non disponibili');
+      }
+
       setDebugError(err?.message || JSON.stringify(err));
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   }, []);
 
   useEffect(() => {
-    if (hasLoadedOpportunitiesRef.current) return;
-    hasLoadedOpportunitiesRef.current = true;
-    loadOpportunities();
-  }, [loadOpportunities]);
+  if (mapOpportunitiesCache) {
+    setAllOpportunities(mapOpportunitiesCache);
+    setLoading(false);
+    loadOpportunities({ silent: true });
+    return;
+  }
+
+  loadOpportunities({ silent: false });
+}, [loadOpportunities]);
 
   const filteredOpportunities = useMemo(() => {
     let filtered = [...allOpportunities];

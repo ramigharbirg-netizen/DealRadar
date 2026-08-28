@@ -35,6 +35,8 @@ const formatChatTime = (dateString) => {
   });
 };
 
+const chatsCache = new Map();
+
 export const ChatsView = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -49,9 +51,9 @@ useEffect(() => {
 }, [conversations]);
   const refreshUnreadCounts = useCallback(async () => {
   if (!user?.id) {
-    setUnreadCountMap({});
-    return;
-  }
+  setUnreadCountMap({});
+  return {};
+}
 
   const { data: unreadRows, error: unreadError } = await supabase.rpc(
     'get_my_unread_conversation_counts'
@@ -72,96 +74,123 @@ useEffect(() => {
   });
 
   setUnreadCountMap(counts);
+
+const cached = chatsCache.get(user.id);
+
+if (cached) {
+  chatsCache.set(user.id, {
+    ...cached,
+    unreadCountMap: counts,
+  });
+}
+
+return counts;
 }, [user?.id]);
 
   const loadAll = useCallback(async () => {
-    if (!user?.id) return;
+  if (!user?.id) return;
+
   const { data: convs, error: convError } = await supabase
     .from('conversations')
     .select(`
-  id,
-  opportunity_id,
-  owner_id,
-  requester_id,
-  created_at,
-  last_message,
-  last_message_at,
-  last_message_sender_id
-`)
+      id,
+      opportunity_id,
+      owner_id,
+      requester_id,
+      created_at,
+      last_message,
+      last_message_at,
+      last_message_sender_id
+    `)
     .order('last_message_at', { ascending: false });
 
   if (convError || !convs) {
-    setConversations([]);
+    if (!chatsCache.has(user.id)) {
+      setConversations([]);
+    }
     return;
   }
 
-  setConversations(convs);
-
   const otherUserIds = [
-  ...new Set(
-    convs
-      .map((conv) =>
-        conv.owner_id === user.id
-          ? conv.requester_id
-          : conv.owner_id
-      )
-      .filter(Boolean)
-  ),
-];
-
-if (otherUserIds.length > 0) {
-  const { data: profiles, error: profilesError } = await supabase
-    .from('public_user_profiles')
-    .select('user_id, display_name, avatar_url, is_premium')
-    .in('user_id', otherUserIds);
-
-  if (profilesError) {
-    console.error('Load chat user profiles error:', profilesError);
-    setOtherUsersMap({});
-  } else {
-    const profileMap = {};
-
-    (profiles || []).forEach((profile) => {
-      profileMap[profile.user_id] = profile;
-    });
-
-    setOtherUsersMap(profileMap);
-  }
-} else {
-  setOtherUsersMap({});
-}
-
-  const opportunityIds = [
-    ...new Set(convs.map((c) => c.opportunity_id).filter(Boolean)),
+    ...new Set(
+      convs
+        .map((conv) =>
+          conv.owner_id === user.id
+            ? conv.requester_id
+            : conv.owner_id
+        )
+        .filter(Boolean)
+    ),
   ];
 
- if (opportunityIds.length > 0) {
-  const { data: opps, error: oppsError } = await supabase
-    .from('opportunities')
-    .select('id,title,images,address,category,user_id,user_name')
-    .in('id', opportunityIds);
+  let profileMap = {};
 
-  if (oppsError) {
-    console.error('Load chat opportunities error:', oppsError);
-    setOpportunitiesMap({});
-  } else {
-    const oppMap = {};
+  if (otherUserIds.length > 0) {
+    const { data: profiles, error: profilesError } = await supabase
+      .from('public_user_profiles')
+      .select('user_id, display_name, avatar_url, is_premium')
+      .in('user_id', otherUserIds);
 
-    (opps || []).forEach((opp) => {
-      oppMap[opp.id] = opp;
-    });
-
-    setOpportunitiesMap(oppMap);
+    if (profilesError) {
+      console.error('Load chat user profiles error:', profilesError);
+    } else {
+      (profiles || []).forEach((profile) => {
+        profileMap[profile.user_id] = profile;
+      });
+    }
   }
-}
 
-await refreshUnreadCounts();
+  const opportunityIds = [
+    ...new Set(convs.map((conv) => conv.opportunity_id).filter(Boolean)),
+  ];
+
+  let oppMap = {};
+
+  if (opportunityIds.length > 0) {
+    const { data: opps, error: oppsError } = await supabase
+      .from('opportunities')
+      .select('id,title,images,address,category,user_id,user_name')
+      .in('id', opportunityIds);
+
+    if (oppsError) {
+      console.error('Load chat opportunities error:', oppsError);
+    } else {
+      (opps || []).forEach((opp) => {
+        oppMap[opp.id] = opp;
+      });
+    }
+  }
+
+  const counts = await refreshUnreadCounts();
+
+  const snapshot = {
+    conversations: convs,
+    opportunitiesMap: oppMap,
+    otherUsersMap: profileMap,
+    unreadCountMap: counts || {},
+  };
+
+  chatsCache.set(user.id, snapshot);
+
+  setConversations(snapshot.conversations);
+  setOpportunitiesMap(snapshot.opportunitiesMap);
+  setOtherUsersMap(snapshot.otherUsersMap);
+  setUnreadCountMap(snapshot.unreadCountMap);
 }, [user?.id, refreshUnreadCounts]);
 
   useEffect(() => {
-  if (user?.id) {
-    loadAll();
+  if (!user?.id) return;
+
+  const cached = chatsCache.get(user.id);
+
+  if (cached) {
+    setConversations(cached.conversations);
+    setOpportunitiesMap(cached.opportunitiesMap);
+    setOtherUsersMap(cached.otherUsersMap);
+    setUnreadCountMap(cached.unreadCountMap);
   }
+
+  loadAll();
 }, [user?.id, loadAll]);
 
   useEffect(() => {
@@ -199,11 +228,22 @@ await refreshUnreadCounts();
       : conv
   );
 
-  return updated.sort(
-    (a, b) =>
-      new Date(b.last_message_at || b.created_at) -
-      new Date(a.last_message_at || a.created_at)
-  );
+  const sorted = updated.sort(
+  (a, b) =>
+    new Date(b.last_message_at || b.created_at) -
+    new Date(a.last_message_at || a.created_at)
+);
+
+const cached = chatsCache.get(user.id);
+
+if (cached) {
+  chatsCache.set(user.id, {
+    ...cached,
+    conversations: sorted,
+  });
+}
+
+return sorted;
 });
 
 const conversationExists = conversationsRef.current.some(
