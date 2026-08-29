@@ -43,25 +43,7 @@ const distanceKm = (lat1, lon1, lat2, lon2) => {
 };
 
 const feedCache = new Map();
-
-const calculateOpportunityScore = (opp) => {
-  let score = 0;
-
-  if (opp.is_verified) {
-    score += 30;
-  }
-
-  score -= Number(opp.reports || 0) * 15;
-
-  const createdAt = new Date(opp.created_at || 0).getTime();
-  const ageHours = (Date.now() - createdAt) / (1000 * 60 * 60);
-
-  if (!Number.isNaN(ageHours) && ageHours <= 24) {
-    score += 15;
-  }
-
-  return score;
-};
+const FEED_PAGE_SIZE = 25;
 
 export const FeedView = () => {
   const { location, radius } = useLocation();
@@ -73,84 +55,230 @@ export const FeedView = () => {
   const [detailOpen, setDetailOpen] = useState(false);
   const [contentType, setContentType] = useState('all');
   const [category, setCategory] = useState('all');
-  const [sortBy, setSortBy] = useState('smart');
   const [feedError, setFeedError] = useState('');
   const [debugError, setDebugError] = useState('');
 
+    const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  const feedCursorRef = useRef(null);
+  const loadMoreSentinelRef = useRef(null);
+  const loadMoreInFlightRef = useRef(false);
+
+  const activeFeedKeyRef = useRef(`${contentType}:${category}`);
+  activeFeedKeyRef.current = `${contentType}:${category}`;
+
   useEffect(() => {
-  const handleHardwareBack = (event) => {
-    if (detailOpen) {
-      setDetailOpen(false);
-      setSelectedOpportunity(null);
-      event.detail.handled = true;
-    }
-  };
+    const handleHardwareBack = (event) => {
+      if (detailOpen) {
+        setDetailOpen(false);
+        setSelectedOpportunity(null);
+        event.detail.handled = true;
+      }
+    };
 
-  window.addEventListener('dealradar:hardware-back', handleHardwareBack);
+    window.addEventListener('dealradar:hardware-back', handleHardwareBack);
 
-  return () => {
-    window.removeEventListener('dealradar:hardware-back', handleHardwareBack);
-  };
-}, [detailOpen]);
+    return () => {
+      window.removeEventListener('dealradar:hardware-back', handleHardwareBack);
+    };
+  }, [detailOpen]);
 
+  const loadOpportunities = useCallback(
+    async ({ silent = false } = {}) => {
+      if (!silent) {
+        setLoading(true);
+      }
 
-  const loadOpportunities = useCallback(async ({ silent = false } = {}) => {
-  if (!silent) {
-    setLoading(true);
-  }
+      setFeedError('');
+      setDebugError('');
 
-  setFeedError('');
-  setDebugError('');
+      try {
+        const requestKey = `${contentType}:${category}`;
 
-  try {
-    const { data, error } = await supabase.rpc('get_smart_feed', {
-      p_content_type: contentType,
-      p_category: category,
-      p_limit: 100,
-      p_offset: 0,
-    });
+        const { data, error } = await supabase.rpc('get_smart_feed_page', {
+          p_content_type: contentType,
+          p_category: category,
+          p_limit: FEED_PAGE_SIZE,
+          p_cursor_score: null,
+          p_cursor_created_at: null,
+          p_cursor_id: null,
+        });
 
-    if (error) throw error;
+        if (error) throw error;
 
-    const valid = (data || []).map((opp) => ({
-      ...opp,
-      latitude: Number(opp.latitude),
-      longitude: Number(opp.longitude),
-      avatar_url: opp.avatar_url || null,
-      is_premium: opp.is_premium || false,
-    }));
+        if (activeFeedKeyRef.current !== requestKey) {
+          return;
+        }
+
+        const valid = (data || []).map((opp) => ({
+          ...opp,
+          latitude: Number(opp.latitude),
+          longitude: Number(opp.longitude),
+          avatar_url: opp.avatar_url || null,
+          is_premium: opp.is_premium || false,
+        }));
+
+        const lastOpportunity = valid[valid.length - 1];
+
+        feedCursorRef.current = lastOpportunity
+          ? {
+              score: lastOpportunity.smart_score,
+              createdAt: lastOpportunity.created_at,
+              id: lastOpportunity.id,
+            }
+          : null;
+
+        setHasMore(valid.length === FEED_PAGE_SIZE);
 
         const cacheKey = `${contentType}:${category}`;
 
-    feedCache.set(cacheKey, valid);
-    setAllOpportunities(valid);
-  } catch (err) {
-    console.error('FEED REAL ERROR:', err);
+        feedCache.set(cacheKey, {
+          items: valid,
+          cursor: feedCursorRef.current,
+          hasMore: valid.length === FEED_PAGE_SIZE,
+        });
 
-    const cacheKey = `${contentType}:${category}`;
-    const cachedOpportunities = feedCache.get(cacheKey);
+        setAllOpportunities(valid);
+      } catch (err) {
+        console.error('FEED REAL ERROR:', err);
 
-    if (!cachedOpportunities) {
-      setAllOpportunities([]);
-      setFeedError('Feed non disponibile');
+        const cacheKey = `${contentType}:${category}`;
+        const cachedFeed = feedCache.get(cacheKey);
+
+        if (!cachedFeed) {
+          setAllOpportunities([]);
+          setFeedError('Feed non disponibile');
+        }
+
+        setDebugError(err?.message || JSON.stringify(err));
+      } finally {
+        if (!silent) {
+          setLoading(false);
+        }
+      }
+    },
+    [contentType, category]
+  );
+
+  const loadMoreOpportunities = useCallback(async () => {
+    if (
+      loadMoreInFlightRef.current ||
+      !hasMore ||
+      !feedCursorRef.current
+    ) {
+      return;
     }
 
-    setDebugError(err?.message || JSON.stringify(err));
-  } finally {
-    if (!silent) setLoading(false);
-  }
-}, [contentType, category]);
+    loadMoreInFlightRef.current = true;
+    setLoadingMore(true);
+
+    try {
+      const requestKey = `${contentType}:${category}`;
+      const cursor = feedCursorRef.current;
+
+      const { data, error } = await supabase.rpc('get_smart_feed_page', {
+        p_content_type: contentType,
+        p_category: category,
+        p_limit: FEED_PAGE_SIZE,
+        p_cursor_score: cursor.score,
+        p_cursor_created_at: cursor.createdAt,
+        p_cursor_id: cursor.id,
+      });
+
+      if (error) throw error;
+
+      if (activeFeedKeyRef.current !== requestKey) {
+        return;
+      }
+
+      const nextPage = (data || []).map((opp) => ({
+        ...opp,
+        latitude: Number(opp.latitude),
+        longitude: Number(opp.longitude),
+        avatar_url: opp.avatar_url || null,
+        is_premium: opp.is_premium || false,
+      }));
+
+      const lastOpportunity = nextPage[nextPage.length - 1];
+
+      if (lastOpportunity) {
+        feedCursorRef.current = {
+          score: lastOpportunity.smart_score,
+          createdAt: lastOpportunity.created_at,
+          id: lastOpportunity.id,
+        };
+      }
+
+      setHasMore(nextPage.length === FEED_PAGE_SIZE);
+
+      setAllOpportunities((current) => {
+        const existingIds = new Set(current.map((opp) => opp.id));
+
+        const merged = [
+          ...current,
+          ...nextPage.filter((opp) => !existingIds.has(opp.id)),
+        ];
+
+        const cacheKey = `${contentType}:${category}`;
+
+        feedCache.set(cacheKey, {
+          items: merged,
+          cursor: feedCursorRef.current,
+          hasMore: nextPage.length === FEED_PAGE_SIZE,
+        });
+
+        return merged;
+      });
+    } catch (err) {
+      console.error('FEED LOAD MORE ERROR:', err);
+    } finally {
+      loadMoreInFlightRef.current = false;
+      setLoadingMore(false);
+    }
+  }, [contentType, category, hasMore]);
+
+useEffect(() => {
+  const sentinel = loadMoreSentinelRef.current;
+
+  if (loading || !sentinel || !hasMore) return;
+
+  const observer = new IntersectionObserver(
+    (entries) => {
+      const firstEntry = entries[0];
+
+      if (firstEntry?.isIntersecting) {
+        loadMoreOpportunities();
+      }
+    },
+    {
+      root: null,
+      rootMargin: '1600px 0px',
+      threshold: 0,
+    }
+  );
+
+  observer.observe(sentinel);
+
+  return () => {
+    observer.disconnect();
+  };
+}, [loading, hasMore, loadMoreOpportunities, allOpportunities.length]);
 
 useEffect(() => {
   const cacheKey = `${contentType}:${category}`;
-  const cachedOpportunities = feedCache.get(cacheKey);
+  const cachedFeed = feedCache.get(cacheKey);
 
-  if (cachedOpportunities) {
-    setAllOpportunities(cachedOpportunities);
+  if (cachedFeed) {
+    setAllOpportunities(cachedFeed.items);
+    feedCursorRef.current = cachedFeed.cursor;
+    setHasMore(cachedFeed.hasMore);
     setLoading(false);
-    loadOpportunities({ silent: true });
     return;
   }
+
+  feedCursorRef.current = null;
+  setHasMore(true);
 
   loadOpportunities({ silent: false });
 }, [contentType, category, loadOpportunities]);
@@ -179,42 +307,7 @@ useEffect(() => {
   location?.lng,
 ]);
 
-  const todayOpportunities = useMemo(() => {
-    return opportunities.filter((opp) => {
-      if (!opp.created_at) return false;
-
-      const created = new Date(opp.created_at);
-
-      if (Number.isNaN(created.getTime())) return false;
-
-      const today = new Date();
-
-      return created.toDateString() === today.toDateString();
-    });
-  }, [opportunities]);
-
-  const displayedOpportunities = useMemo(() => {
-    if (sortBy === 'smart') {
-      return [...opportunities].sort(
-        (a, b) => calculateOpportunityScore(b) - calculateOpportunityScore(a)
-      );
-    }
-
-    if (sortBy === 'distance') {
-      return [...opportunities].sort((a, b) => {
-        const aDist = a.distance_km ?? Number.MAX_SAFE_INTEGER;
-        const bDist = b.distance_km ?? Number.MAX_SAFE_INTEGER;
-
-        return aDist - bDist;
-      });
-    }
-
-    return [...opportunities].sort(
-      (a, b) =>
-        new Date(b.created_at || 0).getTime() -
-        new Date(a.created_at || 0).getTime()
-    );
-  }, [opportunities, sortBy]);
+  const displayedOpportunities = opportunities;
 
   return (
   <div className="min-h-screen bg-background pb-20" data-testid="feed-view">
@@ -301,13 +394,6 @@ useEffect(() => {
             </div>
           ) : (
             <div className="mx-auto max-w-4xl pb-20">
-              {sortBy === 'newest' && todayOpportunities.length > 0 && (
-                <div className="mb-6">
-                  <span className="text-sm font-semibold text-primary">
-                    Nuove oggi ({todayOpportunities.length})
-                  </span>
-                </div>
-              )}
 
               {displayedOpportunities.map((opp) => (
                 <OpportunityCard
@@ -319,6 +405,14 @@ useEffect(() => {
                   }}
                 />
               ))}
+
+              <div ref={loadMoreSentinelRef} className="h-1" />
+
+{loadingMore && (
+  <div className="py-4 text-center text-sm text-muted-foreground">
+    Caricamento...
+  </div>
+)}
             </div>
           )}
         </div>
