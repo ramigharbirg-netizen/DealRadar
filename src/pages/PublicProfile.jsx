@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   User,
@@ -21,6 +21,8 @@ const levelLabels = {
   elite_member: 'Elite Member',
 };
 
+const PUBLIC_PROFILE_PAGE_SIZE = 25;
+
 const PublicProfile = () => {
   const { userId } = useParams();
   const navigate = useNavigate();
@@ -30,13 +32,30 @@ const PublicProfile = () => {
   const [loading, setLoading] = useState(true);
   const [selectedOpportunity, setSelectedOpportunity] = useState(null);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [hasMoreOpportunities, setHasMoreOpportunities] = useState(true);
+  const [loadingMoreOpportunities, setLoadingMoreOpportunities] =
+    useState(false);
+
+  const opportunitiesCursorRef = useRef(null);
+  const opportunitiesLoadMoreRef = useRef(null);
+  const opportunitiesLoadMoreInFlightRef = useRef(false);
+  const loadGenerationRef = useRef(0);
 
   useEffect(() => {
+    const generation = ++loadGenerationRef.current;
+
     const loadPublicProfile = async () => {
       try {
         setLoading(true);
+        setProfile(null);
+        setOpportunities([]);
+        setHasMoreOpportunities(true);
+        setLoadingMoreOpportunities(false);
 
-                const [
+        opportunitiesCursorRef.current = null;
+        opportunitiesLoadMoreInFlightRef.current = false;
+
+        const [
           { data: profileData, error: profileError },
           { data: oppsData, error: oppsError },
         ] = await Promise.all([
@@ -91,25 +110,190 @@ const PublicProfile = () => {
             .eq('lifecycle_status', 'active')
             .gt('expires_at', new Date().toISOString())
             .order('created_at', { ascending: false })
-            .limit(50),
+            .order('id', { ascending: false })
+            .limit(PUBLIC_PROFILE_PAGE_SIZE),
         ]);
 
         if (profileError) throw profileError;
         if (oppsError) throw oppsError;
 
+        if (loadGenerationRef.current !== generation) {
+          return;
+        }
+
+        const firstPage = oppsData || [];
+        const lastOpportunity = firstPage[firstPage.length - 1];
+
+        opportunitiesCursorRef.current = lastOpportunity
+          ? {
+              createdAt: lastOpportunity.created_at,
+              id: lastOpportunity.id,
+            }
+          : null;
+
+        setHasMoreOpportunities(
+          firstPage.length === PUBLIC_PROFILE_PAGE_SIZE
+        );
+
         setProfile(profileData);
-        setOpportunities(oppsData || []);
+        setOpportunities(firstPage);
       } catch (err) {
-        console.error('Public profile error:', err);
+        if (loadGenerationRef.current === generation) {
+          console.error('Public profile error:', err);
+        }
       } finally {
-        setLoading(false);
+        if (loadGenerationRef.current === generation) {
+          setLoading(false);
+        }
       }
     };
 
     if (userId) {
       loadPublicProfile();
     }
+
+    return () => {
+      if (loadGenerationRef.current === generation) {
+        loadGenerationRef.current += 1;
+      }
+    };
   }, [userId]);
+
+  const loadMoreOpportunities = useCallback(async () => {
+    if (
+      !userId ||
+      opportunitiesLoadMoreInFlightRef.current ||
+      !hasMoreOpportunities ||
+      !opportunitiesCursorRef.current
+    ) {
+      return;
+    }
+
+    const generation = loadGenerationRef.current;
+    const requestedUserId = userId;
+    const cursor = opportunitiesCursorRef.current;
+
+    opportunitiesLoadMoreInFlightRef.current = true;
+    setLoadingMoreOpportunities(true);
+
+    try {
+      const { data, error } = await supabase
+        .from('opportunities')
+        .select(`
+          id,
+          created_at,
+          title,
+          description,
+          category,
+          subcategory,
+          content_type,
+          latitude,
+          longitude,
+          address,
+          estimated_price,
+          estimated_resale_value,
+          contact_phone,
+          contact_email,
+          contact_link,
+          images,
+          user_name,
+          user_id,
+          confirmations,
+          reports,
+          verified_count,
+          is_verified,
+          attributes,
+          merchant_name,
+          expires_at,
+          lifecycle_status
+        `)
+        .eq('user_id', requestedUserId)
+        .eq('is_hidden', false)
+        .eq('lifecycle_status', 'active')
+        .gt('expires_at', new Date().toISOString())
+        .or(
+          `created_at.lt.${cursor.createdAt},and(created_at.eq.${cursor.createdAt},id.lt.${cursor.id})`
+        )
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: false })
+        .limit(PUBLIC_PROFILE_PAGE_SIZE);
+
+      if (error) throw error;
+
+      if (loadGenerationRef.current !== generation) {
+        return;
+      }
+
+      const nextPage = data || [];
+      const lastOpportunity = nextPage[nextPage.length - 1];
+
+      if (lastOpportunity) {
+        opportunitiesCursorRef.current = {
+          createdAt: lastOpportunity.created_at,
+          id: lastOpportunity.id,
+        };
+      }
+
+      setHasMoreOpportunities(
+        nextPage.length === PUBLIC_PROFILE_PAGE_SIZE
+      );
+
+      setOpportunities((current) => {
+        const existingIds = new Set(current.map((opp) => opp.id));
+
+        return [
+          ...current,
+          ...nextPage.filter((opp) => !existingIds.has(opp.id)),
+        ];
+      });
+    } catch (err) {
+      if (loadGenerationRef.current === generation) {
+        console.error(
+          'Error loading more public profile opportunities:',
+          err
+        );
+      }
+    } finally {
+      if (loadGenerationRef.current === generation) {
+        opportunitiesLoadMoreInFlightRef.current = false;
+        setLoadingMoreOpportunities(false);
+      }
+    }
+  }, [userId, hasMoreOpportunities]);
+
+  useEffect(() => {
+    const sentinel = opportunitiesLoadMoreRef.current;
+
+    if (loading || !sentinel || !hasMoreOpportunities) {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const firstEntry = entries[0];
+
+        if (firstEntry?.isIntersecting) {
+          loadMoreOpportunities();
+        }
+      },
+      {
+        root: null,
+        rootMargin: '1600px 0px',
+        threshold: 0,
+      }
+    );
+
+    observer.observe(sentinel);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [
+    loading,
+    hasMoreOpportunities,
+    loadMoreOpportunities,
+    opportunities.length,
+  ]);
 
   if (loading) {
     return (
@@ -264,6 +448,20 @@ const PublicProfile = () => {
                 }}
               />
             ))}
+
+            {hasMoreOpportunities && (
+              <div
+                ref={opportunitiesLoadMoreRef}
+                className="h-1"
+                aria-hidden="true"
+              />
+            )}
+
+            {loadingMoreOpportunities && (
+              <p className="py-3 text-center text-xs text-gray-400">
+                Caricamento altre opportunità...
+              </p>
+            )}
           </div>
         )}
       </div>
