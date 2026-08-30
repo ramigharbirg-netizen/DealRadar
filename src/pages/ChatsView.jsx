@@ -55,6 +55,8 @@ export const ChatsView = () => {
   const [loadingMore, setLoadingMore] = useState(false);
 
   const conversationsRef = useRef([]);
+  const opportunitiesMapRef = useRef({});
+  const otherUsersMapRef = useRef({});
   const loadMoreSentinelRef = useRef(null);
   const cursorRef = useRef(null);
   const loadingMoreRef = useRef(false);
@@ -63,6 +65,14 @@ export const ChatsView = () => {
   useEffect(() => {
     conversationsRef.current = conversations;
   }, [conversations]);
+
+  useEffect(() => {
+    opportunitiesMapRef.current = opportunitiesMap;
+  }, [opportunitiesMap]);
+
+  useEffect(() => {
+    otherUsersMapRef.current = otherUsersMap;
+  }, [otherUsersMap]);
 
   const refreshUnreadCounts = useCallback(async () => {
     if (!user?.id) {
@@ -424,8 +434,8 @@ export const ChatsView = () => {
 
     const relatedData = await loadRelatedData(
       page,
-      opportunitiesMap,
-      otherUsersMap
+      opportunitiesMapRef.current,
+      otherUsersMapRef.current
     );
 
     if (generationRef.current !== generation) return;
@@ -463,12 +473,7 @@ export const ChatsView = () => {
       relatedData.opportunitiesMap
     );
     setOtherUsersMap(relatedData.otherUsersMap);
-  }, [
-    user?.id,
-    loadRelatedData,
-    opportunitiesMap,
-    otherUsersMap,
-  ]);
+  }, [user?.id, loadRelatedData]);
 
   useEffect(() => {
     if (!user?.id) return;
