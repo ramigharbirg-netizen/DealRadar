@@ -194,6 +194,7 @@ const createPasswordCheckClient = () => {
 };
 
 const profileCache = new Map();
+const PROFILE_ACTIVE_PAGE_SIZE = 25;
 
 export const Profile = () => {
   const {
@@ -224,7 +225,14 @@ export const Profile = () => {
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [notificationCategories, setNotificationCategories] = useState([]);
   const [notificationRadius, setNotificationRadius] = useState(20);
-  const [leaderboardLimit, setLeaderboardLimit] = useState(5);
+    const [leaderboardLimit, setLeaderboardLimit] = useState(5);
+  const [hasMoreActiveOpportunities, setHasMoreActiveOpportunities] = useState(true);
+  const [loadingMoreActiveOpportunities, setLoadingMoreActiveOpportunities] =
+    useState(false);
+
+  const activeOpportunitiesCursorRef = useRef(null);
+  const activeOpportunitiesLoadMoreRef = useRef(null);
+  const activeOpportunitiesLoadMoreInFlightRef = useRef(false);
 
   const loadUserData = useCallback(async () => {
     if (!user?.id) {
@@ -237,67 +245,98 @@ export const Profile = () => {
     setLoading(true);
   }
 
+            const nowIso = new Date().toISOString();
+
       const [
-  { data: profileData, error: profileError },
-  { data: myOpps, error: oppsError },
-  { data: adminData, error: adminError },
-] = await Promise.all([
-  supabase
-    .from('user_profiles')
-    .select(`
-      display_name,
-      avatar_url,
-      points,
-      trust_score,
-      reputation_level,
-      total_opportunities,
-      verified_deals,
-      hidden_deals,
-      is_premium
-    `)
-    .eq('user_id', user.id)
-    .maybeSingle(),
+        { data: profileData, error: profileError },
+        { data: activeOpps, error: activeOppsError },
+        { data: expiredOpps, error: expiredOppsError },
+        { data: adminData, error: adminError },
+      ] = await Promise.all([
+        supabase
+          .from('user_profiles')
+          .select(`
+            display_name,
+            avatar_url,
+            points,
+            trust_score,
+            reputation_level,
+            total_opportunities,
+            verified_deals,
+            hidden_deals,
+            is_premium
+          `)
+          .eq('user_id', user.id)
+          .maybeSingle(),
 
-  supabase
-    .from('opportunities')
-    .select(`
-      *,
-      user_profiles (
-        avatar_url,
-        trust_score,
-        verified_deals,
-        points,
-        approved_submissions,
-        total_opportunities,
-        is_premium
-      )
-    `)
-    .eq('user_id', user.id)
-    .eq('is_hidden', false)
-    .order('created_at', { ascending: false })
-    .limit(100),
+        supabase
+          .from('opportunities')
+          .select(`
+            *,
+            user_profiles (
+              avatar_url,
+              trust_score,
+              verified_deals,
+              points,
+              approved_submissions,
+              total_opportunities,
+              is_premium
+            )
+          `)
+          .eq('user_id', user.id)
+          .eq('is_hidden', false)
+          .eq('lifecycle_status', 'active')
+          .gt('expires_at', nowIso)
+          .order('created_at', { ascending: false })
+          .order('id', { ascending: false })
+          .limit(PROFILE_ACTIVE_PAGE_SIZE),
 
-  supabase
-    .from('admin_roles')
-    .select('role')
-    .eq('user_id', user.id),
-]);
+        supabase
+          .from('opportunities')
+          .select(`
+            *,
+            user_profiles (
+              avatar_url,
+              trust_score,
+              verified_deals,
+              points,
+              approved_submissions,
+              total_opportunities,
+              is_premium
+            )
+          `)
+          .eq('user_id', user.id)
+          .eq('is_hidden', false)
+          .lte('expires_at', nowIso)
+          .order('created_at', { ascending: false })
+          .order('id', { ascending: false }),
 
-if (profileError) {
-  console.error('Profile load error:', profileError);
-}
+        supabase
+          .from('admin_roles')
+          .select('role')
+          .eq('user_id', user.id),
+      ]);
 
-if (oppsError) {
-  throw oppsError;
-}
+      if (profileError) {
+        console.error('Profile load error:', profileError);
+      }
 
-if (adminError) {
-  console.error('Admin role check error:', adminError);
-}
+      if (activeOppsError) {
+        throw activeOppsError;
+      }
 
-      const opportunities = myOpps || [];
+      if (expiredOppsError) {
+        throw expiredOppsError;
+      }
 
-      const enrichedOpportunities = opportunities.map((opp) => ({
+      if (adminError) {
+        console.error('Admin role check error:', adminError);
+      }
+
+      const activeOpportunities = activeOpps || [];
+      const expiredOpportunities = expiredOpps || [];
+
+      const enrichOpportunity = (opp) => ({
         ...opp,
         avatar_url: opp.user_profiles?.avatar_url || null,
         is_premium: opp.user_profiles?.is_premium || false,
@@ -305,8 +344,37 @@ if (adminError) {
         verified_deals: opp.user_profiles?.verified_deals || 0,
         profile_points: opp.user_profiles?.points || 0,
         approved_submissions: opp.user_profiles?.approved_submissions || 0,
-        total_opportunities_profile: opp.user_profiles?.total_opportunities || 0,
-      }));
+        total_opportunities_profile:
+          opp.user_profiles?.total_opportunities || 0,
+      });
+
+      const enrichedActiveOpportunities =
+        activeOpportunities.map(enrichOpportunity);
+
+      const enrichedExpiredOpportunities =
+        expiredOpportunities.map(enrichOpportunity);
+
+      const opportunities = [
+        ...enrichedExpiredOpportunities,
+        ...enrichedActiveOpportunities,
+      ];
+
+      const lastActiveOpportunity =
+        enrichedActiveOpportunities[
+          enrichedActiveOpportunities.length - 1
+        ];
+
+      activeOpportunitiesCursorRef.current = lastActiveOpportunity
+        ? {
+            createdAt: lastActiveOpportunity.created_at,
+            id: lastActiveOpportunity.id,
+          }
+        : null;
+
+      const nextHasMoreActive =
+        enrichedActiveOpportunities.length === PROFILE_ACTIVE_PAGE_SIZE;
+
+      setHasMoreActiveOpportunities(nextHasMoreActive);
 
       const totalDeals =
         Number(profileData?.total_opportunities) || opportunities.length;
@@ -322,44 +390,46 @@ if (adminError) {
       ).length;
 
       const points =
-  Number(profileData?.points) ||
-  totalDeals * 5 +
-  verifiedDeals * 10 -
-  hiddenDeals * 10;
+        Number(profileData?.points) ||
+        totalDeals * 5 +
+          verifiedDeals * 10 -
+          hiddenDeals * 10;
 
       const nextStats = {
-  total_deals: totalDeals,
-  free_deals: freeDeals,
-  points,
-  reputation: Number(profileData?.trust_score) || totalDeals,
-  opportunities_posted: totalDeals,
-  verified_deals: verifiedDeals,
-  hidden_deals: hiddenDeals,
-};
+        total_deals: totalDeals,
+        free_deals: freeDeals,
+        points,
+        reputation: Number(profileData?.trust_score) || totalDeals,
+        opportunities_posted: totalDeals,
+        verified_deals: verifiedDeals,
+        hidden_deals: hiddenDeals,
+      };
 
-const nextAvatarUrl = profileData?.avatar_url || null;
-const nextDisplayName =
-  profileData?.display_name || user.name || '';
+      const nextAvatarUrl = profileData?.avatar_url || null;
+      const nextDisplayName =
+        profileData?.display_name || user.name || '';
 
-const nextIsAdmin =
-  Array.isArray(adminData) &&
-  adminData.some(
-    (row) => row.role === 'admin' || row.role === 'owner'
-  );
+      const nextIsAdmin =
+        Array.isArray(adminData) &&
+        adminData.some(
+          (row) => row.role === 'admin' || row.role === 'owner'
+        );
 
-profileCache.set(user.id, {
-  stats: nextStats,
-  avatarUrl: nextAvatarUrl,
-  profileDisplayName: nextDisplayName,
-  myOpportunities: enrichedOpportunities,
-  isAdmin: nextIsAdmin,
-});
+      profileCache.set(user.id, {
+        stats: nextStats,
+        avatarUrl: nextAvatarUrl,
+        profileDisplayName: nextDisplayName,
+        myOpportunities: opportunities,
+        isAdmin: nextIsAdmin,
+        activeOpportunitiesCursor: activeOpportunitiesCursorRef.current,
+        hasMoreActiveOpportunities: nextHasMoreActive,
+      });
 
-setStats(nextStats);
-setAvatarUrl(nextAvatarUrl);
-setProfileDisplayName(nextDisplayName);
-setMyOpportunities(enrichedOpportunities);
-setIsAdmin(nextIsAdmin);
+      setStats(nextStats);
+      setAvatarUrl(nextAvatarUrl);
+      setProfileDisplayName(nextDisplayName);
+      setMyOpportunities(opportunities);
+      setIsAdmin(nextIsAdmin);
 
       const savedPreferences = localStorage.getItem(
         'dealradar_notification_preferences'
@@ -388,7 +458,110 @@ setIsAdmin(nextIsAdmin);
     } finally {
       setLoading(false);
     }
-  }, [user]);
+    }, [user]);
+
+  const loadMoreActiveOpportunities = useCallback(async () => {
+    if (
+      !user?.id ||
+      activeOpportunitiesLoadMoreInFlightRef.current ||
+      !hasMoreActiveOpportunities ||
+      !activeOpportunitiesCursorRef.current
+    ) {
+      return;
+    }
+
+    activeOpportunitiesLoadMoreInFlightRef.current = true;
+    setLoadingMoreActiveOpportunities(true);
+
+    try {
+      const cursor = activeOpportunitiesCursorRef.current;
+      const nowIso = new Date().toISOString();
+
+      const { data, error } = await supabase
+        .from('opportunities')
+        .select(`
+          *,
+          user_profiles (
+            avatar_url,
+            trust_score,
+            verified_deals,
+            points,
+            approved_submissions,
+            total_opportunities,
+            is_premium
+          )
+        `)
+        .eq('user_id', user.id)
+        .eq('is_hidden', false)
+        .eq('lifecycle_status', 'active')
+        .gt('expires_at', nowIso)
+        .or(
+          `created_at.lt.${cursor.createdAt},and(created_at.eq.${cursor.createdAt},id.lt.${cursor.id})`
+        )
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: false })
+        .limit(PROFILE_ACTIVE_PAGE_SIZE);
+
+      if (error) throw error;
+
+      const nextPage = (data || []).map((opp) => ({
+        ...opp,
+        avatar_url: opp.user_profiles?.avatar_url || null,
+        is_premium: opp.user_profiles?.is_premium || false,
+        trust_score: opp.user_profiles?.trust_score || 0,
+        verified_deals: opp.user_profiles?.verified_deals || 0,
+        profile_points: opp.user_profiles?.points || 0,
+        approved_submissions: opp.user_profiles?.approved_submissions || 0,
+        total_opportunities_profile:
+          opp.user_profiles?.total_opportunities || 0,
+      }));
+
+      const lastOpportunity = nextPage[nextPage.length - 1];
+
+      if (lastOpportunity) {
+        activeOpportunitiesCursorRef.current = {
+          createdAt: lastOpportunity.created_at,
+          id: lastOpportunity.id,
+        };
+      }
+
+      const nextHasMore =
+        nextPage.length === PROFILE_ACTIVE_PAGE_SIZE;
+
+      setHasMoreActiveOpportunities(nextHasMore);
+
+      setMyOpportunities((current) => {
+        const existingIds = new Set(current.map((opp) => opp.id));
+
+        const merged = [
+          ...current,
+          ...nextPage.filter((opp) => !existingIds.has(opp.id)),
+        ];
+
+        const cached = profileCache.get(user.id);
+
+        if (cached) {
+          profileCache.set(user.id, {
+            ...cached,
+            myOpportunities: merged,
+            activeOpportunitiesCursor:
+              activeOpportunitiesCursorRef.current,
+            hasMoreActiveOpportunities: nextHasMore,
+          });
+        }
+
+        return merged;
+      });
+    } catch (err) {
+      console.error(
+        'Error loading more profile opportunities:',
+        err
+      );
+    } finally {
+      activeOpportunitiesLoadMoreInFlightRef.current = false;
+      setLoadingMoreActiveOpportunities(false);
+    }
+  }, [user?.id, hasMoreActiveOpportunities]);
 
   const loadLeaderboard = useCallback(async () => {
     try {
@@ -433,12 +606,20 @@ setLeaderboard(cleanLeaderboard);
   if (user?.id) {
     const cached = profileCache.get(user.id);
 
-    if (cached) {
+        if (cached) {
       setStats(cached.stats);
       setAvatarUrl(cached.avatarUrl);
       setProfileDisplayName(cached.profileDisplayName);
       setMyOpportunities(cached.myOpportunities);
       setIsAdmin(cached.isAdmin);
+
+      activeOpportunitiesCursorRef.current =
+        cached.activeOpportunitiesCursor || null;
+
+      setHasMoreActiveOpportunities(
+        cached.hasMoreActiveOpportunities ?? true
+      );
+
       setLoading(false);
     }
 
@@ -448,6 +629,44 @@ setLeaderboard(cleanLeaderboard);
     setLoading(false);
   }
 }, [authLoading, user, loadUserData, loadLeaderboard]);
+
+  useEffect(() => {
+    const sentinel = activeOpportunitiesLoadMoreRef.current;
+
+    if (
+      loading ||
+      !sentinel ||
+      !hasMoreActiveOpportunities
+    ) {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const firstEntry = entries[0];
+
+        if (firstEntry?.isIntersecting) {
+          loadMoreActiveOpportunities();
+        }
+      },
+      {
+        root: null,
+        rootMargin: '1600px 0px',
+        threshold: 0,
+      }
+    );
+
+    observer.observe(sentinel);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [
+    loading,
+    hasMoreActiveOpportunities,
+    loadMoreActiveOpportunities,
+    myOpportunities.length,
+  ]);
 
   const handleAvatarUpload = async (event) => {
   try {
@@ -659,9 +878,10 @@ const handleDisplayNameUpdate = async (event) => {
 
       if (error) throw error;
 
-      const renewed = data || {};
-      setMyOpportunities((previous) =>
-        previous.map((item) =>
+            const renewed = data || {};
+
+      setMyOpportunities((previous) => {
+        const updatedOpportunities = previous.map((item) =>
           item.id === opportunity.id
             ? {
                 ...item,
@@ -671,8 +891,19 @@ const handleDisplayNameUpdate = async (event) => {
                 purge_after: null,
               }
             : item
-        )
-      );
+        );
+
+        const cached = profileCache.get(user.id);
+
+        if (cached) {
+          profileCache.set(user.id, {
+            ...cached,
+            myOpportunities: updatedOpportunities,
+          });
+        }
+
+        return updatedOpportunities;
+      });
 
       toast.success('Annuncio rinnovato per 90 giorni');
     } catch (error) {
@@ -1161,7 +1392,7 @@ const handleDisplayNameUpdate = async (event) => {
                 variant="outline"
                 className="rounded-xl"
               >
-                Pubblica una nuova opportunit√†
+                Pubblica una nuova opportunit√
               </Button>
             </CardContent>
           </Card>
@@ -1198,7 +1429,21 @@ const handleDisplayNameUpdate = async (event) => {
             ))}
           </div>
         )}
+                  {hasMoreActiveOpportunities && (
+            <div
+              ref={activeOpportunitiesLoadMoreRef}
+              className="h-1"
+              aria-hidden="true"
+            />
+          )}
+
+          {loadingMoreActiveOpportunities && (
+            <p className="py-3 text-center text-xs text-gray-400">
+              Caricamento altre opportunit√†...
+            </p>
+          )}
       </div>
+
 
 
 <div className="max-w-6xl mx-auto px-4 mt-6">
@@ -1206,7 +1451,7 @@ const handleDisplayNameUpdate = async (event) => {
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
               <Trophy className="w-5 h-5 text-amber-500" />
-              Migliori cacciatori di opportunit√†
+              Migliori cacciatori di opportunit√
             </CardTitle>
           </CardHeader>
 
@@ -1317,7 +1562,7 @@ const handleDisplayNameUpdate = async (event) => {
               >
                 <span className="flex items-center gap-2 text-sm">
                   <Plus className="w-4 h-4" />
-                  Nuova opportunit√†
+                  Nuova opportunit√
                 </span>
 
                 <ChevronRight className="w-4 h-4" />
@@ -1429,7 +1674,7 @@ const handleDisplayNameUpdate = async (event) => {
 
   </div>
 </div>
-          
+
         </div>
       </div>
 
