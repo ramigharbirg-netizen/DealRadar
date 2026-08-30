@@ -36,61 +36,65 @@ const PublicProfile = () => {
       try {
         setLoading(true);
 
-        const { data: profileData, error: profileError } = await supabase
-          .from('public_user_profiles')
-          .select(`
-            user_id,
-            display_name,
-            avatar_url,
-            is_premium,
-            trust_score,
-            points,
-            reputation_level,
-            total_opportunities,
-            verified_deals
-          `)
-          .eq('user_id', userId)
-          .single();
+                const [
+          { data: profileData, error: profileError },
+          { data: oppsData, error: oppsError },
+        ] = await Promise.all([
+          supabase
+            .from('public_user_profiles')
+            .select(`
+              user_id,
+              display_name,
+              avatar_url,
+              is_premium,
+              trust_score,
+              points,
+              reputation_level,
+              total_opportunities,
+              verified_deals
+            `)
+            .eq('user_id', userId)
+            .single(),
+
+          supabase
+            .from('opportunities')
+            .select(`
+              id,
+              created_at,
+              title,
+              description,
+              category,
+              subcategory,
+              content_type,
+              latitude,
+              longitude,
+              address,
+              estimated_price,
+              estimated_resale_value,
+              contact_phone,
+              contact_email,
+              contact_link,
+              images,
+              user_name,
+              user_id,
+              confirmations,
+              reports,
+              verified_count,
+              is_verified,
+              attributes,
+              merchant_name,
+              expires_at,
+              lifecycle_status
+            `)
+            .eq('user_id', userId)
+            .eq('is_hidden', false)
+            .eq('lifecycle_status', 'active')
+            .gt('expires_at', new Date().toISOString())
+            .order('created_at', { ascending: false })
+            .limit(50),
+        ]);
 
         if (profileError) throw profileError;
-
-        const { data: oppsData, error: oppsError } = await supabase
-          .from('opportunities')
-          .select(`
-  id,
-  created_at,
-  title,
-  description,
-  category,
-  subcategory,
-  content_type,
-  latitude,
-  longitude,
-  address,
-  estimated_price,
-  estimated_resale_value,
-  contact_phone,
-  contact_email,
-  contact_link,
-  images,
-  user_name,
-  user_id,
-  confirmations,
-  reports,
-  verified_count,
-  is_verified,
-  attributes,
-  merchant_name,
-  expires_at,
-  lifecycle_status
-`)
-          .eq('user_id', userId)
-          .eq('is_hidden', false)
-  .eq('lifecycle_status', 'active')
-  .gt('expires_at', new Date().toISOString())
-          .order('created_at', { ascending: false })
-          .limit(50);
-
         if (oppsError) throw oppsError;
 
         setProfile(profileData);

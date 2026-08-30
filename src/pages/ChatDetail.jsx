@@ -141,11 +141,32 @@ export const ChatDetail = () => {
       return;
     }
 
-    const { data: opp, error: oppError } = await supabase
-  .from('opportunities')
-  .select('id, title, images, estimated_price, address')
-  .eq('id', conv.opportunity_id)
-  .single();
+        const otherUserId =
+      conv.owner_id === user.id ? conv.requester_id : conv.owner_id;
+
+    let cachedProfile = otherUserId
+      ? profilesCacheRef.current.get(otherUserId)
+      : null;
+
+    const opportunityPromise = supabase
+      .from('opportunities')
+      .select('id, title, images, estimated_price, address')
+      .eq('id', conv.opportunity_id)
+      .single();
+
+    const profilePromise =
+      otherUserId && !cachedProfile?.display_name
+        ? supabase
+            .from('public_user_profiles')
+            .select('user_id, display_name, avatar_url, is_premium')
+            .eq('user_id', otherUserId)
+            .maybeSingle()
+        : Promise.resolve({ data: null, error: null });
+
+    const [
+      { data: opp, error: oppError },
+      { data: profileData, error: profileError },
+    ] = await Promise.all([opportunityPromise, profilePromise]);
 
     if (oppError) {
       console.error('Load opportunity error:', oppError);
@@ -153,37 +174,24 @@ export const ChatDetail = () => {
       setOpportunity(opp);
     }
 
-    const otherUserId =
-      conv.owner_id === user.id ? conv.requester_id : conv.owner_id;
-
     if (!otherUserId) {
       setChatUserProfile(null);
       return;
     }
 
-    let profile = profilesCacheRef.current.get(otherUserId);
+    if (profileError) {
+      console.error('Load chat user profile error:', profileError);
+    } else if (profileData) {
+      cachedProfile = {
+        display_name: profileData.display_name || null,
+        avatar_url: profileData.avatar_url || null,
+        is_premium: profileData.is_premium || false,
+      };
 
-if (!profile?.display_name) {
-  const { data: profileData, error: profileError } = await supabase
-    .from('public_user_profiles')
-    .select('user_id, display_name, avatar_url, is_premium')
-    .eq('user_id', otherUserId)
-    .maybeSingle();
+      profilesCacheRef.current.set(otherUserId, cachedProfile);
+    }
 
-  if (profileError) {
-    console.error('Load chat user profile error:', profileError);
-  } else if (profileData) {
-    profile = {
-      display_name: profileData.display_name || null,
-      avatar_url: profileData.avatar_url || null,
-      is_premium: profileData.is_premium || false,
-    };
-
-    profilesCacheRef.current.set(otherUserId, profile);
-  }
-}
-
-setChatUserProfile(profile || null);
+    setChatUserProfile(cachedProfile || null);
   }, [id, user?.id]);
 
   useEffect(() => {

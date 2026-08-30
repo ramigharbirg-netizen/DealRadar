@@ -13,21 +13,6 @@ import {
   Search,
   Navigation,
   MapPin,
-  Store,
-  Package,
-  Wrench,
-  Building2,
-  Smartphone,
-  Shirt,
-  Armchair,
-  Car,
-  Boxes,
-  Gift,
-  Gavel,
-  MapPinOff,
-  Heart,
-  Clock,
-  SlidersHorizontal,
   X,
   Check,
   Euro,
@@ -49,7 +34,6 @@ import {
   contentTypeFilterOptions,
   getContentTypeConfig,
   inferOpportunityContentType,
-  opportunityMatchesContentType,
 } from '../data/contentTypeCatalog';
 import {
   formatOpportunityPrice,
@@ -388,8 +372,6 @@ const estimatedValue =
   );
 };
 
-let mapOpportunitiesCache = null;
-
 export const MapView = () => {
   const {
     location,
@@ -409,6 +391,7 @@ export const MapView = () => {
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [placeQuery, setPlaceQuery] = useState('');
   const [placeResults, setPlaceResults] = useState([]);
+  const [searchOpportunityResults, setSearchOpportunityResults] = useState([]);
   const [searchingPlaces, setSearchingPlaces] = useState(false);
   const [selectedPlace, setSelectedPlace] = useState(null);
   const [manualCenter, setManualCenter] = useState(null);
@@ -454,6 +437,15 @@ useEffect(() => {
 
   const mapRef = useRef(null);
   const opportunitiesScrollRef = useRef(null);
+
+  const MAP_CARD_PAGE_SIZE = 25;
+
+const [hasMoreCards, setHasMoreCards] = useState(true);
+const [loadingMoreCards, setLoadingMoreCards] = useState(false);
+
+const mapCardCursorRef = useRef(null);
+const mapCardLoadMoreInFlightRef = useRef(false);
+const mapCardGenerationRef = useRef(0);
 
   useEffect(() => {
     let isCancelled = false;
@@ -519,7 +511,58 @@ useEffect(() => {
       }
     };
 
-    const timer = setTimeout(runPlaceSearch, 350);
+    const runOpportunitySearch = async () => {
+  const cleanQuery = placeQuery.trim();
+
+  if (cleanQuery.length < 2) {
+    setSearchOpportunityResults([]);
+    return;
+  }
+
+  try {
+    const { data, error } = await supabase.rpc(
+      'search_map_opportunities',
+      {
+        p_query: cleanQuery,
+        p_limit: 5,
+      }
+    );
+
+    if (error) throw error;
+
+    if (isCancelled) return;
+
+    const opportunities = (data || []).map((opp) => ({
+      ...opp,
+      latitude:
+        opp.latitude === null || opp.latitude === undefined
+          ? null
+          : Number(opp.latitude),
+      longitude:
+        opp.longitude === null || opp.longitude === undefined
+          ? null
+          : Number(opp.longitude),
+      avatar_url: opp.avatar_url || null,
+      is_premium: opp.is_premium === true,
+      user_profiles: {
+        is_premium: opp.is_premium === true,
+      },
+    }));
+
+    setSearchOpportunityResults(opportunities);
+  } catch (err) {
+    console.error('Opportunity search error:', err);
+
+    if (!isCancelled) {
+      setSearchOpportunityResults([]);
+    }
+  }
+};
+
+    const timer = setTimeout(() => {
+  runPlaceSearch();
+  runOpportunitySearch();
+}, 350);
 
     return () => {
       isCancelled = true;
@@ -528,113 +571,249 @@ useEffect(() => {
   }, [placeQuery, location?.lat, location?.lng]);
 
   const loadOpportunities = useCallback(async ({ silent = false } = {}) => {
-    if (!silent) {
-      setLoading(true);
-    }
+  const generation = ++mapCardGenerationRef.current;
+  mapCardCursorRef.current = null;
+  setHasMoreCards(false);
+  setLoadingMoreCards(false);
 
-    setOpportunitiesError('');
-    setDebugError('');
+  if (!silent) {
+    setLoading(true);
+  }
 
-    try {
-      const { data, error } = await supabase
-  .from('opportunities')
-  .select(`
-    id,
-    created_at,
-    title,
-    description,
-    category,
-    subcategory,
-    content_type,
-    latitude,
-    longitude,
-    address,
-    estimated_price,
-    estimated_resale_value,
-    contact_phone,
-    contact_email,
-    contact_link,
-    images,
-    user_name,
-    user_id,
-    confirmations,
-    reports,
-    verified_count,
-    is_verified,
-    attributes,
-    merchant_name,
-    expires_at,
-    lifecycle_status,
-    user_profiles (
-      trust_score,
-      verified_deals,
-      points,
-      approved_submissions,
-      total_opportunities,
-      avatar_url,
-      is_premium
-    )
-  `)
-        .eq('is_hidden', false)
-  .eq('lifecycle_status', 'active')
-  .gt('expires_at', new Date().toISOString())
-        .order('created_at', { ascending: false })
-        .limit(100);
+  setOpportunitiesError('');
+  setDebugError('');
 
-      if (error) throw error;
+  try {
+    const { data, error } = await supabase.rpc('get_map_card_page', {
+      p_content_type: contentType,
+      p_category: category,
+      p_sort: homeSort,
+      p_only_verified: onlyVerified,
+      p_max_price: maxPrice === '' ? null : Number(maxPrice),
+      p_user_lat: location?.lat ?? null,
+      p_user_lng: location?.lng ?? null,
+      p_limit: 25,
+      p_cursor_created_at: null,
+      p_cursor_price: null,
+      p_cursor_price_is_null: null,
+      p_cursor_distance: null,
+      p_cursor_distance_is_null: null,
+      p_cursor_id: null,
+    });
 
-      const validOpportunities = (data || [])
-        .filter(
-          (opp) =>
-            opp &&
-            opp.latitude !== null &&
-            opp.latitude !== undefined &&
-            opp.longitude !== null &&
-            opp.longitude !== undefined &&
-            !Number.isNaN(Number(opp.latitude)) &&
-            !Number.isNaN(Number(opp.longitude))
-        )
-        .map((opp) => ({
-          ...opp,
-          latitude: Number(opp.latitude),
-          longitude: Number(opp.longitude),
-          trust_score: opp.user_profiles?.trust_score || 0,
-verified_deals: opp.user_profiles?.verified_deals || 0,
-profile_points: opp.user_profiles?.points || 0,
-avatar_url: opp.user_profiles?.avatar_url || null,
-is_premium: opp.user_profiles?.is_premium || false,
-approved_submissions:
-  opp.user_profiles?.approved_submissions || 0,
-total_opportunities_profile:
-  opp.user_profiles?.total_opportunities || 0,
-        }));
+    if (error) throw error;
+    if (generation !== mapCardGenerationRef.current) return;
 
-      mapOpportunitiesCache = validOpportunities;
-      setAllOpportunities(validOpportunities);
-    } catch (err) {
-      console.error('MAP REAL ERROR:', err);
+    const opportunities = (data || []).map((opp) => ({
+      ...opp,
+      latitude:
+        opp.latitude === null || opp.latitude === undefined
+          ? null
+          : Number(opp.latitude),
+      longitude:
+        opp.longitude === null || opp.longitude === undefined
+          ? null
+          : Number(opp.longitude),
+      distance_km:
+        opp.distance_km === null || opp.distance_km === undefined
+          ? null
+          : Number(opp.distance_km),
+      avatar_url: opp.avatar_url || null,
+      is_premium: opp.is_premium === true,
+      user_profiles: {
+        is_premium: opp.is_premium === true,
+      },
+    }));
 
-      if (!mapOpportunitiesCache) {
-        setAllOpportunities([]);
-        setOpportunitiesError('Opportunità non disponibili');
-      }
+    setAllOpportunities(opportunities);
 
-      setDebugError(err?.message || JSON.stringify(err));
-    } finally {
-      if (!silent) {
-        setLoading(false);
-      }
-    }
-  }, []);
+const lastOpportunity =
+  opportunities.length > 0
+    ? opportunities[opportunities.length - 1]
+    : null;
 
-  useEffect(() => {
-  if (mapOpportunitiesCache) {
-    setAllOpportunities(mapOpportunitiesCache);
+if (lastOpportunity) {
+  mapCardCursorRef.current = {
+    created_at: lastOpportunity.created_at,
+    price:
+      lastOpportunity.estimated_price === null ||
+      lastOpportunity.estimated_price === undefined
+        ? null
+        : Number(lastOpportunity.estimated_price),
+    price_is_null:
+      lastOpportunity.estimated_price === null ||
+      lastOpportunity.estimated_price === undefined,
+    distance:
+      lastOpportunity.distance_km === null ||
+      lastOpportunity.distance_km === undefined
+        ? null
+        : Number(lastOpportunity.distance_km),
+    distance_is_null:
+      lastOpportunity.distance_km === null ||
+      lastOpportunity.distance_km === undefined,
+    id: lastOpportunity.id,
+  };
+} else {
+  mapCardCursorRef.current = null;
+}
+
+setHasMoreCards(opportunities.length === MAP_CARD_PAGE_SIZE);
+
+  } catch (err) {
+    console.error('MAP CARD ERROR:', err);
+    if (generation !== mapCardGenerationRef.current) return;
+
+    setAllOpportunities([]);
+    setOpportunitiesError('Opportunità non disponibili');
+    setDebugError(err?.message || JSON.stringify(err));
+  } finally {
+  if (
+    generation === mapCardGenerationRef.current &&
+    !silent
+  ) {
     setLoading(false);
-    loadOpportunities({ silent: true });
+  }
+}
+}, [
+  contentType,
+  category,
+  homeSort,
+  onlyVerified,
+  maxPrice,
+  location?.lat,
+  location?.lng,
+]);
+
+const loadMoreOpportunities = useCallback(async () => {
+  if (
+    mapCardLoadMoreInFlightRef.current ||
+    loadingMoreCards ||
+    !hasMoreCards ||
+    !mapCardCursorRef.current
+  ) {
     return;
   }
 
+  mapCardLoadMoreInFlightRef.current = true;
+  setLoadingMoreCards(true);
+
+  const cursor = mapCardCursorRef.current;
+  const generation = mapCardGenerationRef.current;
+
+  try {
+    const { data, error } = await supabase.rpc('get_map_card_page', {
+      p_content_type: contentType,
+      p_category: category,
+      p_sort: homeSort,
+      p_only_verified: onlyVerified,
+      p_max_price: maxPrice === '' ? null : Number(maxPrice),
+      p_user_lat: location?.lat ?? null,
+      p_user_lng: location?.lng ?? null,
+      p_limit: MAP_CARD_PAGE_SIZE,
+
+      p_cursor_created_at:
+        homeSort === 'recent' ? cursor.created_at : null,
+
+      p_cursor_price:
+        homeSort === 'price_low' ? cursor.price : null,
+
+      p_cursor_price_is_null:
+        homeSort === 'price_low' ? cursor.price_is_null : null,
+
+      p_cursor_distance:
+        homeSort === 'distance' ? cursor.distance : null,
+
+      p_cursor_distance_is_null:
+        homeSort === 'distance' ? cursor.distance_is_null : null,
+
+      p_cursor_id: cursor.id,
+    });
+
+    if (error) throw error;
+    if (generation !== mapCardGenerationRef.current) return;
+    const nextOpportunities = (data || []).map((opp) => ({
+      ...opp,
+      latitude:
+        opp.latitude === null || opp.latitude === undefined
+          ? null
+          : Number(opp.latitude),
+      longitude:
+        opp.longitude === null || opp.longitude === undefined
+          ? null
+          : Number(opp.longitude),
+      distance_km:
+        opp.distance_km === null || opp.distance_km === undefined
+          ? null
+          : Number(opp.distance_km),
+      avatar_url: opp.avatar_url || null,
+      is_premium: opp.is_premium === true,
+      user_profiles: {
+        is_premium: opp.is_premium === true,
+      },
+    }));
+
+    setAllOpportunities((current) => {
+      const existingIds = new Set(current.map((opp) => opp.id));
+
+      return [
+        ...current,
+        ...nextOpportunities.filter((opp) => !existingIds.has(opp.id)),
+      ];
+    });
+
+    const lastOpportunity =
+      nextOpportunities.length > 0
+        ? nextOpportunities[nextOpportunities.length - 1]
+        : null;
+
+    if (lastOpportunity) {
+      mapCardCursorRef.current = {
+        created_at: lastOpportunity.created_at,
+        price:
+          lastOpportunity.estimated_price === null ||
+          lastOpportunity.estimated_price === undefined
+            ? null
+            : Number(lastOpportunity.estimated_price),
+        price_is_null:
+          lastOpportunity.estimated_price === null ||
+          lastOpportunity.estimated_price === undefined,
+        distance:
+          lastOpportunity.distance_km === null ||
+          lastOpportunity.distance_km === undefined
+            ? null
+            : Number(lastOpportunity.distance_km),
+        distance_is_null:
+          lastOpportunity.distance_km === null ||
+          lastOpportunity.distance_km === undefined,
+        id: lastOpportunity.id,
+      };
+    }
+
+    setHasMoreCards(
+      nextOpportunities.length === MAP_CARD_PAGE_SIZE
+    );
+  } catch (err) {
+    console.error('MAP CARD LOAD MORE ERROR:', err);
+  } finally {
+  mapCardLoadMoreInFlightRef.current = false;
+
+  if (generation === mapCardGenerationRef.current) {
+    setLoadingMoreCards(false);
+  }
+}
+}, [
+  contentType,
+  category,
+  homeSort,
+  onlyVerified,
+  maxPrice,
+  location?.lat,
+  location?.lng,
+  hasMoreCards,
+  loadingMoreCards,
+]);
+
+useEffect(() => {
   loadOpportunities({ silent: false });
 }, [loadOpportunities]);
 
@@ -707,93 +886,11 @@ useEffect(() => {
   location?.lng,
 ]);
 
-  const latestOpportunities = useMemo(() => {
-  let items = [...allOpportunities];
+  const latestOpportunities = allOpportunities;
 
-  items = items.filter((opp) =>
-    opportunityMatchesContentType(opp, contentType)
-  );
+  const featuredOpportunities = latestOpportunities;
 
-  if (category !== 'all') {
-    items = items.filter((opp) => opp.category === category);
-  }
-
-  if (onlyVerified) {
-    items = items.filter((opp) => opp.is_verified === true);
-  }
-
-  if (maxPrice !== '') {
-    items = items.filter((opp) => {
-      const price = Number(opp.estimated_price);
-      return !Number.isNaN(price) && price <= Number(maxPrice);
-    });
-  }
-
-  items = items.map((opp) => ({
-    ...opp,
-    distance_km:
-      location?.lat != null && location?.lng != null
-        ? distanceKm(location.lat, location.lng, opp.latitude, opp.longitude)
-        : null,
-  }));
-
-  if (homeSort === 'distance') {
-    items.sort((a, b) => {
-      const aDist = a.distance_km ?? Number.MAX_SAFE_INTEGER;
-      const bDist = b.distance_km ?? Number.MAX_SAFE_INTEGER;
-      return aDist - bDist;
-    });
-  
-  } else if (homeSort === 'price_low') {
-    items.sort(
-      (a, b) =>
-        Number(a.estimated_price || 0) - Number(b.estimated_price || 0)
-    );
-  } else {
-    items.sort(
-      (a, b) =>
-        new Date(b.created_at || 0).getTime() -
-        new Date(a.created_at || 0).getTime()
-    );
-  }
-
-  return items;
-}, [
-  allOpportunities,
-  contentType,
-  category,
-  location?.lat,
-  location?.lng,
-  homeSort,
-  onlyVerified,
-  maxPrice,
-]);
-
-const featuredOpportunities = useMemo(() => {
-  return latestOpportunities.slice(0, 5);
-}, [latestOpportunities]);
-
-  const searchResults = useMemo(() => {
-    const q = placeQuery.trim().toLowerCase();
-
-    if (q.length < 2) return [];
-
-    return allOpportunities
-      .filter((opp) => {
-        const title = String(opp.title || '').toLowerCase();
-        const description = String(opp.description || '').toLowerCase();
-        const categoryValue = String(opp.category || '').toLowerCase();
-
-        return title.includes(q) || description.includes(q) || categoryValue.includes(q);
-      })
-      .slice(0, 5);
-  }, [placeQuery, allOpportunities]);
-
-  const isSearchActive =
-    placeQuery.trim().length >= 2 ||
-    searchingPlaces ||
-    placeResults.length > 0 ||
-    searchResults.length > 0;
+  const searchResults = searchOpportunityResults;
 
   const handleMarkerClick = (opp) => {
     setSelectedOpportunity(opp);
@@ -857,6 +954,17 @@ const featuredOpportunities = useMemo(() => {
     left: direction === 'left' ? -scrollAmount : scrollAmount,
     behavior: 'smooth',
   });
+};
+
+const handleOpportunitiesScroll = (event) => {
+  const element = event.currentTarget;
+
+  const remainingScroll =
+    element.scrollWidth - element.scrollLeft - element.clientWidth;
+
+  if (remainingScroll <= 800) {
+    loadMoreOpportunities();
+  }
 };
 
   const handleLocationPermission = async () => {
@@ -1230,23 +1338,30 @@ const featuredOpportunities = useMemo(() => {
   </button>
 
   <div
-    ref={opportunitiesScrollRef}
-    className="-mx-6 overflow-x-auto px-6 pb-2 horizontal-scroll"
-  >
-    <div className="flex gap-3">
-      {latestOpportunities.map((opp) => (
-        <div key={opp.id} className="w-[142px] flex-shrink-0">
-          <HomeOpportunityCard
-            opportunity={opp}
-            onClick={() => {
-              setSelectedOpportunity(opp);
-              setDetailOpen(true);
-            }}
-          />
-        </div>
-      ))}
-    </div>
+  ref={opportunitiesScrollRef}
+  onScroll={handleOpportunitiesScroll}
+  className="-mx-6 overflow-x-auto px-6 pb-2 horizontal-scroll"
+>
+  <div className="flex gap-3">
+    {featuredOpportunities.map((opp) => (
+      <div key={opp.id} className="w-[142px] flex-shrink-0">
+        <HomeOpportunityCard
+          opportunity={opp}
+          onClick={() => {
+            setSelectedOpportunity(opp);
+            setDetailOpen(true);
+          }}
+        />
+      </div>
+    ))}
+
+    {loadingMoreCards && (
+      <div className="w-[142px] flex-shrink-0">
+        <div className="h-full min-h-[220px] rounded-[24px] bg-white/70 shadow-sm" />
+      </div>
+    )}
   </div>
+</div>
 
   <button
     type="button"

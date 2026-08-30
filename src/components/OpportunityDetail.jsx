@@ -373,14 +373,13 @@ export const OpportunityDetail = ({ opportunity, open, onClose }) => {
     }
   };
 
-  useEffect(() => {
+    useEffect(() => {
     if (!opportunity?.id || !open) return;
 
     let cancelled = false;
 
-    const loadData = async () => {
+    const loadComments = async () => {
       setLoadingComments(true);
-      setLoadingFavoriteState(true);
 
       try {
         const { data: commentsData, error: commentsError } = await supabase
@@ -390,58 +389,59 @@ export const OpportunityDetail = ({ opportunity, open, onClose }) => {
           .order('created_at', { ascending: false });
 
         if (commentsError) throw commentsError;
+
         const loadedComments = commentsData || [];
 
-const commentUserIds = [
-  ...new Set(
-    loadedComments
-      .map((comment) => comment.user_id)
-      .filter(Boolean)
-  ),
-];
+        const commentUserIds = [
+          ...new Set(
+            loadedComments
+              .map((comment) => comment.user_id)
+              .filter(Boolean)
+          ),
+        ];
 
-const missingCommentUserIds = commentUserIds.filter(
-  (userId) => !commentProfilesCacheRef.current.has(userId)
-);
+        const missingCommentUserIds = commentUserIds.filter(
+          (userId) => !commentProfilesCacheRef.current.has(userId)
+        );
 
-if (missingCommentUserIds.length > 0) {
-  const { data: profiles, error: profilesError } = await supabase
-  .from('public_user_profiles')
-  .select('user_id, display_name, avatar_url, is_premium')
-  .in('user_id', missingCommentUserIds);
+        if (missingCommentUserIds.length > 0) {
+          const { data: profiles, error: profilesError } = await supabase
+            .from('public_user_profiles')
+            .select('user_id, display_name, avatar_url, is_premium')
+            .in('user_id', missingCommentUserIds);
 
-  if (profilesError) {
-    console.error('Error loading comment profiles:', profilesError);
-  } else {
-    (profiles || []).forEach((profile) => {
-      commentProfilesCacheRef.current.set(profile.user_id, {
-  display_name: profile.display_name || null,
-  avatar_url: profile.avatar_url || null,
-  is_premium: profile.is_premium || false,
-});
-    });
-  }
+          if (profilesError) {
+            console.error('Error loading comment profiles:', profilesError);
+          } else {
+            (profiles || []).forEach((profile) => {
+              commentProfilesCacheRef.current.set(profile.user_id, {
+                display_name: profile.display_name || null,
+                avatar_url: profile.avatar_url || null,
+                is_premium: profile.is_premium || false,
+              });
+            });
+          }
 
-  missingCommentUserIds.forEach((userId) => {
-    if (!commentProfilesCacheRef.current.has(userId)) {
-      commentProfilesCacheRef.current.set(userId, {
-  display_name: null,
-  avatar_url: null,
-  is_premium: false,
-});
-    }
-  });
-}
+          missingCommentUserIds.forEach((userId) => {
+            if (!commentProfilesCacheRef.current.has(userId)) {
+              commentProfilesCacheRef.current.set(userId, {
+                display_name: null,
+                avatar_url: null,
+                is_premium: false,
+              });
+            }
+          });
+        }
 
-const commentsWithProfiles = loadedComments.map((comment) => {
-  const profile = commentProfilesCacheRef.current.get(comment.user_id);
+        const commentsWithProfiles = loadedComments.map((comment) => {
+          const profile = commentProfilesCacheRef.current.get(comment.user_id);
 
-  return {
-    ...comment,
-    avatar_url: profile?.avatar_url || null,
-    is_premium: profile?.is_premium || false,
-  };
-});
+          return {
+            ...comment,
+            avatar_url: profile?.avatar_url || null,
+            is_premium: profile?.is_premium || false,
+          };
+        });
 
         if (!cancelled) {
           setComments(commentsWithProfiles);
@@ -457,39 +457,47 @@ const commentsWithProfiles = loadedComments.map((comment) => {
           setLoadingComments(false);
         }
       }
+    };
 
-      if (user) {
-        try {
-          const { data: favoriteData, error: favoriteError } = await supabase
-            .from('favorites')
-            .select('id')
-            .eq('user_id', user.id)
-            .eq('opportunity_id', opportunity.id)
-            .maybeSingle();
+    const loadFavoriteState = async () => {
+      setLoadingFavoriteState(true);
 
-          if (favoriteError) throw favoriteError;
-
-          if (!cancelled) {
-            setIsFavorite(!!favoriteData);
-          }
-        } catch (err) {
-          console.error('Error checking favorite:', err);
-
-          if (!cancelled) {
-            setIsFavorite(false);
-          }
-        } finally {
-          if (!cancelled) {
-            setLoadingFavoriteState(false);
-          }
+      if (!user) {
+        if (!cancelled) {
+          setIsFavorite(false);
+          setLoadingFavoriteState(false);
         }
-      } else if (!cancelled) {
-        setIsFavorite(false);
-        setLoadingFavoriteState(false);
+        return;
+      }
+
+      try {
+        const { data: favoriteData, error: favoriteError } = await supabase
+          .from('favorites')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('opportunity_id', opportunity.id)
+          .maybeSingle();
+
+        if (favoriteError) throw favoriteError;
+
+        if (!cancelled) {
+          setIsFavorite(!!favoriteData);
+        }
+      } catch (err) {
+        console.error('Error checking favorite:', err);
+
+        if (!cancelled) {
+          setIsFavorite(false);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingFavoriteState(false);
+        }
       }
     };
 
-    loadData();
+    loadComments();
+    loadFavoriteState();
 
     return () => {
       cancelled = true;
