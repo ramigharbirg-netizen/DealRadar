@@ -1,4 +1,9 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 import { Heart, Trash2 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { useAuth } from '../contexts/AuthContext';
@@ -9,104 +14,268 @@ import { toast } from 'sonner';
 import { isOpportunityPubliclyActive } from '../utils/opportunityLifecycle';
 import { useNavigate } from 'react-router-dom';
 
+const FAVORITES_PAGE_SIZE = 25;
+
+const FAVORITE_OPPORTUNITY_SELECT = `
+  id,
+  opportunity_id,
+  created_at,
+  opportunities (
+    id,
+    created_at,
+    title,
+    description,
+    category,
+    subcategory,
+    content_type,
+    latitude,
+    longitude,
+    address,
+    estimated_price,
+    estimated_resale_value,
+    contact_phone,
+    contact_email,
+    contact_link,
+    images,
+    user_name,
+    user_id,
+    confirmations,
+    reports,
+    verified_count,
+    is_verified,
+    attributes,
+    merchant_name,
+    is_hidden,
+    expires_at,
+    lifecycle_status
+  )
+`;
+
 export const Favorites = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
 
   const [favorites, setFavorites] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+
   const [selectedOpportunity, setSelectedOpportunity] = useState(null);
   const [detailOpen, setDetailOpen] = useState(false);
 
+  const loadMoreRef = useRef(null);
+  const cursorRef = useRef(null);
+  const loadingMoreRef = useRef(false);
+  const loadGenerationRef = useRef(0);
+
   useEffect(() => {
-  const handleHardwareBack = (event) => {
-    if (detailOpen) {
-      setDetailOpen(false);
-      setSelectedOpportunity(null);
-      event.detail.handled = true;
-    }
-  };
+    const handleHardwareBack = (event) => {
+      if (detailOpen) {
+        setDetailOpen(false);
+        setSelectedOpportunity(null);
+        event.detail.handled = true;
+      }
+    };
 
-  window.addEventListener('dealradar:hardware-back', handleHardwareBack);
+    window.addEventListener(
+      'dealradar:hardware-back',
+      handleHardwareBack
+    );
 
-  return () => {
-    window.removeEventListener('dealradar:hardware-back', handleHardwareBack);
-  };
-}, [detailOpen]);
+    return () => {
+      window.removeEventListener(
+        'dealradar:hardware-back',
+        handleHardwareBack
+      );
+    };
+  }, [detailOpen]);
 
-  const loadFavorites = useCallback(async () => {
-    if (!user?.id) {
-      setLoading(false);
+  useEffect(() => {
+    const generation = ++loadGenerationRef.current;
+
+    const loadFavorites = async () => {
+      if (!user?.id) {
+        if (loadGenerationRef.current !== generation) return;
+
+        setFavorites([]);
+        cursorRef.current = null;
+        setHasMore(false);
+        setLoading(false);
+        return;
+      }
+
+      setLoading(true);
+      setFavorites([]);
+      cursorRef.current = null;
+      setHasMore(false);
+
+      try {
+        const { data, error } = await supabase
+          .from('favorites')
+          .select(FAVORITE_OPPORTUNITY_SELECT)
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .order('id', { ascending: false })
+          .limit(FAVORITES_PAGE_SIZE);
+
+        if (error) throw error;
+
+        if (loadGenerationRef.current !== generation) return;
+
+        const rows = data || [];
+
+        const validFavorites = rows
+          .map((favorite) => favorite.opportunities)
+          .filter(
+            (opportunity) =>
+              opportunity &&
+              isOpportunityPubliclyActive(opportunity)
+          );
+
+        setFavorites(validFavorites);
+
+        const lastRow = rows[rows.length - 1];
+
+        cursorRef.current = lastRow
+          ? {
+              createdAt: lastRow.created_at,
+              id: lastRow.id,
+            }
+          : null;
+
+        setHasMore(rows.length === FAVORITES_PAGE_SIZE);
+      } catch (err) {
+        if (loadGenerationRef.current !== generation) return;
+
+        console.error('Load favorites error:', err);
+        toast.error('Impossibile caricare i preferiti');
+
+        setFavorites([]);
+        cursorRef.current = null;
+        setHasMore(false);
+      } finally {
+        if (loadGenerationRef.current === generation) {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadFavorites();
+
+    return () => {
+      if (loadGenerationRef.current === generation) {
+        loadGenerationRef.current += 1;
+      }
+    };
+  }, [user?.id]);
+
+  const loadMoreFavorites = useCallback(async () => {
+    if (
+      !user?.id ||
+      !hasMore ||
+      loadingMoreRef.current ||
+      !cursorRef.current
+    ) {
       return;
     }
 
-    setLoading(true);
+    const generation = loadGenerationRef.current;
+    const requestedUserId = user.id;
+    const cursor = cursorRef.current;
+
+    loadingMoreRef.current = true;
+    setLoadingMore(true);
 
     try {
       const { data, error } = await supabase
         .from('favorites')
-        .select(`
-          id,
-          opportunity_id,
-          opportunities (
-  id,
-  created_at,
-  title,
-  description,
-  category,
-  subcategory,
-  content_type,
-  latitude,
-  longitude,
-  address,
-  estimated_price,
-  estimated_resale_value,
-  contact_phone,
-  contact_email,
-  contact_link,
-  images,
-  user_name,
-  user_id,
-  confirmations,
-  reports,
-  verified_count,
-  is_verified,
-  attributes,
-  merchant_name,
-  is_hidden,
-  expires_at,
-  lifecycle_status
-)
-        `)
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
+        .select(FAVORITE_OPPORTUNITY_SELECT)
+        .eq('user_id', requestedUserId)
+        .or(
+          `created_at.lt.${cursor.createdAt},and(created_at.eq.${cursor.createdAt},id.lt.${cursor.id})`
+        )
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: false })
+        .limit(FAVORITES_PAGE_SIZE);
 
       if (error) throw error;
 
-      const validFavorites = (data || [])
-        .map((fav) => fav.opportunities)
-        .filter((opp) => isOpportunityPubliclyActive(opp));
+      if (loadGenerationRef.current !== generation) return;
 
-      setFavorites(validFavorites);
+      const rows = data || [];
+
+      const nextFavorites = rows
+        .map((favorite) => favorite.opportunities)
+        .filter(
+          (opportunity) =>
+            opportunity &&
+            isOpportunityPubliclyActive(opportunity)
+        );
+
+      setFavorites((currentFavorites) => {
+        const existingIds = new Set(
+          currentFavorites.map((opportunity) => opportunity.id)
+        );
+
+        const uniqueNewFavorites = nextFavorites.filter(
+          (opportunity) => !existingIds.has(opportunity.id)
+        );
+
+        return [...currentFavorites, ...uniqueNewFavorites];
+      });
+
+      const lastRow = rows[rows.length - 1];
+
+      cursorRef.current = lastRow
+        ? {
+            createdAt: lastRow.created_at,
+            id: lastRow.id,
+          }
+        : cursorRef.current;
+
+      setHasMore(rows.length === FAVORITES_PAGE_SIZE);
     } catch (err) {
-      console.error('Load favorites error:', err);
-      toast.error('Impossibile caricare i preferiti');
-      setFavorites([]);
+      if (loadGenerationRef.current !== generation) return;
+
+      console.error('Load more favorites error:', err);
+      toast.error('Impossibile caricare altri preferiti');
     } finally {
-      setLoading(false);
+      if (loadGenerationRef.current === generation) {
+        loadingMoreRef.current = false;
+        setLoadingMore(false);
+      }
     }
-  }, [user]);
+  }, [hasMore, user?.id]);
 
   useEffect(() => {
-    if (user) {
-      loadFavorites();
-    } else {
-      setLoading(false);
-    }
-  }, [user, loadFavorites]);
+    const target = loadMoreRef.current;
 
-  const removeFavorite = async (e, opportunityId) => {
-    e.stopPropagation();
+    if (!target || !hasMore || loading) {
+      return undefined;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          loadMoreFavorites();
+        }
+      },
+      {
+        rootMargin: '1600px 0px',
+      }
+    );
+
+    observer.observe(target);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [hasMore, loading, loadMoreFavorites]);
+
+  const removeFavorite = async (event, opportunityId) => {
+    event.stopPropagation();
+
+    if (!user?.id) return;
 
     try {
       const { error } = await supabase
@@ -117,15 +286,27 @@ export const Favorites = () => {
 
       if (error) throw error;
 
-      setFavorites((prev) =>
-        prev.filter((opp) => opp.id !== opportunityId)
+      setFavorites((currentFavorites) =>
+        currentFavorites.filter(
+          (opportunity) => opportunity.id !== opportunityId
+        )
       );
+
+      if (selectedOpportunity?.id === opportunityId) {
+        setDetailOpen(false);
+        setSelectedOpportunity(null);
+      }
 
       toast.success('Rimosso dai preferiti');
     } catch (err) {
       console.error('Remove favorite error:', err);
       toast.error('Impossibile rimuovere il preferito');
     }
+  };
+
+  const closeDetail = () => {
+    setDetailOpen(false);
+    setSelectedOpportunity(null);
   };
 
   if (!user) {
@@ -180,10 +361,10 @@ export const Favorites = () => {
               <div
                 key={i}
                 className="skeleton h-64 rounded-xl"
-              ></div>
+              />
             ))}
           </div>
-        ) : favorites.length === 0 ? (
+        ) : favorites.length === 0 && !hasMore ? (
           <div className="empty-state py-20">
             <Heart className="empty-state-icon" />
 
@@ -204,12 +385,15 @@ export const Favorites = () => {
           </div>
         ) : (
           <div className="space-y-4">
-            {favorites.map((opp) => (
-              <div key={opp.id} className="relative">
+            {favorites.map((opportunity) => (
+              <div
+                key={opportunity.id}
+                className="relative"
+              >
                 <OpportunityCard
-                  opportunity={opp}
+                  opportunity={opportunity}
                   onClick={() => {
-                    setSelectedOpportunity(opp);
+                    setSelectedOpportunity(opportunity);
                     setDetailOpen(true);
                   }}
                 />
@@ -218,15 +402,26 @@ export const Favorites = () => {
                   variant="destructive"
                   size="icon"
                   className="absolute top-3 right-3 h-9 w-9 rounded-full"
-                  onClick={(e) =>
-                    removeFavorite(e, opp.id)
+                  onClick={(event) =>
+                    removeFavorite(event, opportunity.id)
                   }
-                  data-testid={`remove-favorite-${opp.id}`}
+                  data-testid={`remove-favorite-${opportunity.id}`}
                 >
                   <Trash2 className="w-4 h-4" />
                 </Button>
               </div>
             ))}
+
+            {hasMore && (
+              <div
+                ref={loadMoreRef}
+                className="py-6 text-center text-sm text-gray-500"
+              >
+                {loadingMore
+                  ? 'Caricamento altri preferiti...'
+                  : 'Caricamento...'}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -234,7 +429,7 @@ export const Favorites = () => {
       <OpportunityDetail
         opportunity={selectedOpportunity}
         open={detailOpen}
-        onClose={setDetailOpen}
+        onClose={closeDetail}
       />
     </div>
   );
