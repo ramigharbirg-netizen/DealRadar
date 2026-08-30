@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Send } from 'lucide-react';
 import { supabase } from '../lib/supabase';
@@ -6,6 +6,11 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'sonner';
+
+const CHAT_MESSAGES_PAGE_SIZE = 50;
+
+const MESSAGE_SELECT =
+  'id, conversation_id, sender_id, sender_name, sender_email, message, created_at';
 
 export const ChatDetail = () => {
   const { id } = useParams();
@@ -17,20 +22,27 @@ export const ChatDetail = () => {
   const [opportunity, setOpportunity] = useState(null);
   const [chatUserProfile, setChatUserProfile] = useState(null);
   const [sending, setSending] = useState(false);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const [hasOlderMessages, setHasOlderMessages] = useState(false);
 
   const messagesEndRef = useRef(null);
   const messagesContainerRef = useRef(null);
   const profilesCacheRef = useRef(new Map());
 
-  const scrollToBottom = useCallback(() => {
-  requestAnimationFrame(() => {
-    const container = messagesContainerRef.current;
+  const initialMessagesLoadedRef = useRef(false);
+  const loadingOlderRef = useRef(false);
+  const oldestMessageCursorRef = useRef(null);
+  const messagesGenerationRef = useRef(0);
 
-    if (container) {
-      container.scrollTop = container.scrollHeight;
-    }
-  });
-}, []);
+  const scrollToBottom = useCallback(() => {
+    requestAnimationFrame(() => {
+      const container = messagesContainerRef.current;
+
+      if (container) {
+        container.scrollTop = container.scrollHeight;
+      }
+    });
+  }, []);
 
   const formatMessageTime = (dateString) => {
     if (!dateString) return '';
@@ -41,74 +53,217 @@ export const ChatDetail = () => {
     });
   };
 
-  const loadMessages = useCallback(async () => {
-  const { data, error } = await supabase
-    .from('conversation_messages')
-    .select(
-      'id, conversation_id, sender_id, sender_name, sender_email, message, created_at'
-    )
-    .eq('conversation_id', id)
-    .order('created_at', { ascending: true });
+  const enrichMessagesWithProfiles = useCallback(async (rows) => {
+    const senderIds = [
+      ...new Set(
+        rows
+          .map((msg) => msg.sender_id)
+          .filter(Boolean)
+      ),
+    ];
 
-  if (error) {
-    console.error('Load messages error:', error);
-    return;
-  }
+    const missingSenderIds = senderIds.filter(
+      (senderId) => !profilesCacheRef.current.has(senderId)
+    );
 
-  const loadedMessages = data || [];
+    if (missingSenderIds.length > 0) {
+      const { data: profiles, error: profilesError } = await supabase
+        .from('public_user_profiles')
+        .select('user_id, display_name, avatar_url, is_premium')
+        .in('user_id', missingSenderIds);
 
-  const senderIds = [
-    ...new Set(
-      loadedMessages
-        .map((msg) => msg.sender_id)
-        .filter(Boolean)
-    ),
-  ];
+      if (profilesError) {
+        console.error('Load message profiles error:', profilesError);
+      } else {
+        (profiles || []).forEach((profile) => {
+          profilesCacheRef.current.set(profile.user_id, {
+            display_name: profile.display_name || null,
+            avatar_url: profile.avatar_url || null,
+            is_premium: profile.is_premium || false,
+          });
+        });
+      }
 
-  const missingSenderIds = senderIds.filter(
-    (senderId) => !profilesCacheRef.current.has(senderId)
-  );
-
-  if (missingSenderIds.length > 0) {
-    const { data: profiles, error: profilesError } = await supabase
-      .from('public_user_profiles')
-      .select('user_id, display_name, avatar_url, is_premium')
-      .in('user_id', missingSenderIds);
-
-    if (profilesError) {
-      console.error('Load message profiles error:', profilesError);
-    } else {
-      (profiles || []).forEach((profile) => {
-        profilesCacheRef.current.set(profile.user_id, {
-  display_name: profile.display_name || null,
-  avatar_url: profile.avatar_url || null,
-  is_premium: profile.is_premium || false,
-});
+      missingSenderIds.forEach((senderId) => {
+        if (!profilesCacheRef.current.has(senderId)) {
+          profilesCacheRef.current.set(senderId, {
+            display_name: null,
+            avatar_url: null,
+            is_premium: false,
+          });
+        }
       });
     }
 
-    missingSenderIds.forEach((senderId) => {
-      if (!profilesCacheRef.current.has(senderId)) {
-        profilesCacheRef.current.set(senderId, {
-          avatar_url: null,
-          is_premium: false,
-        });
-      }
+    return rows.map((msg) => {
+      const profile = profilesCacheRef.current.get(msg.sender_id);
+
+      return {
+        ...msg,
+        avatar_url: profile?.avatar_url || null,
+        is_premium: profile?.is_premium || false,
+      };
     });
-  }
+  }, []);
 
-  const enrichedMessages = loadedMessages.map((msg) => {
-    const profile = profilesCacheRef.current.get(msg.sender_id);
+  const loadMessages = useCallback(async () => {
+    if (!id) return;
 
-    return {
-      ...msg,
-      avatar_url: profile?.avatar_url || null,
-      is_premium: profile?.is_premium || false,
-    };
-  });
+    const generation = ++messagesGenerationRef.current;
 
-  setMessages(enrichedMessages);
-}, [id]);
+    initialMessagesLoadedRef.current = false;
+    oldestMessageCursorRef.current = null;
+    loadingOlderRef.current = false;
+
+    setLoadingOlder(false);
+    setHasOlderMessages(false);
+    setMessages([]);
+
+    const { data, error } = await supabase
+      .from('conversation_messages')
+      .select(MESSAGE_SELECT)
+      .eq('conversation_id', id)
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
+      .limit(CHAT_MESSAGES_PAGE_SIZE);
+
+    if (error) {
+      console.error('Load messages error:', error);
+      return;
+    }
+
+    if (messagesGenerationRef.current !== generation) return;
+
+    const rowsDescending = data || [];
+    const rowsAscending = [...rowsDescending].reverse();
+
+    const enrichedMessages = await enrichMessagesWithProfiles(rowsAscending);
+
+    if (messagesGenerationRef.current !== generation) return;
+
+    setMessages(enrichedMessages);
+
+    const oldestRow = rowsAscending[0];
+
+    oldestMessageCursorRef.current = oldestRow
+      ? {
+          createdAt: oldestRow.created_at,
+          id: oldestRow.id,
+        }
+      : null;
+
+    setHasOlderMessages(
+      rowsDescending.length === CHAT_MESSAGES_PAGE_SIZE
+    );
+
+    initialMessagesLoadedRef.current = true;
+    scrollToBottom();
+  }, [id, enrichMessagesWithProfiles, scrollToBottom]);
+
+  const loadOlderMessages = useCallback(async () => {
+    if (
+      !id ||
+      loadingOlderRef.current ||
+      !hasOlderMessages ||
+      !oldestMessageCursorRef.current
+    ) {
+      return;
+    }
+
+    const generation = messagesGenerationRef.current;
+    const cursor = oldestMessageCursorRef.current;
+    const container = messagesContainerRef.current;
+
+    const previousScrollHeight = container?.scrollHeight || 0;
+    const previousScrollTop = container?.scrollTop || 0;
+
+    loadingOlderRef.current = true;
+    setLoadingOlder(true);
+
+    try {
+      const { data, error } = await supabase
+        .from('conversation_messages')
+        .select(MESSAGE_SELECT)
+        .eq('conversation_id', id)
+        .or(
+          `created_at.lt.${cursor.createdAt},and(created_at.eq.${cursor.createdAt},id.lt.${cursor.id})`
+        )
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: false })
+        .limit(CHAT_MESSAGES_PAGE_SIZE);
+
+      if (error) throw error;
+
+      if (messagesGenerationRef.current !== generation) return;
+
+      const rowsDescending = data || [];
+      const rowsAscending = [...rowsDescending].reverse();
+
+      const enrichedMessages = await enrichMessagesWithProfiles(rowsAscending);
+
+      if (messagesGenerationRef.current !== generation) return;
+
+      setMessages((currentMessages) => {
+        const existingIds = new Set(
+          currentMessages.map((message) => message.id)
+        );
+
+        const olderUniqueMessages = enrichedMessages.filter(
+          (message) => !existingIds.has(message.id)
+        );
+
+        return [...olderUniqueMessages, ...currentMessages];
+      });
+
+      const oldestRow = rowsAscending[0];
+
+      if (oldestRow) {
+        oldestMessageCursorRef.current = {
+          createdAt: oldestRow.created_at,
+          id: oldestRow.id,
+        };
+      }
+
+      setHasOlderMessages(
+        rowsDescending.length === CHAT_MESSAGES_PAGE_SIZE
+      );
+
+      requestAnimationFrame(() => {
+        const currentContainer = messagesContainerRef.current;
+
+        if (!currentContainer) return;
+
+        const addedHeight =
+          currentContainer.scrollHeight - previousScrollHeight;
+
+        currentContainer.scrollTop = previousScrollTop + addedHeight;
+      });
+    } catch (error) {
+      console.error('Load older messages error:', error);
+    } finally {
+      if (messagesGenerationRef.current === generation) {
+        loadingOlderRef.current = false;
+        setLoadingOlder(false);
+      }
+    }
+  }, [id, hasOlderMessages, enrichMessagesWithProfiles]);
+
+  const handleMessagesScroll = useCallback(() => {
+    const container = messagesContainerRef.current;
+
+    if (
+      !container ||
+      !initialMessagesLoadedRef.current ||
+      loadingOlderRef.current ||
+      !hasOlderMessages
+    ) {
+      return;
+    }
+
+    if (container.scrollTop <= 250) {
+      loadOlderMessages();
+    }
+  }, [hasOlderMessages, loadOlderMessages]);
 
   const markConversationAsRead = useCallback(async () => {
     if (!user?.id || !id) return;
@@ -141,7 +296,7 @@ export const ChatDetail = () => {
       return;
     }
 
-        const otherUserId =
+    const otherUserId =
       conv.owner_id === user.id ? conv.requester_id : conv.owner_id;
 
     let cachedProfile = otherUserId
@@ -216,10 +371,6 @@ export const ChatDetail = () => {
   ]);
 
   useEffect(() => {
-    scrollToBottom();
-  }, [messages, scrollToBottom]);
-
-  useEffect(() => {
     if (!user || !id) return;
 
     const channel = supabase
@@ -235,40 +386,48 @@ export const ChatDetail = () => {
         async (payload) => {
           const incoming = payload.new;
 
-let profile = profilesCacheRef.current.get(incoming.sender_id);
+          let profile = profilesCacheRef.current.get(incoming.sender_id);
 
-if (!profile && incoming.sender_id) {
-  const { data: profileData, error: profileError } = await supabase
-    .from('public_user_profiles')
-    .select('user_id, avatar_url, is_premium')
-    .eq('user_id', incoming.sender_id)
-    .maybeSingle();
+          if (!profile && incoming.sender_id) {
+            const { data: profileData, error: profileError } = await supabase
+              .from('public_user_profiles')
+              .select('user_id, avatar_url, is_premium')
+              .eq('user_id', incoming.sender_id)
+              .maybeSingle();
 
-  if (profileError) {
-    console.error('Load incoming message profile error:', profileError);
-  }
+            if (profileError) {
+              console.error(
+                'Load incoming message profile error:',
+                profileError
+              );
+            }
 
-  profile = {
-    avatar_url: profileData?.avatar_url || null,
-    is_premium: profileData?.is_premium || false,
-  };
+            profile = {
+              avatar_url: profileData?.avatar_url || null,
+              is_premium: profileData?.is_premium || false,
+            };
 
-  profilesCacheRef.current.set(incoming.sender_id, profile);
-}
+            profilesCacheRef.current.set(incoming.sender_id, profile);
+          }
 
-const enrichedIncoming = {
-  ...incoming,
-  avatar_url: profile?.avatar_url || null,
-  is_premium: profile?.is_premium || false,
-};
+          const enrichedIncoming = {
+            ...incoming,
+            avatar_url: profile?.avatar_url || null,
+            is_premium: profile?.is_premium || false,
+          };
 
           setMessages((prev) => {
-            const exists = prev.some((msg) => msg.id === enrichedIncoming.id);
+            const exists = prev.some(
+              (msg) => msg.id === enrichedIncoming.id
+            );
+
             if (exists) return prev;
+
             return [...prev, enrichedIncoming];
           });
 
           markConversationAsRead();
+          scrollToBottom();
         }
       )
       .subscribe();
@@ -276,7 +435,7 @@ const enrichedIncoming = {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [id, user, markConversationAsRead]);
+  }, [id, user, markConversationAsRead, scrollToBottom]);
 
   const handleSend = async (e) => {
     e.preventDefault();
@@ -295,43 +454,43 @@ const enrichedIncoming = {
 
     let myProfile = profilesCacheRef.current.get(user.id);
 
-if (!myProfile?.display_name) {
-  const { data: profileData, error: profileError } = await supabase
-    .from('public_user_profiles')
-    .select('user_id, display_name, avatar_url, is_premium')
-    .eq('user_id', user.id)
-    .maybeSingle();
+    if (!myProfile?.display_name) {
+      const { data: profileData, error: profileError } = await supabase
+        .from('public_user_profiles')
+        .select('user_id, display_name, avatar_url, is_premium')
+        .eq('user_id', user.id)
+        .maybeSingle();
 
-  if (profileError) {
-    console.error('Load current user profile error:', profileError);
-  }
+      if (profileError) {
+        console.error('Load current user profile error:', profileError);
+      }
 
-  myProfile = {
-    display_name: profileData?.display_name || null,
-    avatar_url: profileData?.avatar_url || null,
-    is_premium: profileData?.is_premium || false,
-  };
+      myProfile = {
+        display_name: profileData?.display_name || null,
+        avatar_url: profileData?.avatar_url || null,
+        is_premium: profileData?.is_premium || false,
+      };
 
-  profilesCacheRef.current.set(user.id, myProfile);
-}
+      profilesCacheRef.current.set(user.id, myProfile);
+    }
 
     const tempId = `temp-${Date.now()}`;
 
     const optimisticMessage = {
-  id: tempId,
-  conversation_id: id,
-  sender_name:
-    myProfile?.display_name ||
-    user.name ||
-    user.email ||
-    'Utente',
-  sender_email: user.email,
-  sender_id: user.id,
-  message: messageText,
-  created_at: new Date().toISOString(),
-  avatar_url: myProfile?.avatar_url || null,
-  is_premium: myProfile?.is_premium || false,
-};
+      id: tempId,
+      conversation_id: id,
+      sender_name:
+        myProfile?.display_name ||
+        user.name ||
+        user.email ||
+        'Utente',
+      sender_email: user.email,
+      sender_id: user.id,
+      message: messageText,
+      created_at: new Date().toISOString(),
+      avatar_url: myProfile?.avatar_url || null,
+      is_premium: myProfile?.is_premium || false,
+    };
 
     setMessages((prev) => [...prev, optimisticMessage]);
     scrollToBottom();
@@ -340,37 +499,46 @@ if (!myProfile?.display_name) {
       .from('conversation_messages')
       .insert([
         {
-  conversation_id: id,
-  sender_name:
-    myProfile?.display_name ||
-    user.name ||
-    user.email ||
-    'Utente',
-  sender_email: user.email,
-  sender_id: user.id,
-  message: messageText,
-},
+          conversation_id: id,
+          sender_name:
+            myProfile?.display_name ||
+            user.name ||
+            user.email ||
+            'Utente',
+          sender_email: user.email,
+          sender_id: user.id,
+          message: messageText,
+        },
       ])
       .select()
       .single();
 
     if (error) {
       console.error('Send message error:', error);
-      setMessages((prev) => prev.filter((msg) => msg.id !== tempId));
+
+      setMessages((prev) =>
+        prev.filter((msg) => msg.id !== tempId)
+      );
+
       setNewMessage(messageText);
       toast.error('Invio messaggio fallito');
     } else if (data) {
-      setMessages((prev) =>
-        prev.map((msg) =>
-          msg.id === tempId
-            ? {
-                ...data,
-                avatar_url: myProfile?.avatar_url || null,
-                is_premium: myProfile?.is_premium || false,
-              }
-            : msg
-        )
-      );
+      setMessages((prev) => {
+        const withoutTemp = prev.filter(
+          (msg) => msg.id !== tempId && msg.id !== data.id
+        );
+
+        return [
+          ...withoutTemp,
+          {
+            ...data,
+            avatar_url: myProfile?.avatar_url || null,
+            is_premium: myProfile?.is_premium || false,
+          },
+        ];
+      });
+
+      scrollToBottom();
     }
 
     setSending(false);
@@ -419,7 +587,9 @@ if (!myProfile?.display_name) {
 
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1">
-                <h1 className="truncate text-lg font-bold">{chatUserName}</h1>
+                <h1 className="truncate text-lg font-bold">
+                  {chatUserName}
+                </h1>
 
                 {chatUserProfile?.is_premium && (
                   <span
@@ -473,10 +643,25 @@ if (!myProfile?.display_name) {
         )}
 
         <div
-  ref={messagesContainerRef}
-  className="flex-1 min-h-0 overflow-y-auto bg-[#F5F5F5] px-3 py-3"
->
+          ref={messagesContainerRef}
+          onScroll={handleMessagesScroll}
+          className="flex-1 min-h-0 overflow-y-auto bg-[#F5F5F5] px-3 py-3"
+        >
           <div className="mx-auto w-full max-w-3xl space-y-3">
+            {loadingOlder && (
+              <div className="py-2 text-center text-xs text-gray-400">
+                Caricamento messaggi precedenti...
+              </div>
+            )}
+
+            {!loadingOlder &&
+              hasOlderMessages &&
+              messages.length > 0 && (
+                <div className="py-1 text-center text-[11px] text-gray-400">
+                  Scorri verso l'alto per i messaggi precedenti
+                </div>
+              )}
+
             {messages.length === 0 ? (
               <div className="py-10 text-center text-gray-500">
                 Nessun messaggio ancora
@@ -503,7 +688,9 @@ if (!myProfile?.display_name) {
                           />
                         ) : (
                           <span className="text-xs font-bold text-primary">
-                            {(msg.sender_name || 'U').charAt(0).toUpperCase()}
+                            {(msg.sender_name || 'U')
+                              .charAt(0)
+                              .toUpperCase()}
                           </span>
                         )}
                       </div>
@@ -545,7 +732,9 @@ if (!myProfile?.display_name) {
 
                       <p
                         className={`mt-1 text-[10px] ${
-                          isMine ? 'text-white/70' : 'text-gray-400'
+                          isMine
+                            ? 'text-white/70'
+                            : 'text-gray-400'
                         }`}
                       >
                         {formatMessageTime(msg.created_at)}
