@@ -66,6 +66,11 @@ const MAX_STORED_IMAGE_SIZE_BYTES = MAX_STORED_IMAGE_SIZE_MB * 1024 * 1024;
 const COMPRESSED_IMAGE_MAX_WIDTH = 1400;
 const COMPRESSED_IMAGE_MAX_HEIGHT = 1400;
 const COMPRESSED_IMAGE_QUALITY = 0.78;
+
+const THUMBNAIL_MAX_WIDTH = 480;
+const THUMBNAIL_MAX_HEIGHT = 480;
+const THUMBNAIL_QUALITY = 0.72;
+
 const DEFAULT_MAX_OPPORTUNITIES_PER_24H = 20;
 const NEW_USER_MAX_OPPORTUNITIES_PER_24H = 20;
 
@@ -227,6 +232,67 @@ const sanitizeImageFile = async (file, extension) => {
   });
 };
 
+const createThumbnailFile = async (file) => {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    const objectUrl = URL.createObjectURL(file);
+
+    image.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+
+      let { width, height } = image;
+
+      if (width > THUMBNAIL_MAX_WIDTH || height > THUMBNAIL_MAX_HEIGHT) {
+        const ratio = Math.min(
+          THUMBNAIL_MAX_WIDTH / width,
+          THUMBNAIL_MAX_HEIGHT / height
+        );
+
+        width = Math.max(1, Math.round(width * ratio));
+        height = Math.max(1, Math.round(height * ratio));
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+
+      const ctx = canvas.getContext('2d');
+
+      if (!ctx) {
+        reject(new Error('Creazione thumbnail non riuscita'));
+        return;
+      }
+
+      ctx.drawImage(image, 0, 0, width, height);
+
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) {
+            reject(new Error('Creazione thumbnail non riuscita'));
+            return;
+          }
+
+          resolve(
+            new File([blob], 'thumbnail.webp', {
+              type: 'image/webp',
+              lastModified: Date.now(),
+            })
+          );
+        },
+        'image/webp',
+        THUMBNAIL_QUALITY
+      );
+    };
+
+    image.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error('Creazione thumbnail non riuscita'));
+    };
+
+    image.src = objectUrl;
+  });
+};
+
 const sanitizeCategoryAttributes = (
   categoryId,
   subcategoryId,
@@ -287,6 +353,7 @@ export const SubmitOpportunity = () => {
 
   const uploadedFingerprintsRef = useRef(new Set());
   const uploadedImagePathsRef = useRef(new Set());
+  const pendingThumbnailRef = useRef(null);
   const submittedRef = useRef(false);
 
   const [formData, setFormData] = useState({
@@ -654,6 +721,7 @@ const hasCounterfeitRisk = detectedCounterfeitTerms.length > 0;
           url: publicUrlData.publicUrl,
           path: filePath,
           fingerprint,
+          sanitizedFile: file,
         };
 
         setUploadedImageItems((prev) => [...prev, uploadedItem]);
@@ -677,23 +745,40 @@ const hasCounterfeitRisk = detectedCounterfeitTerms.length > 0;
   const removeImage = async (index) => {
     const imageToRemove = uploadedImageItems[index];
 
+    if (!imageToRemove) return;
+
+    const pendingThumbnail = pendingThumbnailRef.current;
+    const pathsToRemove = [imageToRemove.path];
+
+    if (
+      pendingThumbnail?.sourceImagePath === imageToRemove.path &&
+      pendingThumbnail.path
+    ) {
+      pathsToRemove.push(pendingThumbnail.path);
+    }
+
+    const { error } = await supabase.storage
+      .from('opportunity-images')
+      .remove(pathsToRemove);
+
+    if (error) {
+      console.error('Remove image error:', error);
+      toast.error('Non riesco a rimuovere la foto dallo storage. Riprova.');
+      return;
+    }
+
+    pathsToRemove.forEach((path) => {
+      uploadedImagePathsRef.current.delete(path);
+    });
+
+    uploadedFingerprintsRef.current.delete(imageToRemove.fingerprint);
+
+    if (pendingThumbnail?.sourceImagePath === imageToRemove.path) {
+      pendingThumbnailRef.current = null;
+    }
+
     setImages((prev) => prev.filter((_, i) => i !== index));
     setUploadedImageItems((prev) => prev.filter((_, i) => i !== index));
-
-    if (imageToRemove?.path) {
-      uploadedImagePathsRef.current.delete(imageToRemove.path);
-      uploadedFingerprintsRef.current.delete(imageToRemove.fingerprint);
-
-      const { error } = await supabase.storage
-        .from('opportunity-images')
-        .remove([imageToRemove.path]);
-
-      if (error) {
-        console.error('Remove image error:', error);
-        toast.error('Foto rimossa dalla preview, ma non dallo storage');
-        return;
-      }
-    }
 
     toast.success('Foto rimossa');
   };
@@ -1019,6 +1104,106 @@ const estimatedResaleValue =
           )
         : null;
 
+      let thumbnailUrl = null;
+      let thumbnailPath = null;
+
+      const firstUploadedImage = uploadedImageItems[0];
+      const pendingThumbnail = pendingThumbnailRef.current;
+
+      if (
+        pendingThumbnail &&
+        pendingThumbnail.sourceImagePath !== firstUploadedImage?.path
+      ) {
+        const { error: staleThumbnailCleanupError } = await supabase.storage
+          .from('opportunity-images')
+          .remove([pendingThumbnail.path]);
+
+        if (staleThumbnailCleanupError) {
+          throw new Error(
+            'Impossibile aggiornare la miniatura. Riprova tra qualche secondo.'
+          );
+        }
+
+        uploadedImagePathsRef.current.delete(pendingThumbnail.path);
+        pendingThumbnailRef.current = null;
+      }
+
+      if (firstUploadedImage?.sanitizedFile) {
+        const reusableThumbnail = pendingThumbnailRef.current;
+
+        if (
+          reusableThumbnail?.sourceImagePath === firstUploadedImage.path &&
+          reusableThumbnail.url
+        ) {
+          thumbnailUrl = reusableThumbnail.url;
+          thumbnailPath = reusableThumbnail.path;
+        } else {
+          try {
+            const thumbnailFile = await createThumbnailFile(
+              firstUploadedImage.sanitizedFile
+            );
+
+            const thumbnailFileName = `thumb-${Date.now()}-${Math.random()
+              .toString(36)
+              .substring(2, 10)}.webp`;
+
+            thumbnailPath = `${user.id}/${thumbnailFileName}`;
+
+            const { error: thumbnailUploadError } = await supabase.storage
+              .from('opportunity-images')
+              .upload(thumbnailPath, thumbnailFile, {
+                cacheControl: '31536000',
+                upsert: false,
+                contentType: 'image/webp',
+              });
+
+            if (thumbnailUploadError) {
+              throw thumbnailUploadError;
+            }
+
+            uploadedImagePathsRef.current.add(thumbnailPath);
+
+            const { data: thumbnailPublicUrlData } = supabase.storage
+              .from('opportunity-images')
+              .getPublicUrl(thumbnailPath);
+
+            if (!thumbnailPublicUrlData?.publicUrl) {
+              throw new Error('URL thumbnail non disponibile');
+            }
+
+            thumbnailUrl = thumbnailPublicUrlData.publicUrl;
+            pendingThumbnailRef.current = {
+              sourceImagePath: firstUploadedImage.path,
+              path: thumbnailPath,
+              url: thumbnailUrl,
+            };
+          } catch (thumbnailError) {
+            console.error('Thumbnail creation/upload error:', thumbnailError);
+
+            if (
+              thumbnailPath &&
+              uploadedImagePathsRef.current.has(thumbnailPath)
+            ) {
+              const { error: thumbnailCleanupError } = await supabase.storage
+                .from('opportunity-images')
+                .remove([thumbnailPath]);
+
+              if (thumbnailCleanupError) {
+                throw new Error(
+                  'Impossibile completare la miniatura. Riprova tra qualche secondo.'
+                );
+              }
+
+              uploadedImagePathsRef.current.delete(thumbnailPath);
+            }
+
+            thumbnailUrl = null;
+            thumbnailPath = null;
+            pendingThumbnailRef.current = null;
+          }
+        }
+      }
+
       const payload = {
         content_type: publicationType,
         merchant_name: isDeal ? merchantName : null,
@@ -1040,6 +1225,7 @@ const estimatedResaleValue =
         contact_link:
           publicationType === 'deal' ? null : formData.contact_link.trim() || null,
         images: images.length > 0 ? images : [],
+        thumbnail_url: thumbnailUrl,
         authenticity_declared: counterfeitRiskFlag && authenticityDeclared,
         counterfeit_risk_flag: counterfeitRiskFlag,
         counterfeit_risk_terms: counterfeitRiskTerms,
@@ -1059,6 +1245,7 @@ const estimatedResaleValue =
 
       submittedRef.current = true;
 uploadedImagePathsRef.current = new Set();
+pendingThumbnailRef.current = null;
 
 if (counterfeitRiskFlag) {
   const { error: counterfeitReportError } = await supabase.rpc(

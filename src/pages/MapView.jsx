@@ -16,6 +16,7 @@ import {
   MapPinOff,
   X,
   Check,
+  Clock,
   Euro,
   ShieldCheck,
   ChevronLeft,
@@ -260,9 +261,10 @@ const UserLocationMarker = ({ position }) => {
 
 const HomeOpportunityCard = ({ opportunity, onClick }) => {
   const firstImage =
-    Array.isArray(opportunity.images) && opportunity.images.length > 0
-      ? opportunity.images[0]
-      : null;
+  opportunity.thumbnail_url ||
+  (Array.isArray(opportunity.images) && opportunity.images.length > 0
+    ? opportunity.images[0]
+    : null);
 
 const estimatedValue =
   opportunity.estimated_resale_value !== null &&

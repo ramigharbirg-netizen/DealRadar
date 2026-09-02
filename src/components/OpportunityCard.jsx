@@ -58,6 +58,11 @@ export const OpportunityCard = ({
   const typeConfig = getContentTypeConfig(contentType);
   const TypeIcon = typeConfig.icon;
 
+  const previewImage =
+    opportunity.thumbnail_url ||
+    opportunity.images?.[0] ||
+    null;
+
   const verifiedCount = Number(opportunity.verified_count || 0);
   const isVerified = opportunity.is_verified === true;
   const isDeal = contentType === 'deal';
@@ -125,9 +130,9 @@ export const OpportunityCard = ({
         data-testid={`opportunity-card-compact-${opportunity.id}`}
       >
         <div className="flex gap-2.5">
-          {opportunity.images?.[0] ? (
+          {previewImage ? (
             <img
-              src={opportunity.images[0]}
+              src={previewImage}
               alt={opportunity.title}
               loading="lazy"
               decoding="async"
@@ -198,9 +203,9 @@ export const OpportunityCard = ({
       data-testid={`opportunity-card-${opportunity.id}`}
     >
       <div className="flex gap-3">
-        {opportunity.images?.[0] ? (
+        {previewImage ? (
           <img
-            src={opportunity.images[0]}
+            src={previewImage}
             alt={opportunity.title}
             loading="lazy"
             decoding="async"

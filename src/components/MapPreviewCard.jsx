@@ -49,7 +49,10 @@ export const MapPreviewCard = ({ opportunity, onViewDetails }) => {
       : null;
 
   const distance = formatDistance(opportunity.distance_km);
-  const firstImage = opportunity.images?.[0] || null;
+  const firstImage =
+  opportunity.thumbnail_url ||
+  opportunity.images?.[0] ||
+  null;
 
   return (
     <article

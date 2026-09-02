@@ -164,7 +164,7 @@ export const ChatsView = () => {
           ? supabase
               .from('opportunities')
               .select(
-                'id,title,images,address,category,user_id,user_name'
+                'id,title,images,thumbnail_url,address,category,user_id,user_name'
               )
               .in('id', opportunityIds)
           : Promise.resolve({ data: [], error: null });
@@ -679,13 +679,15 @@ export const ChatsView = () => {
               >
                 <CardContent className="p-4 flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3 min-w-0 flex-1">
-                    {opp?.images?.[0] ? (
-                      <img
-                        src={opp.images[0]}
-                        alt={opp.title}
-                        className="w-14 h-14 rounded-xl object-cover flex-shrink-0"
-                      />
-                    ) : (
+                    {(opp?.thumbnail_url || opp?.images?.[0]) ? (
+  <img
+    src={opp.thumbnail_url || opp.images[0]}
+    alt={opp.title}
+    loading="lazy"
+    decoding="async"
+    className="w-14 h-14 rounded-xl object-cover flex-shrink-0"
+  />
+) : (
                       <div className="w-14 h-14 rounded-xl bg-gray-100 flex items-center justify-center flex-shrink-0">
                         <MessageCircle className="w-6 h-6 text-primary" />
                       </div>

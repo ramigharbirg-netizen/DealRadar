@@ -305,7 +305,7 @@ export const ChatDetail = () => {
 
     const opportunityPromise = supabase
       .from('opportunities')
-      .select('id, title, images, estimated_price, address')
+      .select('id, title, images, thumbnail_url, estimated_price, address')
       .eq('id', conv.opportunity_id)
       .single();
 
@@ -609,13 +609,15 @@ export const ChatDetail = () => {
         {opportunity && (
           <div className="border-b border-orange-100 bg-white px-4 py-3 shadow-sm">
             <div className="mx-auto flex w-full max-w-3xl items-center gap-3">
-              {opportunity.images?.[0] ? (
-                <img
-                  src={opportunity.images[0]}
-                  alt={opportunity.title}
-                  className="h-16 w-16 flex-shrink-0 rounded-xl object-cover"
-                />
-              ) : (
+              {(opportunity.thumbnail_url || opportunity.images?.[0]) ? (
+  <img
+    src={opportunity.thumbnail_url || opportunity.images[0]}
+    alt={opportunity.title}
+    loading="lazy"
+    decoding="async"
+    className="h-16 w-16 flex-shrink-0 rounded-xl object-cover"
+  />
+) : (
                 <div className="h-16 w-16 flex-shrink-0 rounded-xl bg-orange-50" />
               )}
 

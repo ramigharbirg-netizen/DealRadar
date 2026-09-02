@@ -37,6 +37,7 @@ const FAVORITE_OPPORTUNITY_SELECT = `
     contact_email,
     contact_link,
     images,
+    thumbnail_url,
     user_name,
     user_id,
     confirmations,
