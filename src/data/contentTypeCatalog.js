@@ -85,11 +85,18 @@ export const inferOpportunityContentType = (opportunity) => {
   }
 
   // Fallback prudente per i contenuti legacy.
-  if (opportunity?.category === 'job_offers') return 'job';
-  if (opportunity?.category === 'rental_homes') return 'real_estate';
-  if (opportunity?.category === 'user_reported') return 'deal';
+if (opportunity?.category === 'job_offers') return 'job';
 
-  return 'sale';
+if (
+  opportunity?.category === 'rental_homes' ||
+  opportunity?.category === 'property_sales'
+) {
+  return 'real_estate';
+}
+
+if (opportunity?.category === 'user_reported') return 'deal';
+
+return 'sale';
 };
 
 export const getContentTypeConfig = (opportunityOrType) => {

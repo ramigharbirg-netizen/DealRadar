@@ -335,12 +335,42 @@ export const getRealEstateRentPeriodOptions = (subcategoryId) => {
 export const getRealEstateRentPeriodLabel = (periodId) =>
   REAL_ESTATE_RENT_PERIOD_OPTIONS.find((option) => option.id === periodId)?.shortLabel || '';
 
-const realEstateEntries = createLockedEntries(
+const realEstateRentEntries = createLockedEntries(
   'rental_homes',
-  'real_estate',
+  'real_estate_rent',
   House,
   'bg-violet-100 text-violet-600'
 );
+
+const realEstateSaleEntries = createLockedEntries(
+  'property_sales',
+  'real_estate_sale',
+  Building2,
+  'bg-emerald-100 text-emerald-700'
+);
+
+const realEstateEntries = [
+  {
+    id: 'real_estate_rent_group',
+    name: 'Affitto',
+    description: 'Pubblica una casa, una stanza o un immobile disponibile in affitto',
+    icon: House,
+    iconClass: 'bg-violet-100 text-violet-600',
+    childrenTitle: 'Che tipo di immobile vuoi affittare?',
+    childrenDescription: 'Scegli la tipologia di immobile disponibile in affitto.',
+    children: realEstateRentEntries,
+  },
+  {
+    id: 'real_estate_sale_group',
+    name: 'Vendita',
+    description: 'Pubblica un immobile che vuoi mettere in vendita',
+    icon: Building2,
+    iconClass: 'bg-emerald-100 text-emerald-700',
+    childrenTitle: 'Che tipo di immobile vuoi vendere?',
+    childrenDescription: 'Scegli la tipologia di immobile disponibile per la vendita.',
+    children: realEstateSaleEntries,
+  },
+];
 
 export const opportunityWizardEntriesByType = {
   deal: dealEntries,
@@ -422,7 +452,14 @@ export const getWizardEntryById = (entryId, publicationTypeId = '') => {
 
 const inferPublicationType = (categoryId) => {
   if (categoryId === 'job_offers') return 'job';
-  if (categoryId === 'rental_homes') return 'real_estate';
+
+  if (
+    categoryId === 'rental_homes' ||
+    categoryId === 'property_sales'
+  ) {
+    return 'real_estate';
+  }
+
   return 'sale';
 };
 

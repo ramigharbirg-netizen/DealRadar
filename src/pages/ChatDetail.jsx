@@ -6,6 +6,7 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'sonner';
+import { formatOpportunityPrice } from '../utils/opportunityPricing';
 
 const CHAT_MESSAGES_PAGE_SIZE = 50;
 
@@ -305,7 +306,7 @@ export const ChatDetail = () => {
 
     const opportunityPromise = supabase
       .from('opportunities')
-      .select('id, title, images, thumbnail_url, estimated_price, address')
+      .select('id, title, images, thumbnail_url, estimated_price, category, attributes, address')
       .eq('id', conv.opportunity_id)
       .single();
 
@@ -626,13 +627,11 @@ export const ChatDetail = () => {
                   {opportunity.title}
                 </p>
 
-                <p className="mt-1 text-lg font-extrabold text-[#FF7A00]">
-                  {Number(opportunity.estimated_price) === 0
-                    ? 'Gratis'
-                    : `€${Number(
-                        opportunity.estimated_price || 0
-                      ).toLocaleString('it-IT')}`}
-                </p>
+                {formatOpportunityPrice(opportunity) && (
+  <p className="mt-1 text-lg font-extrabold text-[#FF7A00]">
+    {formatOpportunityPrice(opportunity)}
+  </p>
+)}
 
                 {opportunity.address && (
                   <p className="mt-0.5 truncate text-xs text-gray-500">

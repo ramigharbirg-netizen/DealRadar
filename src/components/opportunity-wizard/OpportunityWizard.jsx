@@ -553,14 +553,18 @@ const LocationStep = ({ publicationType, formData, onChange, onAttributesChange,
   const isDeal = publicationType === 'deal';
   const isJob = publicationType === 'job';
   const isRealEstate = publicationType === 'real_estate';
+  const isRental = isRealEstate && formData.category === 'rental_homes';
+  const isPropertySale = isRealEstate && formData.category === 'property_sales';
   const isFreeDeal = formData.category === 'free_deals';
   const locationOptional = !isDeal && optionalLocationCategoryIds.includes(formData.category);
   const showPrice = !isDeal && !isJob && !isFreeDeal;
   const showContacts = !isDeal;
-  const rentPeriodOptions = isRealEstate
+  const rentPeriodOptions = isRental
     ? getRealEstateRentPeriodOptions(formData.subcategory)
     : [];
-  const rentPeriod = formData.attributes?.rental_period || '';
+  const rentPeriod = isRental
+    ? formData.attributes?.rental_period || ''
+    : '';
 
   return (
     <div className="space-y-7">
@@ -636,7 +640,11 @@ const LocationStep = ({ publicationType, formData, onChange, onAttributesChange,
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <Label htmlFor="estimated_price">
-                {isRealEstate ? 'Canone di affitto' : 'Prezzo richiesto'}
+                {isRental
+  ? 'Canone di affitto'
+  : isPropertySale
+    ? 'Prezzo di vendita'
+    : 'Prezzo richiesto'}
               </Label>
               <Input
                 id="estimated_price"
@@ -651,7 +659,7 @@ const LocationStep = ({ publicationType, formData, onChange, onAttributesChange,
               />
             </div>
 
-            {isRealEstate ? (
+            {isRental ? (
               <div>
                 <Label>Periodo del canone</Label>
                 <Select
@@ -696,8 +704,8 @@ const LocationStep = ({ publicationType, formData, onChange, onAttributesChange,
             )}
           </div>
 
-          {isRealEstate && (
-            <p className="mt-3 text-xs leading-5 text-gray-500">
+          {isRental && (
+  <p className="mt-3 text-xs leading-5 text-gray-500">
               {formData.subcategory === 'casa_vacanze'
                 ? 'Per le case vacanza puoi indicare il prezzo a notte, al giorno, a settimana, al mese o all’anno.'
                 : 'Per gli affitti tradizionali il periodo più comune è mensile; puoi scegliere anche il canone annuale.'}
@@ -748,12 +756,15 @@ const PreviewStep = ({ publicationType, formData, images, selectedEntry }) => {
   const type = getPublicationTypeById(publicationType);
   const isFreeDeal = formData.category === 'free_deals';
   const showPrice = publicationType !== 'deal' && publicationType !== 'job' && !isFreeDeal;
-  const rentPeriodLabel = getRealEstateRentPeriodLabel(
-    formData.attributes?.rental_period
-  );
-  const price = formData.estimated_price !== ''
-    ? `€ ${Number(formData.estimated_price).toLocaleString('it-IT')}${publicationType === 'real_estate' && rentPeriodLabel ? ` / ${rentPeriodLabel}` : ''}`
-    : 'Prezzo non indicato';
+const isRental = formData.category === 'rental_homes';
+
+const rentPeriodLabel = isRental
+  ? getRealEstateRentPeriodLabel(formData.attributes?.rental_period)
+  : '';
+
+const price = formData.estimated_price !== ''
+  ? `€ ${Number(formData.estimated_price).toLocaleString('it-IT')}${isRental && rentPeriodLabel ? ` / ${rentPeriodLabel}` : ''}`
+  : 'Prezzo non indicato';
 
   return (
     <div className="overflow-hidden rounded-[28px] border border-gray-200 bg-white shadow-xl shadow-gray-200/60">
@@ -862,12 +873,21 @@ React.useEffect(() => {
 }, [step]);
 
   const subcategories = getWizardSubcategories(selectedEntry);
-  const isDeal = publicationType === 'deal';
-  const isRealEstate = publicationType === 'real_estate';
-  const locationOptional = !isDeal && optionalLocationCategoryIds.includes(formData.category);
-  const validRentPeriodIds = new Set(
-    getRealEstateRentPeriodOptions(formData.subcategory).map((option) => option.id)
-  );
+const isDeal = publicationType === 'deal';
+const isRental =
+  publicationType === 'real_estate' &&
+  formData.category === 'rental_homes';
+
+const locationOptional =
+  !isDeal && optionalLocationCategoryIds.includes(formData.category);
+
+const validRentPeriodIds = new Set(
+  isRental
+    ? getRealEstateRentPeriodOptions(formData.subcategory).map(
+        (option) => option.id
+      )
+    : []
+);
   const hasValidRentPeriod = validRentPeriodIds.has(
     formData.attributes?.rental_period
   );
@@ -902,9 +922,9 @@ React.useEffect(() => {
     if (step === 4) {
       const hasLocation = Boolean(formData.address.trim() || (positionConfirmed && formData.latitude && formData.longitude));
       const rentPeriodIsValid =
-        !isRealEstate ||
-        formData.estimated_price === '' ||
-        hasValidRentPeriod;
+  !isRental ||
+  formData.estimated_price === '' ||
+  hasValidRentPeriod;
 
       return (
         (locationOptional || hasLocation) &&

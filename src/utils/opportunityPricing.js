@@ -22,19 +22,33 @@ export const getOpportunityPrice = (opportunity) => {
 };
 
 export const formatOpportunityPrice = (opportunity) => {
-  if (isExplicitlyFreeOpportunity(opportunity)) {
-    return 'Gratis';
-  }
+  if (isExplicitlyFreeOpportunity(opportunity)) return 'Gratis';
 
   const price = getOpportunityPrice(opportunity);
+  if (price === null) return null;
 
-  if (price === null) {
-    return null;
-  }
-
-  return new Intl.NumberFormat('it-IT', {
+  const formattedPrice = new Intl.NumberFormat('it-IT', {
     style: 'currency',
     currency: 'EUR',
     maximumFractionDigits: 0,
   }).format(price);
+
+  if (opportunity?.category !== 'rental_homes') {
+    return formattedPrice;
+  }
+
+  const rentPeriodLabels = {
+    nightly: 'notte',
+    daily: 'giorno',
+    weekly: 'settimana',
+    monthly: 'mese',
+    yearly: 'anno',
+  };
+
+  const rentPeriodLabel =
+    rentPeriodLabels[opportunity?.attributes?.rental_period];
+
+  return rentPeriodLabel
+    ? `${formattedPrice} / ${rentPeriodLabel}`
+    : formattedPrice;
 };

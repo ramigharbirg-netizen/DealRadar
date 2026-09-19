@@ -2227,6 +2227,64 @@ export const categories = [
 })),
   },
 
+    {
+    id: 'property_sales',
+    name: 'Immobili in vendita',
+    shortName: 'Vendite immobiliari',
+    icon: House,
+    color: '#7C3AED',
+    chipColor: 'bg-violet-600',
+    optionalLocation: false,
+    subcategories: [
+      'Appartamento',
+      'Monolocale',
+      'Bilocale',
+      'Trilocale',
+      'Casa indipendente',
+      'Villa',
+      'Ufficio',
+      'Locale commerciale',
+      'Capannone',
+      'Magazzino',
+      'Garage',
+      'Terreno',
+      'Stabile / Palazzo',
+      'Altro',
+    ].map((name) => ({
+      id: name
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, ''),
+
+      name,
+
+      attributes: [
+        {
+          id: 'features',
+          label: 'Caratteristiche',
+          type: 'multi_select',
+          required: false,
+          filterable: true,
+          searchable: true,
+
+          options: [
+            { id: 'furnished', label: 'Arredato' },
+            { id: 'unfurnished', label: 'Non arredato' },
+            { id: 'balcony', label: 'Con balcone' },
+            { id: 'terrace', label: 'Con terrazzo' },
+            { id: 'garden', label: 'Con giardino' },
+            { id: 'garage', label: 'Con garage' },
+            { id: 'parking_space', label: 'Con posto auto' },
+            { id: 'elevator', label: 'Con ascensore' },
+          ],
+        },
+      ],
+    })),
+  },
+
+
   {
     id: 'other',
     name: 'Altro',

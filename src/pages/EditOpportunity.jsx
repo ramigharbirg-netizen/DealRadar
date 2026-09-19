@@ -61,7 +61,14 @@ const detectCounterfeitRiskTerms = (title = '', description = '') => {
 
 const inferLegacyContentType = (category) => {
   if (category === 'job_offers') return 'job';
-  if (category === 'rental_homes') return 'real_estate';
+
+  if (
+    category === 'rental_homes' ||
+    category === 'property_sales'
+  ) {
+    return 'real_estate';
+  }
+
   return 'sale';
 };
 
@@ -320,7 +327,16 @@ const EditOpportunity = () => {
         };
       }
 
-      if (publicationType === 'real_estate') {
+            if (publicationType === 'real_estate') {
+        if (entry.categoryId !== 'rental_homes') {
+          return {
+            ...nextFormData,
+            merchant_name: '',
+            attributes: {},
+            estimated_resale_value: '',
+          };
+        }
+
         return {
           ...nextFormData,
           merchant_name: '',
@@ -501,6 +517,9 @@ toast.success('Posizione attuale selezionata');
     const isDeal = publicationType === 'deal';
     const isJob = publicationType === 'job';
     const isRealEstate = publicationType === 'real_estate';
+    const isRental =
+      isRealEstate &&
+      category === 'rental_homes';
     const isFreeDeal = category === 'free_deals';
     const locationOptional =
       !isDeal && optionalLocationCategoryIds.includes(category);
@@ -536,22 +555,31 @@ toast.success('Posizione attuale selezionata');
       formData.attributes
     );
 
-    const allowedRentPeriods = new Set(
-      getRealEstateRentPeriodOptions(subcategory).map((option) => option.id)
+        const allowedRentPeriods = new Set(
+      isRental
+        ? getRealEstateRentPeriodOptions(subcategory).map(
+            (option) => option.id
+          )
+        : []
     );
+
     const selectedRentPeriod = formData.attributes?.rental_period;
-    const attributes =
-      isRealEstate &&
+
+    const attributes = isRental &&
       typeof selectedRentPeriod === 'string' &&
       allowedRentPeriods.has(selectedRentPeriod)
         ? {
             ...sanitizedAttributes,
             rental_period: selectedRentPeriod,
           }
-        : sanitizedAttributes;
+        : Object.fromEntries(
+            Object.entries(sanitizedAttributes).filter(
+              ([key]) => key !== 'rental_period'
+            )
+          );
 
-    if (
-      isRealEstate &&
+        if (
+      isRental &&
       formData.estimated_price !== '' &&
       !attributes.rental_period
     ) {
@@ -595,7 +623,7 @@ toast.success('Posizione attuale selezionata');
           ? null
           : parseOptionalNonNegativeNumber(
               formData.estimated_price,
-              isRealEstate ? 'Canone' : 'Prezzo'
+              isRental ? 'Canone' : 'Prezzo'
             );
       const estimatedResaleValue =
         isDeal || isJob || isRealEstate || isFreeDeal

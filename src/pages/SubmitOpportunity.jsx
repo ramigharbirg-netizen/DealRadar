@@ -444,8 +444,16 @@ const hasCounterfeitRisk = detectedCounterfeitTerms.length > 0;
     setFormData((previous) => {
       const nextFormData = applyWizardEntry(entry, previous);
 
-      if (publicationType !== 'real_estate') {
+            if (publicationType !== 'real_estate') {
         return nextFormData;
+      }
+
+      if (entry.categoryId !== 'rental_homes') {
+        return {
+          ...nextFormData,
+          attributes: {},
+          estimated_resale_value: '',
+        };
       }
 
       return {
@@ -904,19 +912,32 @@ const hasCounterfeitRisk = detectedCounterfeitTerms.length > 0;
       formData.attributes
     );
 
-    const allowedRentPeriods = new Set(
-      getRealEstateRentPeriodOptions(subcategory).map((option) => option.id)
-    );
-    const selectedRentPeriod = formData.attributes?.rental_period;
-    const attributes =
+        const isRental =
       publicationType === 'real_estate' &&
+      category === 'rental_homes';
+
+    const allowedRentPeriods = new Set(
+      isRental
+        ? getRealEstateRentPeriodOptions(subcategory).map(
+            (option) => option.id
+          )
+        : []
+    );
+
+    const selectedRentPeriod = formData.attributes?.rental_period;
+
+    const attributes = isRental &&
       typeof selectedRentPeriod === 'string' &&
       allowedRentPeriods.has(selectedRentPeriod)
         ? {
             ...sanitizedAttributes,
             rental_period: selectedRentPeriod,
           }
-        : sanitizedAttributes;
+        : Object.fromEntries(
+            Object.entries(sanitizedAttributes).filter(
+              ([key]) => key !== 'rental_period'
+            )
+          );
     const address = formData.address.trim();
     const merchantName = formData.merchant_name.trim();
     const isDeal = publicationType === 'deal';
@@ -938,8 +959,8 @@ const hasCounterfeitRisk = detectedCounterfeitTerms.length > 0;
       return;
     }
 
-    if (
-      publicationType === 'real_estate' &&
+        if (
+      isRental &&
       formData.estimated_price !== '' &&
       !attributes.rental_period
     ) {
